@@ -35,6 +35,7 @@ Use port-forward in separate terminals:
 
 ```bash
 kubectl -n odp-dev port-forward svc/airflow-webserver 8080:8080
+kubectl -n odp-dev port-forward svc/keycloak 8090:8090
 kubectl -n odp-dev port-forward svc/minio 9000:9000 9001:9001
 kubectl -n odp-dev port-forward svc/warehouse 5433:5432
 ```
@@ -42,6 +43,7 @@ kubectl -n odp-dev port-forward svc/warehouse 5433:5432
 Then:
 
 - Airflow: [http://localhost:8080](http://localhost:8080)
+- Keycloak: [http://localhost:8090](http://localhost:8090)
 - MinIO API: [http://localhost:9000](http://localhost:9000)
 - MinIO Console: [http://localhost:9001](http://localhost:9001)
 - Warehouse Postgres: `localhost:5433`
@@ -108,6 +110,19 @@ Public ingress routes after deployment:
 - `https://airflow.FRONTEND_DOMAIN`
 - `https://minio.FRONTEND_DOMAIN`
 - `https://minio-api.FRONTEND_DOMAIN`
+- `https://keycloak.FRONTEND_DOMAIN`
+
+## SSO Notes
+
+Local kind:
+- Add `127.0.0.1 keycloak` to `/etc/hosts` so the browser can resolve the same hostname the cluster uses.
+- Ensure `.env` includes `KEYCLOAK_*` values and `MINIO_OIDC_REDIRECT_URI=http://localhost:9001/oauth_callback`.
+
+AKS:
+- Set `KEYCLOAK_OIDC_BASE_URL`, `KEYCLOAK_OIDC_AUTHORIZE_URL`, `KEYCLOAK_OIDC_TOKEN_URL`,
+  and `KEYCLOAK_OIDC_DISCOVERY_URL` to the public Keycloak hostname (for example:
+  `https://keycloak.FRONTEND_DOMAIN/realms/odp/protocol/openid-connect`).
+- Set `MINIO_OIDC_REDIRECT_URI=https://minio.FRONTEND_DOMAIN/oauth_callback`.
 
 ## AKS Ingress + TLS (Custom Domain)
 
@@ -120,7 +135,7 @@ Public ingress routes after deployment:
    - `k8s/aks/frontend-ingress.yaml`
 3. Points Azure DNS records to the ingress public IP:
    - `FRONTEND_DOMAIN` -> ingress IP
-   - `www`, `airflow`, `minio`, `minio-api` -> CNAME to `FRONTEND_DOMAIN`
+   - `www`, `airflow`, `minio`, `minio-api`, `keycloak` -> CNAME to `FRONTEND_DOMAIN`
 
 Important:
 - The certificate remains `pending` until DNS resolves to the ingress IP.

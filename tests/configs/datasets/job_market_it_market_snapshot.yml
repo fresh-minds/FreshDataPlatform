@@ -9,22 +9,24 @@ product_tag: labor-market
 pii_columns: []
 pii_classifications: {}
 retention_days: 365
-timestamp_column: snapshot_date
+timestamp_column: loaded_at
 primary_key:
-  - snapshot_date
+  - period_key
 upstreams:
   - job_market_nl_dbt.job_market_snapshot
 tests:
   schema:
     required_columns:
-      - snapshot_date
+      - period_key
+      - loaded_at
   constraints:
     not_null:
-      - snapshot_date
+      - period_key
+      - loaded_at
   freshness:
-    column: snapshot_date
+    column: loaded_at
     max_age_hours: 8760
-    format: date
+    format: timestamp
 governance:
   require_rbac: false
   allowed_roles_read: []

@@ -24,7 +24,9 @@ RUN pip install --no-cache-dir \
     psycopg2-binary \
     opentelemetry-api \
     opentelemetry-sdk \
-    opentelemetry-exporter-otlp
+    opentelemetry-exporter-otlp \
+    apache-airflow-providers-fab \
+    authlib
 
 # Bake DAGs and project code into the image so Kubernetes clusters do not need hostPath mounts.
 USER root
@@ -37,6 +39,7 @@ COPY --chown=airflow:root dbt_parallel/ /opt/airflow/project/dbt_parallel/
 COPY --chown=airflow:root schema/ /opt/airflow/project/schema/
 COPY --chown=airflow:root pyproject.toml /opt/airflow/project/pyproject.toml
 COPY --chown=airflow:root setup.cfg /opt/airflow/project/setup.cfg
+COPY --chown=airflow:root airflow/webserver_config.py /opt/airflow/webserver_config.py
 
 RUN mkdir -p /opt/airflow/logs \
     && chown -R airflow:root /opt/airflow/logs /opt/airflow/project /opt/airflow/dags /opt/airflow/plugins

@@ -69,12 +69,23 @@ def get_spark_session(app_name: str = "OpenDataPlatform") -> SparkSession:
     os.environ["PYSPARK_PYTHON"] = sys.executable
     os.environ["PYSPARK_DRIVER_PYTHON"] = sys.executable
 
+    base_packages = [
+        "io.delta:delta-spark_2.12:3.2.0",
+        "org.apache.hadoop:hadoop-aws:3.3.4",
+        "com.amazonaws:aws-java-sdk-bundle:1.12.262",
+        "org.postgresql:postgresql:42.7.3",
+    ]
+
+    datahub_package = os.getenv("DATAHUB_SPARK_LINEAGE_PACKAGE", "").strip()
+    if datahub_package:
+        base_packages.append(datahub_package)
+
     builder = (
         SparkSession.builder.appName(app_name)
         .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
         .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
         # Add hadoop-aws for MinIO support (Reverted to 3.5.3 compatible versions)
-        .config("spark.jars.packages", "io.delta:delta-spark_2.12:3.2.0,org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.262,org.postgresql:postgresql:42.7.3,io.acryl:datahub-spark-lineage_2.12:0.12.0")
+        .config("spark.jars.packages", ",".join(base_packages))
         .config("spark.executor.memory", "2g")
         .config("spark.driver.memory", "2g")
         .config("spark.master", "local[*]")
@@ -107,7 +118,7 @@ def get_spark_session(app_name: str = "OpenDataPlatform") -> SparkSession:
         )
 
     # Configure DataHub if enabled
-    if os.getenv("USE_DATAHUB", "false").lower() == "true":
+    if os.getenv("USE_DATAHUB", "false").lower() == "true" and datahub_package:
         datahub_gms = os.getenv("DATAHUB_REST_URL", "http://localhost:8080")
         print(f"[Spark] Configuring DataHub lineage integration: {datahub_gms}")
         

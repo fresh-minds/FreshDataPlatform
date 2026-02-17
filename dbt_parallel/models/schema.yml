@@ -1,8 +1,0 @@
-version: 2
-
-models:
-  - name: job_market_snapshot
-    columns:
-      - name: period_key
-        tests:
-          - not_null

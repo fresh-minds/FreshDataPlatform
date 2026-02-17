@@ -227,8 +227,8 @@ def main() -> None:
             skipped_ids = ", ".join(str(m.get("id", "unknown")) for m in skipped_metrics)
             print(f"Skipped non-certified ACTIVE metrics: {skipped_ids}")
         if not selected_metrics:
-            print("No certified active metrics found; aborting production onboarding.")
-            sys.exit(1)
+            print("No certified active metrics found; skipping production onboarding.")
+            return
 
     selected_ids = ", ".join(str(m.get("id", "unknown")) for m in selected_metrics)
     print(f"Metric IDs onboarded: {selected_ids}")

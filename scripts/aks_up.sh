@@ -250,7 +250,7 @@ if [[ -n "$existing_a_ips" ]]; then
 fi
 az network dns record-set a add-record --resource-group "$DNS_RESOURCE_GROUP" --zone-name "$FRONTEND_DOMAIN" --record-set-name "@" --ipv4-address "$INGRESS_PIP_IP" -o none || true
 
-for cname in www airflow minio minio-api; do
+for cname in www airflow minio minio-api keycloak; do
   az network dns record-set cname create --resource-group "$DNS_RESOURCE_GROUP" --zone-name "$FRONTEND_DOMAIN" --name "$cname" --ttl 300 -o none || true
   az network dns record-set cname set-record --resource-group "$DNS_RESOURCE_GROUP" --zone-name "$FRONTEND_DOMAIN" --record-set-name "$cname" --cname "$FRONTEND_DOMAIN" -o none
 done
@@ -333,6 +333,7 @@ curl -sS -o /dev/null -D - --resolve "${FRONTEND_DOMAIN}:443:${INGRESS_PIP_IP}" 
 curl -sS -o /dev/null -D - --resolve "airflow.${FRONTEND_DOMAIN}:443:${INGRESS_PIP_IP}" "https://airflow.${FRONTEND_DOMAIN}/health" | head -n 1
 curl -sS -o /dev/null -D - --resolve "minio.${FRONTEND_DOMAIN}:443:${INGRESS_PIP_IP}" "https://minio.${FRONTEND_DOMAIN}/" | head -n 1
 curl -sS -o /dev/null -D - --resolve "minio-api.${FRONTEND_DOMAIN}:443:${INGRESS_PIP_IP}" "https://minio-api.${FRONTEND_DOMAIN}/minio/health/live" | head -n 1
+curl -sS -o /dev/null -D - --resolve "keycloak.${FRONTEND_DOMAIN}:443:${INGRESS_PIP_IP}" "https://keycloak.${FRONTEND_DOMAIN}/" | head -n 1
 echo | openssl s_client -servername "${FRONTEND_DOMAIN}" -connect "${INGRESS_PIP_IP}:443" 2>/dev/null | openssl x509 -noout -subject -issuer | sed -n '1,2p'
 
 cat <<EOT
@@ -347,6 +348,7 @@ Frontend URL:  https://$FRONTEND_DOMAIN
 Airflow URL:   https://airflow.$FRONTEND_DOMAIN
 MinIO URL:     https://minio.$FRONTEND_DOMAIN
 MinIO API URL: https://minio-api.$FRONTEND_DOMAIN
+Keycloak URL:  https://keycloak.$FRONTEND_DOMAIN
 
 Access services with port-forward from your machine:
   kubectl -n $NAMESPACE port-forward svc/airflow-webserver 8080:8080

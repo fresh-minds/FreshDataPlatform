@@ -30,6 +30,45 @@ spec:
               value: LocalExecutor
             - name: AIRFLOW__CORE__LOAD_EXAMPLES
               value: "False"
+            - name: AIRFLOW__CORE__AUTH_MANAGER
+              value: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
+            - name: AIRFLOW__FAB__CONFIG_FILE
+              value: /opt/airflow/webserver_config.py
+            - name: AIRFLOW_OAUTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: odp-env
+                  key: KEYCLOAK_AIRFLOW_CLIENT_ID
+                  optional: true
+            - name: AIRFLOW_OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: odp-env
+                  key: KEYCLOAK_AIRFLOW_CLIENT_SECRET
+            - name: AIRFLOW_OAUTH_BASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: odp-env
+                  key: KEYCLOAK_OIDC_BASE_URL
+                  optional: true
+            - name: AIRFLOW_OAUTH_AUTHORIZE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: odp-env
+                  key: KEYCLOAK_OIDC_AUTHORIZE_URL
+                  optional: true
+            - name: AIRFLOW_OAUTH_TOKEN_URL
+              valueFrom:
+                secretKeyRef:
+                  name: odp-env
+                  key: KEYCLOAK_OIDC_TOKEN_URL
+                  optional: true
+            - name: AIRFLOW_OAUTH_DEFAULT_ROLE
+              valueFrom:
+                secretKeyRef:
+                  name: odp-env
+                  key: AIRFLOW_OAUTH_DEFAULT_ROLE
+                  optional: true
             - name: AIRFLOW__METRICS__STATSD_ON
               value: "False"
             - name: AIRFLOW__WEBSERVER__BASE_URL

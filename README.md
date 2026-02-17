@@ -109,6 +109,27 @@ Set these in `.env` before starting:
 If you run pipelines inside Docker containers, use:
 - `OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318`
 
+## SSO (Keycloak)
+
+The local stack can use Keycloak-based SSO for Airflow, DataHub, and MinIO.
+
+Prereqs:
+- Add a hosts entry so the browser can resolve the Keycloak hostname used by the containers:
+  - `127.0.0.1 keycloak`
+- Set the Keycloak and client secrets in `.env` (see the SSO section in `.env.template`).
+
+Start Keycloak with the stack:
+```bash
+docker compose up -d keycloak
+```
+
+Keycloak admin console:
+- `http://keycloak:8090` (admin user + password from `.env`)
+
+Default realm user (for SSO logins):
+- Username: `odp-admin`
+- Password: `KEYCLOAK_DEFAULT_USER_PASSWORD` from `.env`
+
 ## Parallel dbt setup
 
 A full dbt-based parallel transformation stack now lives in `dbt_parallel/`.

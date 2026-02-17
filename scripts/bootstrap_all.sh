@@ -167,6 +167,34 @@ ensure_env_secrets() {
     log "Generating DATAHUB_FRONTEND_SECRET..."
     upsert_env "DATAHUB_FRONTEND_SECRET" "$(generate_secret)"
   fi
+
+  local minio_user
+  minio_user="${MINIO_ROOT_USER:-}"
+  if [[ -z "$minio_user" || "$minio_user" == change_me_* || "${#minio_user}" -lt 3 ]]; then
+    log "Setting MINIO_ROOT_USER..."
+    upsert_env "MINIO_ROOT_USER" "minioadmin"
+  fi
+
+  local minio_pass
+  minio_pass="${MINIO_ROOT_PASSWORD:-}"
+  if [[ -z "$minio_pass" || "$minio_pass" == change_me_* || "${#minio_pass}" -lt 8 ]]; then
+    log "Generating MINIO_ROOT_PASSWORD..."
+    upsert_env "MINIO_ROOT_PASSWORD" "$(generate_secret)"
+  fi
+
+  local minio_access
+  minio_access="${MINIO_ACCESS_KEY:-}"
+  if [[ -z "$minio_access" || "$minio_access" == change_me_* ]]; then
+    log "Setting MINIO_ACCESS_KEY to MINIO_ROOT_USER..."
+    upsert_env "MINIO_ACCESS_KEY" "${MINIO_ROOT_USER:-minioadmin}"
+  fi
+
+  local minio_secret
+  minio_secret="${MINIO_SECRET_KEY:-}"
+  if [[ -z "$minio_secret" || "$minio_secret" == change_me_* || "${#minio_secret}" -lt 8 ]]; then
+    log "Setting MINIO_SECRET_KEY to MINIO_ROOT_PASSWORD..."
+    upsert_env "MINIO_SECRET_KEY" "${MINIO_ROOT_PASSWORD:-}"
+  fi
 }
 
 wait_for_http() {
@@ -225,6 +253,88 @@ wait_for_container_health() {
   done
 }
 
+wait_for_container_exit_success() {
+  local container="$1"
+  local timeout_s="${2:-240}"
+
+  log "Waiting for container to exit successfully: ${container} (timeout ${timeout_s}s)"
+  local start
+  start="$(date +%s)"
+
+  while true; do
+    local status
+    status="$(docker inspect -f '{{.State.Status}}' "$container" 2>/dev/null || true)"
+    if [[ "$status" == "exited" ]]; then
+      local exit_code
+      exit_code="$(docker inspect -f '{{.State.ExitCode}}' "$container" 2>/dev/null || echo 1)"
+      if [[ "$exit_code" == "0" ]]; then
+        log "${container} exited successfully."
+        return 0
+      fi
+      log "${container} exited with code ${exit_code}."
+      return 1
+    fi
+
+    local now
+    now="$(date +%s)"
+    if (( now - start > timeout_s )); then
+      log "Timed out waiting for ${container} to exit."
+      return 1
+    fi
+    sleep 3
+  done
+}
+
+reset_datahub_mysql_volume() {
+  log "Resetting DataHub MySQL volume to recover from failed setup..."
+  $COMPOSE -f "$ROOT_DIR/docker-compose.yml" rm -f -v datahub-mysql-setup datahub-mysql || true
+  local volumes
+  volumes="$(docker volume ls --format '{{.Name}}' | grep -E '(^|_)datahub-mysql-volume$' || true)"
+  if [[ -n "$volumes" ]]; then
+    echo "$volumes" | xargs docker volume rm >/dev/null 2>&1 || true
+  fi
+  $COMPOSE -f "$ROOT_DIR/docker-compose.yml" up -d datahub-mysql
+  $COMPOSE -f "$ROOT_DIR/docker-compose.yml" up -d datahub-mysql-setup
+}
+
+ensure_datahub_mysql_setup() {
+  if ! wait_for_container_exit_success "datahub-mysql-setup" 240; then
+    local logs
+    logs="$(docker logs --tail=200 datahub-mysql-setup 2>/dev/null || true)"
+    if echo "$logs" | grep -q "Access denied for user 'root'"; then
+      reset_datahub_mysql_volume
+      wait_for_container_exit_success "datahub-mysql-setup" 240
+      return $?
+    fi
+    return 1
+  fi
+}
+
+reset_airflow_postgres_volume() {
+  log "Resetting Airflow Postgres volume to recover from auth failures..."
+  $COMPOSE -f "$ROOT_DIR/docker-compose.yml" rm -f -v airflow-init airflow-webserver airflow-scheduler postgres || true
+  local volumes
+  volumes="$(docker volume ls --format '{{.Name}}' | grep -E '(^|_)postgres-db-volume$' || true)"
+  if [[ -n "$volumes" ]]; then
+    echo "$volumes" | xargs docker volume rm >/dev/null 2>&1 || true
+  fi
+  $COMPOSE -f "$ROOT_DIR/docker-compose.yml" up -d postgres
+  $COMPOSE -f "$ROOT_DIR/docker-compose.yml" up -d airflow-init
+}
+
+ensure_airflow_init() {
+  if ! wait_for_container_exit_success "airflow-init" 240; then
+    local logs
+    logs="$(docker logs --tail=200 airflow-init 2>/dev/null || true)"
+    if echo "$logs" | grep -q "password authentication failed"; then
+      reset_airflow_postgres_volume
+      wait_for_container_exit_success "airflow-init" 240
+      return $?
+    fi
+    return 1
+  fi
+}
+
 require_compose
 require_cmd curl
 require_cmd python3
@@ -268,6 +378,11 @@ fi
 log "Starting docker compose stack..."
 $COMPOSE -f "$ROOT_DIR/docker-compose.yml" up -d
 
+# Ensure DataHub MySQL setup completed (can fail on old volumes).
+ensure_datahub_mysql_setup
+# Ensure Airflow init completed (can fail on old volumes).
+ensure_airflow_init
+
 # Core readiness checks
 wait_for_http "MinIO" "http://localhost:9000/minio/health/live" 240
 wait_for_container_health "open-data-platform-warehouse" 240
@@ -276,30 +391,46 @@ wait_for_http "DataHub GMS" "http://localhost:8081/health" 420
 
 if [[ "$SKIP_MINIO" != "true" ]]; then
   log "Populating MinIO buckets with deterministic fixture files..."
-  "$PYTHON" "$ROOT_DIR/tests/fixtures/generate_e2e_fixtures.py" >/dev/null 2>&1 || true
+  if [[ -f "$ROOT_DIR/tests/fixtures/generate_e2e_fixtures.py" ]]; then
+    "$PYTHON" "$ROOT_DIR/tests/fixtures/generate_e2e_fixtures.py" >/dev/null 2>&1 || true
+  else
+    log "Fixture generator missing: tests/fixtures/generate_e2e_fixtures.py (skipping generation)."
+  fi
 
   # Use the MinIO root credentials by default for bootstrap uploads.
   export MINIO_ACCESS_KEY="${MINIO_ROOT_USER:-${MINIO_ACCESS_KEY:-}}"
   export MINIO_SECRET_KEY="${MINIO_ROOT_PASSWORD:-${MINIO_SECRET_KEY:-}}"
 
-  "$PYTHON" "$ROOT_DIR/scripts/populate_minio_fixtures.py" \
-    --fixtures-dir "$ROOT_DIR/tests/fixtures/generated" \
-    --bucket "bronze" \
-    --prefix "fixtures/generated"
-
-  "$PYTHON" "$ROOT_DIR/scripts/populate_minio_fixtures.py" \
-    --fixtures-dir "$ROOT_DIR/tests/fixtures/golden" \
-    --bucket "gold" \
-    --prefix "fixtures/golden"
-
-  if command -v java >/dev/null 2>&1 && java -version >/dev/null 2>&1; then
-    log "Java runtime detected; generating a small Delta sample into MinIO (best-effort)..."
-    USE_MINIO=true \
-      MINIO_ACCESS_KEY="${MINIO_ROOT_USER:-${MINIO_ACCESS_KEY:-}}" \
-      MINIO_SECRET_KEY="${MINIO_ROOT_PASSWORD:-${MINIO_SECRET_KEY:-}}" \
-      "$PYTHON" "$ROOT_DIR/scripts/generate_dummy_data.py" || true
+  if [[ -d "$ROOT_DIR/tests/fixtures/generated" ]]; then
+    "$PYTHON" "$ROOT_DIR/scripts/populate_minio_fixtures.py" \
+      --fixtures-dir "$ROOT_DIR/tests/fixtures/generated" \
+      --bucket "bronze" \
+      --prefix "fixtures/generated"
   else
-    log "Java runtime not available; skipping Spark-based Delta writes to MinIO."
+    log "Skipping MinIO generated fixtures; missing tests/fixtures/generated."
+  fi
+
+  if [[ -d "$ROOT_DIR/tests/fixtures/golden" ]]; then
+    "$PYTHON" "$ROOT_DIR/scripts/populate_minio_fixtures.py" \
+      --fixtures-dir "$ROOT_DIR/tests/fixtures/golden" \
+      --bucket "gold" \
+      --prefix "fixtures/golden"
+  else
+    log "Skipping MinIO golden fixtures; missing tests/fixtures/golden."
+  fi
+
+  if [[ "${JOB_MARKET_USE_SPARK:-false}" == "true" ]]; then
+    if command -v java >/dev/null 2>&1 && java -version >/dev/null 2>&1; then
+      log "Java runtime detected; generating a small Delta sample into MinIO (best-effort)..."
+      USE_MINIO=true \
+        MINIO_ACCESS_KEY="${MINIO_ROOT_USER:-${MINIO_ACCESS_KEY:-}}" \
+        MINIO_SECRET_KEY="${MINIO_ROOT_PASSWORD:-${MINIO_SECRET_KEY:-}}" \
+        "$PYTHON" "$ROOT_DIR/scripts/generate_dummy_data.py" || true
+    else
+      log "Java runtime not available; skipping Spark-based Delta writes to MinIO."
+    fi
+  else
+    log "JOB_MARKET_USE_SPARK!=true; skipping Spark-based Delta writes to MinIO."
   fi
 else
   log "Skipping MinIO population (--skip-minio)."

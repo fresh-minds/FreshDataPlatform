@@ -15,6 +15,7 @@ spec:
         - airflow.__FRONTEND_DOMAIN__
         - minio.__FRONTEND_DOMAIN__
         - minio-api.__FRONTEND_DOMAIN__
+        - keycloak.__FRONTEND_DOMAIN__
       secretName: frontend-tls
   rules:
     - host: __FRONTEND_DOMAIN__
@@ -57,6 +58,16 @@ spec:
                 name: minio
                 port:
                   number: 9000
+    - host: keycloak.__FRONTEND_DOMAIN__
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: keycloak
+                port:
+                  number: 8090
     - host: www.__FRONTEND_DOMAIN__
       http:
         paths:

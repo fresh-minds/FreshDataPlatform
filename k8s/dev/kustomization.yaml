@@ -4,6 +4,7 @@ resources:
   - namespace.yaml
   - postgres-airflow.yaml
   - warehouse.yaml
+  - keycloak.yaml
   - minio.yaml
   - minio-create-buckets-job.yaml
   - airflow-init-job.yaml
