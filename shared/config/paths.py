@@ -23,10 +23,6 @@ class LakehouseLayer(str, Enum):
 class LakehouseNames:
     """Standard lakehouse names by domain and layer."""
 
-    FINANCE_BRONZE = "DE_LH_Finance_Bronze"
-    FINANCE_SILVER = "DE_LH_Finance_Silver"
-    FINANCE_GOLD = "DE_LH_Finance_Gold"
-
 
 def get_lakehouse_table_path(
     table_name: str,
@@ -45,7 +41,7 @@ def get_lakehouse_table_path(
     Args:
         table_name: Name of the table (e.g., "verkooporders")
         layer: Medallion layer (bronze, silver, gold)
-        domain: Data domain (e.g., finance, sales, hr)
+        domain: Data domain (e.g., sales, hr, job_market_nl)
         workspace_id: Fabric workspace ID (optional, uses settings if not provided)
         lakehouse_id: Fabric lakehouse ID (optional, uses settings if not provided)
         is_local: Override environment detection (optional)

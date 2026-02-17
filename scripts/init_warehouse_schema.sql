@@ -1,24 +1,17 @@
--- Initialize schema for dashboard-ready finance views
+-- Initialize schema for dashboard-ready job market views
 
 -- Create schema if not exists
-CREATE SCHEMA IF NOT EXISTS finance;
+CREATE SCHEMA IF NOT EXISTS job_market_nl;
 
 -- Create denormalized view for BI
-CREATE OR REPLACE VIEW finance.vw_fact_grootboekmutaties_full AS
+CREATE OR REPLACE VIEW job_market_nl.vw_it_market_snapshot_full AS
 SELECT
-    f.grootboekmutatieid,
-    f.grootboek_id,
-    f.grootboekrekening_id,
-    f.administratie_code,
-    f.grootboekbedrag,
-    f.datum_ts,
-    f.jaar,
-    f.periode,
-    f.kostenplaats_code,
-    f.kostendrager_code,
-    f.relatie_naam,
-    f.type
-FROM finance.fact_grootboekmutaties f;
+    s.snapshot_date,
+    s.total_vacancies,
+    s.avg_salary,
+    s.data_source,
+    s.created_at
+FROM job_market_nl.it_market_snapshot s;
 
 -- Grant read access (adjust as needed for your setup)
--- GRANT SELECT ON ALL TABLES IN SCHEMA finance TO superset_user;
+-- GRANT SELECT ON ALL TABLES IN SCHEMA job_market_nl TO superset_user;

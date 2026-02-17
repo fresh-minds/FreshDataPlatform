@@ -21,21 +21,12 @@ vars:
 models:
   open_data_platform_parallel_dbt:
     +materialized: view
-    finance:
-      silver:
-        +materialized: table
-        +schema: finance_silver
-      gold:
-        +materialized: table
-        +schema: finance
     job_market_nl:
       +schema: job_market_nl_dbt
 
 seeds:
   open_data_platform_parallel_dbt:
     +quote_columns: false
-    finance:
-      +schema: raw_finance
 
 snapshots:
   open_data_platform_parallel_dbt:

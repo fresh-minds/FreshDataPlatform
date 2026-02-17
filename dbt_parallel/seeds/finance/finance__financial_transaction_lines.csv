@@ -1,3 +1,0 @@
-id,account,account_name,cost_center,cost_center_description,cost_unit,cost_unit_description,gl_account,gl_account_code,gl_account_description,financial_period,financial_year,description,document,document_number,invoice_number,date,amount_dc,division,type
-TX1,A1,Relatie A,KP1,Kostenplaats 1,KD1,Kostendrager 1,4000,4000A,Omzet,1,2026,Dienstverlening,DOC1,1001,2001,/Date(1735689600000)/,1250.50,ADM1,Mutatie
-TX2,A2,Relatie B,KP2,Kostenplaats 2,KD2,Kostendrager 2,8000,8000A,Resultaat,1,2026,Resultaat 2024,DOC2,1002,24903285,/Date(1735689600000)/,999.00,ADM1,Mutatie

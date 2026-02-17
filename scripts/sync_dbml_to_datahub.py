@@ -180,9 +180,7 @@ def dbml_type_to_datahub(dbml_type: str):
 def infer_domain(table_name: str) -> Optional[str]:
     """Infer domain from table name."""
     name_lower = table_name.lower()
-    if 'transaction' in name_lower or 'grootboek' in name_lower or 'finance' in name_lower:
-        return 'finance'
-    elif 'job_market' in name_lower or 'vacancy' in name_lower or 'skill' in name_lower:
+    if 'job_market' in name_lower or 'vacancy' in name_lower or 'skill' in name_lower:
         return 'job_market_nl'
     return None
 

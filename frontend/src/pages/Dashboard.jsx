@@ -46,13 +46,6 @@ const SERVICES = [
         icon: Terminal,
         color: "#C2410C"
     },
-    {
-        name: "NL Job Market",
-        description: "Netherlands IT market snapshot dashboard.",
-        url: "/job-market-nl",
-        icon: LineChart,
-        color: "#38BDF8"
-    }
 ].filter((service) => hasServiceUrl(service.url));
 
 const QUICK_ACTIONS = [
@@ -87,7 +80,6 @@ function Dashboard() {
                             <div className="docs-hero-actions">
                                 <a href="/docs" className="docs-chip">How the system works</a>
                                 <a href="/overview" className="docs-chip">One-screen overview</a>
-                                <a href="/job-market-nl" className="docs-chip">IT job market</a>
                                 <a href="#service-grid" className="docs-chip">Service map</a>
                                 {QUICK_ACTIONS.map((action) => (
                                     <a key={action.label} href={action.href} className="docs-chip" target="_blank" rel="noreferrer">

@@ -78,5 +78,5 @@ To regenerate DBML from the current PostgreSQL warehouse:
 
 ```bash
 python scripts/introspect_warehouse.py \
-  --schemas finance,dbt_parallel_finance,dbt_parallel_finance_silver,job_market_nl,snapshots,public
+  --schemas job_market_nl,job_market_nl_dbt,snapshots,public
 ```

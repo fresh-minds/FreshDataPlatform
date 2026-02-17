@@ -55,7 +55,6 @@ LAYER_TAGS = {
 }
 
 DOMAIN_TAGS = {
-    "finance": "urn:li:tag:Finance",
     "job_market_nl": "urn:li:tag:JobMarket",
 }
 
@@ -143,7 +142,7 @@ def determine_layer_and_domain(schema_name: str, table_name: str):
     domain = None
 
     schema_lower = schema_name.lower()
-    # dbt schemas are often prefixed by the target schema (e.g., dbt_parallel_finance_silver)
+    # dbt schemas are often prefixed by the target schema (e.g., dbt_parallel_job_market_nl_dbt)
     if schema_lower.startswith("dbt_parallel_"):
         schema_lower = schema_lower[len("dbt_parallel_") :]
 
@@ -159,9 +158,7 @@ def determine_layer_and_domain(schema_name: str, table_name: str):
     else:
         # Fall back to heuristics on table name when schema doesn't map cleanly.
         table_lower = table_name.lower()
-        if 'finance' in table_lower or 'transaction' in table_lower or 'gl_' in table_lower or 'account' in table_lower:
-            domain = "finance"
-        elif 'job_market' in table_lower or 'vacancy' in table_lower or 'skill' in table_lower:
+        if 'job_market' in table_lower or 'vacancy' in table_lower or 'skill' in table_lower:
             domain = "job_market_nl"
 
     return layer, domain

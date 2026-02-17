@@ -33,6 +33,7 @@ dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
     "pytest-mock>=3.0.0",
+    "pytest-html>=4.1.1",
     "playwright>=1.50.0",
     "ruff>=0.3.0",
     "mypy>=1.8.0",
@@ -51,6 +52,13 @@ python_files = ["test_*.py"]
 markers = [
     "critical: Must-pass E2E critical path checks.",
     "e2e: Standard E2E checks.",
+    "data_correctness: Data reconciliation and business-rule correctness checks.",
+    "data_quality: Baseline data quality checks.",
+    "contracts: Schema and contract stability checks.",
+    "governance: Metadata, lineage, security, privacy, and retention checks.",
+    "pipeline_e2e: Pipeline orchestration and idempotency checks.",
+    "qa_critical: Must-pass QA framework checks.",
+    "qa_mutation: QA checks that mutate test data with cleanup.",
 ]
 
 [tool.ruff]

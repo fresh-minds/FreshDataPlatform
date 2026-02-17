@@ -22,19 +22,11 @@ class SeedSpec:
 
 SEED_SPECS = [
     SeedSpec(
-        target_schema="finance",
-        source_schema="dbt_parallel_finance",
+        target_schema="job_market_nl",
+        source_schema="job_market_nl_dbt",
         tables=[
-            "fact_grootboekmutaties",
-            "fact_crediteuren",
-            "fact_debiteuren",
-            "dim_grootboek",
-            "dim_datum",
-            "dim_administraties",
-            "dim_kostendrager",
-            "dim_kostendragers",
-            "dim_kostenplaatsen",
-            "dim_relaties",
+            "job_market_snapshot",
+            "job_market_top_skills",
         ],
     ),
 ]

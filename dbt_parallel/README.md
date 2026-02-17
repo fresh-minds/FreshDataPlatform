@@ -4,7 +4,7 @@ This folder is a parallel implementation of the existing PySpark transformations
 
 ## What this project does
 
-- Recreates the medallion transformations for `finance` and `job_market_nl`.
+- Recreates SQL-native transformations for `job_market_nl`.
 - Keeps model outputs aligned with the current warehouse-facing table names.
 - Supports dbt snapshots when SCD2 history tables are enabled.
 - Supports two execution modes:

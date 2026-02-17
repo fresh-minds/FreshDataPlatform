@@ -83,7 +83,7 @@ function MinimalOverview() {
                         <div className="stack-map">
                             <div className="stack-col">
                                 <span className="stack-label">Sources</span>
-                                <div className="stack-node">CRM / Finance</div>
+                                <div className="stack-node">CRM / Sales</div>
                                 <div className="stack-node">HR / Time</div>
                                 <div className="stack-node">Email Intake</div>
                             </div>

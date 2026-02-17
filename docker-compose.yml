@@ -208,6 +208,7 @@ services:
       - MYSQL_USER=${DATAHUB_MYSQL_USER:?Set DATAHUB_MYSQL_USER}
       - MYSQL_PASSWORD=${DATAHUB_MYSQL_PASSWORD:?Set DATAHUB_MYSQL_PASSWORD}
       - MYSQL_ROOT_PASSWORD=${DATAHUB_MYSQL_ROOT_PASSWORD:?Set DATAHUB_MYSQL_ROOT_PASSWORD}
+      - MYSQL_ROOT_HOST=%
     volumes:
       - datahub-mysql-volume:/var/lib/mysql
     healthcheck:

@@ -1,9 +1,8 @@
 version: 2
 
 models:
-  - name: gold_finance__fact_grootboekmutaties
+  - name: job_market_snapshot
     columns:
-      - name: grootboekmutatieid
+      - name: period_key
         tests:
           - not_null
-          - unique

@@ -8,91 +8,185 @@ LATEST_DIR="$ROOT_DIR/tests/e2e/evidence/latest"
 
 if [[ -f "$ROOT_DIR/.env" ]]; then
   set -a
+  # shellcheck disable=SC1091
   source "$ROOT_DIR/.env"
   set +a
 fi
 
-mkdir -p "$RUN_DIR/logs" "$RUN_DIR/queries" "$RUN_DIR/results" "$RUN_DIR/inventory"
-mkdir -p "$RUN_DIR/screenshots"
-
-cat > "$RUN_DIR/results/run_manifest.json" <<EOF
-{
-  "run_id": "$RUN_ID",
-  "started_at_utc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "repo_root": "$ROOT_DIR"
-}
-EOF
-
-# Prepare deterministic fixtures and inventory snapshot.
-"$ROOT_DIR/.venv/bin/python" "$ROOT_DIR/tests/fixtures/generate_e2e_fixtures.py" > "$RUN_DIR/logs/fixtures_generation.log" 2>&1
-"$ROOT_DIR/.venv/bin/python" "$ROOT_DIR/tests/e2e/scripts/inventory_platform.py" \
-  --output-json "$RUN_DIR/inventory/platform_inventory.json" \
-  --output-md "$RUN_DIR/inventory/platform_inventory.md" \
-  > "$RUN_DIR/logs/inventory.log" 2>&1
-
-# Ensure warehouse schemas are seeded via dbt parallel stack.
-DBT_BIN="$ROOT_DIR/.venv/bin/dbt"
-if [[ -x "$DBT_BIN" ]]; then
-  "$DBT_BIN" seed --project-dir "$ROOT_DIR/dbt_parallel" --profiles-dir "$ROOT_DIR/dbt_parallel" --full-refresh \
-    > "$RUN_DIR/logs/dbt_seed.log" 2>&1
-  "$DBT_BIN" run --project-dir "$ROOT_DIR/dbt_parallel" --profiles-dir "$ROOT_DIR/dbt_parallel" --vars '{use_seed_data: true}' \
-    > "$RUN_DIR/logs/dbt_run.log" 2>&1
-  "$DBT_BIN" snapshot --project-dir "$ROOT_DIR/dbt_parallel" --profiles-dir "$ROOT_DIR/dbt_parallel" --vars '{use_seed_data: true}' \
-    > "$RUN_DIR/logs/dbt_snapshot.log" 2>&1
-  "$DBT_BIN" test --project-dir "$ROOT_DIR/dbt_parallel" --profiles-dir "$ROOT_DIR/dbt_parallel" --vars '{use_seed_data: true}' \
-    > "$RUN_DIR/logs/dbt_test.log" 2>&1
+# Host-run defaults for local docker-compose access.
+if [[ "${WAREHOUSE_HOST:-}" == "warehouse" || -z "${WAREHOUSE_HOST:-}" ]]; then
+  export WAREHOUSE_HOST="localhost"
+fi
+if [[ "${WAREHOUSE_PORT:-}" == "5432" || -z "${WAREHOUSE_PORT:-}" ]]; then
+  export WAREHOUSE_PORT="5433"
 fi
 
-# Seed base schemas from dbt outputs for local warehouse parity.
-"$ROOT_DIR/.venv/bin/python" "$ROOT_DIR/scripts/seed_warehouse_base_schemas.py" \
-  > "$RUN_DIR/logs/seed_warehouse_base.log" 2>&1
+ensure_warehouse_credentials() {
+  local container_name="open-data-platform-warehouse"
+  if ! docker ps --format '{{.Names}}' | grep -qx "$container_name"; then
+    return 0
+  fi
 
-# Capture UI screenshot evidence for serving/governance surfaces.
-"$ROOT_DIR/.venv/bin/python" "$ROOT_DIR/tests/e2e/scripts/capture_ui_screenshots.py" \
-  --output-dir "$RUN_DIR/screenshots" \
-  > "$RUN_DIR/logs/screenshots.log" 2>&1
+  local target_user="${WAREHOUSE_USER:-admin}"
+  local target_password="${WAREHOUSE_PASSWORD:-admin}"
+  local target_db="${WAREHOUSE_DB:-open_data_platform_dw}"
+  local admin_role=""
 
-# Capture baseline platform health (non-blocking; assertions happen inside pytest).
-set +e
-"$ROOT_DIR/.venv/bin/python" "$ROOT_DIR/scripts/verify_platform.py" > "$RUN_DIR/logs/platform_health.log" 2>&1
-VERIFY_EXIT=$?
-set -e
+  for candidate in "$target_user" warehouse_app postgres admin; do
+    if [[ -z "$candidate" ]]; then
+      continue
+    fi
+    if docker exec "$container_name" sh -lc "psql -U \"$candidate\" -d postgres -c 'SELECT 1' >/dev/null 2>&1"; then
+      admin_role="$candidate"
+      break
+    fi
+    if docker exec "$container_name" sh -lc "psql -U \"$candidate\" -d \"$target_db\" -c 'SELECT 1' >/dev/null 2>&1"; then
+      admin_role="$candidate"
+      break
+    fi
+  done
 
-# Critical-path tests first (fail-fast stage), then non-critical for partial coverage.
-set +e
-E2E_EVIDENCE_DIR="$RUN_DIR" "$ROOT_DIR/.venv/bin/pytest" "$ROOT_DIR/tests/e2e/suite" -m critical -vv \
-  --junitxml "$RUN_DIR/results/critical-junit.xml" \
-  | tee "$RUN_DIR/logs/pytest-critical.log"
-CRITICAL_EXIT=${PIPESTATUS[0]}
+  if [[ -z "$admin_role" ]]; then
+    echo "[e2e] Could not identify a bootstrap role inside $container_name; continuing with current env credentials."
+    return 0
+  fi
 
-E2E_EVIDENCE_DIR="$RUN_DIR" "$ROOT_DIR/.venv/bin/pytest" "$ROOT_DIR/tests/e2e/suite" -m "not critical" -vv \
-  --junitxml "$RUN_DIR/results/noncritical-junit.xml" \
-  | tee "$RUN_DIR/logs/pytest-noncritical.log"
-NONCRITICAL_EXIT=${PIPESTATUS[0]}
-set -e
+  local escaped_password="${target_password//\'/\'\'}"
+  docker exec "$container_name" sh -lc "psql -U \"$admin_role\" -d postgres -c \"DO \\\$\\\$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '$target_user') THEN CREATE ROLE \\\"$target_user\\\" LOGIN SUPERUSER; END IF; ALTER ROLE \\\"$target_user\\\" WITH LOGIN SUPERUSER PASSWORD '$escaped_password'; END \\\$\\\$;\""
 
-"$ROOT_DIR/.venv/bin/python" "$ROOT_DIR/tests/e2e/scripts/summarize_e2e_results.py" \
-  --results-jsonl "$RUN_DIR/results/test_results.jsonl" \
-  --output-json "$RUN_DIR/results/summary.json" \
-  --output-md "$RUN_DIR/results/summary.md" \
-  > "$RUN_DIR/logs/summary.log" 2>&1
+  local db_exists
+  db_exists="$(docker exec "$container_name" sh -lc "psql -U \"$admin_role\" -d postgres -tAc \"SELECT 1 FROM pg_database WHERE datname='$target_db'\"")"
+  if [[ "$db_exists" != "1" ]]; then
+    docker exec "$container_name" sh -lc "psql -U \"$admin_role\" -d postgres -c \"CREATE DATABASE \\\"$target_db\\\" OWNER \\\"$target_user\\\";\""
+  fi
+}
 
-cat > "$RUN_DIR/results/run_status.json" <<EOF
+ensure_warehouse_credentials
+
+mkdir -p "$RUN_DIR/logs" "$RUN_DIR/results" "$RUN_DIR/dbt"
+
+STARTED_AT_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+cat > "$RUN_DIR/results/run_manifest.json" <<JSON
 {
   "run_id": "$RUN_ID",
-  "verify_platform_exit": $VERIFY_EXIT,
-  "critical_exit": $CRITICAL_EXIT,
-  "noncritical_exit": $NONCRITICAL_EXIT,
-  "finished_at_utc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  "started_at_utc": "$STARTED_AT_UTC",
+  "repo_root": "$ROOT_DIR",
+  "qa_env": "${QA_ENV:-test}"
 }
-EOF
+JSON
 
-# Keep a stable pointer to latest run for humans and CI artifacts.
+DBT_BIN="$ROOT_DIR/.venv/bin/dbt"
+PYTEST_BIN="$ROOT_DIR/.venv/bin/pytest"
+
+if [[ ! -x "$DBT_BIN" ]]; then
+  echo "dbt not found at $DBT_BIN" >&2
+  exit 2
+fi
+if [[ ! -x "$PYTEST_BIN" ]]; then
+  echo "pytest not found at $PYTEST_BIN" >&2
+  exit 2
+fi
+
+set +e
+"$DBT_BIN" debug --project-dir "$ROOT_DIR/dbt_parallel" --profiles-dir "$ROOT_DIR/dbt_parallel" \
+  > "$RUN_DIR/logs/dbt-debug.log" 2>&1
+DBT_DEBUG_EXIT=$?
+
+"$DBT_BIN" seed --project-dir "$ROOT_DIR/dbt_parallel" --profiles-dir "$ROOT_DIR/dbt_parallel" --full-refresh \
+  > "$RUN_DIR/logs/dbt-seed.log" 2>&1
+DBT_SEED_EXIT=$?
+
+"$DBT_BIN" run --project-dir "$ROOT_DIR/dbt_parallel" --profiles-dir "$ROOT_DIR/dbt_parallel" --vars '{use_seed_data: true}' \
+  > "$RUN_DIR/logs/dbt-run.log" 2>&1
+DBT_RUN_EXIT=$?
+
+"$DBT_BIN" snapshot --project-dir "$ROOT_DIR/dbt_parallel" --profiles-dir "$ROOT_DIR/dbt_parallel" --vars '{use_seed_data: true}' \
+  > "$RUN_DIR/logs/dbt-snapshot.log" 2>&1
+DBT_SNAPSHOT_EXIT=$?
+
+"$DBT_BIN" test --project-dir "$ROOT_DIR/dbt_parallel" --profiles-dir "$ROOT_DIR/dbt_parallel" --vars '{use_seed_data: true}' \
+  > "$RUN_DIR/logs/dbt-test.log" 2>&1
+DBT_TEST_EXIT=$?
+set -e
+
+DBT_EXIT=0
+for exit_code in "$DBT_DEBUG_EXIT" "$DBT_SEED_EXIT" "$DBT_RUN_EXIT" "$DBT_SNAPSHOT_EXIT" "$DBT_TEST_EXIT"; do
+  if [[ "$exit_code" -ne 0 ]]; then
+    DBT_EXIT=1
+    break
+  fi
+done
+
+if [[ "$DBT_EXIT" -eq 0 ]]; then
+  "$ROOT_DIR/.venv/bin/python" "$ROOT_DIR/scripts/seed_warehouse_base_schemas.py" \
+    > "$RUN_DIR/logs/seed_warehouse_base_schemas.log" 2>&1
+
+  "$ROOT_DIR/.venv/bin/python" "$ROOT_DIR/scripts/apply_warehouse_security.py" \
+    > "$RUN_DIR/logs/apply_warehouse_security.log" 2>&1
+
+  "$ROOT_DIR/.venv/bin/python" "$ROOT_DIR/tests/e2e/scripts/log_pipeline_run.py" \
+    --run-id "$RUN_ID" \
+    --pipeline-name "dbt_parallel_e2e_suite" \
+    --status "RUNNING" \
+    --started-at-utc "$STARTED_AT_UTC" \
+    --finished-at-utc "$STARTED_AT_UTC" \
+    > "$RUN_DIR/logs/audit_log_start.log" 2>&1 || true
+fi
+
+set +e
+QA_ENABLE_REPORTING=true \
+QA_ARTIFACT_DIR="$RUN_DIR/results" \
+QA_ENV="${QA_ENV:-test}" \
+QA_REQUIRE_SERVICES=true \
+"$PYTEST_BIN" \
+  "$ROOT_DIR/tests/data_quality" \
+  "$ROOT_DIR/tests/contracts" \
+  "$ROOT_DIR/tests/governance" \
+  "$ROOT_DIR/tests/e2e" \
+  -vv \
+  --junitxml "$RUN_DIR/results/junit.xml" \
+  | tee "$RUN_DIR/logs/pytest.log"
+PYTEST_EXIT=${PIPESTATUS[0]}
+set -e
+
+FINISHED_AT_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+PIPELINE_STATUS="SUCCESS"
+if [[ "$DBT_EXIT" -ne 0 || "$PYTEST_EXIT" -ne 0 ]]; then
+  PIPELINE_STATUS="FAILED"
+fi
+
+"$ROOT_DIR/.venv/bin/python" "$ROOT_DIR/tests/e2e/scripts/log_pipeline_run.py" \
+  --run-id "$RUN_ID" \
+  --pipeline-name "dbt_parallel_e2e_suite" \
+  --status "$PIPELINE_STATUS" \
+  --started-at-utc "$STARTED_AT_UTC" \
+  --finished-at-utc "$FINISHED_AT_UTC" \
+  > "$RUN_DIR/logs/audit_log_end.log" 2>&1 || true
+
+cat > "$RUN_DIR/results/run_status.json" <<JSON
+{
+  "run_id": "$RUN_ID",
+  "dbt_debug_exit": $DBT_DEBUG_EXIT,
+  "dbt_seed_exit": $DBT_SEED_EXIT,
+  "dbt_run_exit": $DBT_RUN_EXIT,
+  "dbt_snapshot_exit": $DBT_SNAPSHOT_EXIT,
+  "dbt_test_exit": $DBT_TEST_EXIT,
+  "pytest_exit": $PYTEST_EXIT,
+  "status": "$PIPELINE_STATUS",
+  "finished_at_utc": "$FINISHED_AT_UTC"
+}
+JSON
+
 rm -rf "$LATEST_DIR"
 cp -R "$RUN_DIR" "$LATEST_DIR"
 
-if [[ $CRITICAL_EXIT -ne 0 || $NONCRITICAL_EXIT -ne 0 ]]; then
-  echo "E2E suite completed with failures. Evidence: $RUN_DIR"
+if [[ "$DBT_EXIT" -ne 0 ]]; then
+  echo "E2E failed during dbt setup. Evidence: $RUN_DIR" >&2
+  exit 1
+fi
+
+if [[ "$PYTEST_EXIT" -ne 0 ]]; then
+  echo "E2E tests failed. Evidence: $RUN_DIR" >&2
   exit 1
 fi
 

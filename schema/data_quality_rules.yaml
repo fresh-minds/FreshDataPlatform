@@ -1,93 +1,44 @@
 version: "1.0"
 
 defaults:
-  # Any failed check with one of these severities fails the command.
   fail_on:
     - high
   default_severity: high
 
-# Centralized quality rules. Define once here and run with:
-#   python scripts/run_data_quality.py --dataset <domain.table>
-#   python scripts/run_data_quality.py --all
 datasets:
-  finance.dim_grootboek:
-    domain: finance
+  job_market_nl.job_market_snapshot:
+    domain: job_market_nl
     layer: gold
-    table: dim_grootboek
+    table: job_market_snapshot
     missing_behavior: warn
     checks:
       - name: required_columns
         type: columns_exist
-        columns: [id, GrootboekrekeningCode]
-      - name: id_not_null
+        columns: [period_key, sector_name, vacancies, vacancy_rate]
+      - name: period_key_not_null
         type: non_null
-        columns: [id]
+        columns: [period_key]
         max_null_pct: 0
-      - name: id_unique
-        type: unique
-        columns: [id]
-        max_duplicate_pct: 0
+      - name: sector_name_not_null
+        type: non_null
+        columns: [sector_name]
+        max_null_pct: 0
 
-  finance.dim_datum:
-    domain: finance
+  job_market_nl.job_market_top_skills:
+    domain: job_market_nl
     layer: gold
-    table: dim_datum
+    table: job_market_top_skills
     missing_behavior: warn
     checks:
       - name: required_columns
         type: columns_exist
-        columns: [Datum, DateID, Jaar, Maand]
-      - name: dateid_unique
-        type: unique
-        columns: [DateID]
-        max_duplicate_pct: 0
-      - name: year_range
+        columns: [skill, count]
+      - name: skill_not_null
+        type: non_null
+        columns: [skill]
+        max_null_pct: 0
+      - name: count_non_negative
         type: value_range
-        column: Jaar
-        min: 2000
-        max: 2100
+        column: count
+        min: 0
         max_invalid_pct: 0
-        severity: medium
-
-  finance.fact_grootboekmutaties:
-    domain: finance
-    layer: gold
-    table: fact_grootboekmutaties
-    missing_behavior: warn
-    checks:
-      - name: required_columns
-        type: columns_exist
-        columns: [GrootboekmutatieID, GrootboekBedrag]
-        severity: high
-      - name: transaction_id_not_null
-        type: non_null
-        columns: [GrootboekmutatieID]
-        max_null_pct: 0
-        severity: high
-      - name: transaction_id_unique
-        type: unique
-        columns: [GrootboekmutatieID]
-        max_duplicate_pct: 0
-        severity: high
-
-  finance.fact_debiteuren:
-    domain: finance
-    layer: gold
-    table: fact_debiteuren
-    missing_behavior: warn
-    checks:
-      - name: has_rows
-        type: row_count_between
-        min: 1
-        severity: medium
-
-  finance.fact_crediteuren:
-    domain: finance
-    layer: gold
-    table: fact_crediteuren
-    missing_behavior: warn
-    checks:
-      - name: has_rows
-        type: row_count_between
-        min: 1
-        severity: medium

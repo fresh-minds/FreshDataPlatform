@@ -1,0 +1,32 @@
+policies:
+  - policy: minimum_metadata_completeness
+    when: {}
+    require:
+      - owner_present
+      - description_present
+      - domain_present
+      - product_tag_present
+      - classification_present
+      - retention_days_present
+
+  - policy: restricted_requires_controls
+    when:
+      sensitivity: restricted
+    require:
+      - classification_present
+      - rbac_present
+      - allowed_roles_defined
+      - retention_days_present
+      - lineage_present
+
+  - policy: pii_requires_classification
+    when:
+      pii_columns_present: true
+    require:
+      - pii_classified
+
+  - policy: masking_must_be_declared_when_required
+    when:
+      governance.pii_masking_required: true
+    require:
+      - pii_masking_configured

@@ -24,8 +24,8 @@ def emit_custom_lineage():
     )
     # Example: Manual lineage from bronze to silver
     dh.emit_lineage(
-        upstream_urns=["urn:li:dataset:(urn:li:dataPlatform:s3,bronze.finance,PROD)"],
-        downstream_urn="urn:li:dataset:(urn:li:dataPlatform:postgres,silver.finance,PROD)"
+        upstream_urns=["urn:li:dataset:(urn:li:dataPlatform:s3,bronze.job_market_nl,PROD)"],
+        downstream_urn="urn:li:dataset:(urn:li:dataPlatform:postgres,silver.job_market_nl,PROD)"
     )
 
 with DAG(

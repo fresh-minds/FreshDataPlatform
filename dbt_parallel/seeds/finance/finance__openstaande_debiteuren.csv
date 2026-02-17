@@ -1,3 +1,0 @@
-amount,account_name,invoice_date,due_date,amount_in_transit,description,invoice_number
-5000.00,Relatie A,/Date(1735603200000)/,/Date(1738281600000)/,2000.00,Consultancy factuur,INV-100
-300.00,Relatie B,/Date(1735603200000)/,/Date(1736467200000)/,300.00,Servicekosten,DOC-200

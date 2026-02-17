@@ -1,0 +1,54 @@
+environments:
+  dev:
+    warehouse:
+      host: localhost
+      port: 5433
+      dbname: open_data_platform_dw
+      user: admin
+      password: admin
+    airflow:
+      base_url: http://localhost:8080
+      username: admin
+      password: admin
+      dag_id: job_market_nl_pipeline
+    metadata:
+      datahub_gms_url: http://localhost:8081
+    allow_mutating_checks: true
+    allow_pipeline_trigger: true
+    require_services: false
+
+  test:
+    warehouse:
+      host: localhost
+      port: 5433
+      dbname: open_data_platform_dw
+      user: admin
+      password: admin
+    airflow:
+      base_url: http://localhost:8080
+      username: admin
+      password: admin
+      dag_id: job_market_nl_pipeline
+    metadata:
+      datahub_gms_url: http://localhost:8081
+    allow_mutating_checks: true
+    allow_pipeline_trigger: true
+    require_services: true
+
+  prod:
+    warehouse:
+      host: localhost
+      port: 5432
+      dbname: open_data_platform_dw
+      user: readonly
+      password: readonly
+    airflow:
+      base_url: https://airflow.company.internal
+      username: readonly
+      password: readonly
+      dag_id: job_market_nl_pipeline
+    metadata:
+      datahub_gms_url: https://datahub.company.internal
+    allow_mutating_checks: false
+    allow_pipeline_trigger: false
+    require_services: true

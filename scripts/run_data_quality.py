@@ -4,7 +4,7 @@ Run centralized data quality checks from a single YAML rules file.
 
 Usage examples:
   python scripts/run_data_quality.py --list-datasets
-  python scripts/run_data_quality.py --dataset finance.fact_grootboekmutaties
+  python scripts/run_data_quality.py --dataset job_market_nl.it_market_snapshot
   python scripts/run_data_quality.py --all
 """
 
@@ -529,7 +529,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
         default=str(RULES_FILE_DEFAULT),
         help=f"Path to rules YAML (default: {RULES_FILE_DEFAULT})",
     )
-    parser.add_argument("--dataset", help="Dataset key from rules file (e.g. finance.fact_grootboekmutaties)")
+    parser.add_argument("--dataset", help="Dataset key from rules file (e.g. job_market_nl.it_market_snapshot)")
     parser.add_argument("--all", action="store_true", help="Run checks for all datasets")
     parser.add_argument(
         "--fail-on",

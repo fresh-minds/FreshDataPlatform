@@ -3,14 +3,14 @@
 -- Policy: production dashboards must use ACTIVE + CERTIFIED metrics only.
 
 -- ============================================================================
--- CERTIFIED METRIC: finance_outstanding_amount
--- Formula: SUM(grootboekbedrag)
--- Source: finance.fact_grootboekmutaties
+-- CERTIFIED METRIC: job_market_total_vacancies
+-- Formula: SUM(total_vacancies)
+-- Source: job_market_nl.it_market_snapshot
 -- ============================================================================
 SELECT
-    DATE(datum_ts) AS metric_date,
-    administratie_code,
-    SUM(grootboekbedrag) AS finance_outstanding_amount
-FROM finance.fact_grootboekmutaties
-GROUP BY DATE(datum_ts), administratie_code
-ORDER BY metric_date, administratie_code;
+    DATE(snapshot_date) AS metric_date,
+    data_source,
+    SUM(total_vacancies) AS job_market_total_vacancies
+FROM job_market_nl.it_market_snapshot
+GROUP BY DATE(snapshot_date), data_source
+ORDER BY metric_date, data_source;

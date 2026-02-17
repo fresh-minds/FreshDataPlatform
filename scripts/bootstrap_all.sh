@@ -8,6 +8,8 @@ SKIP_DBT=false
 SKIP_MINIO=false
 SKIP_SUPERSET=false
 SKIP_DATAHUB=false
+SKIP_DEV_INSTALL=false
+AUTO_FILL_ENV=false
 
 usage() {
   cat <<EOF
@@ -21,6 +23,8 @@ Bootstraps the local Docker stack and (re)populates:
 
 Options:
   --reset           docker compose down -v before starting
+  --skip-dev-install  skip creating .venv + installing dev deps
+  --auto-fill-env     auto-generate missing/placeholder secrets in .env
   --skip-dbt        skip dbt seed/run/snapshot/test (warehouse will be less complete)
   --skip-minio      skip uploading fixtures to MinIO
   --skip-superset   skip running Superset setup/bootstrap scripts
@@ -32,6 +36,8 @@ EOF
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --reset) RESET=true; shift ;;
+    --skip-dev-install) SKIP_DEV_INSTALL=true; shift ;;
+    --auto-fill-env) AUTO_FILL_ENV=true; shift ;;
     --skip-dbt) SKIP_DBT=true; shift ;;
     --skip-minio) SKIP_MINIO=true; shift ;;
     --skip-superset) SKIP_SUPERSET=true; shift ;;
@@ -53,6 +59,114 @@ COMPOSE="$(compose_cmd)"
 
 log() {
   echo "[bootstrap] $*"
+}
+
+require_cmd() {
+  local cmd="$1"
+  if ! command -v "$cmd" >/dev/null 2>&1; then
+    echo "Required command not found: $cmd" >&2
+    exit 1
+  fi
+}
+
+require_compose() {
+  if command -v docker >/dev/null 2>&1; then
+    return 0
+  fi
+  if command -v docker-compose >/dev/null 2>&1; then
+    return 0
+  fi
+  echo "Docker compose not found (need 'docker' or 'docker-compose')" >&2
+  exit 1
+}
+
+ensure_python_env() {
+  if [[ "$SKIP_DEV_INSTALL" == "true" ]]; then
+    return 0
+  fi
+
+  if [[ ! -d "$ROOT_DIR/.venv" ]]; then
+    log "Creating .venv..."
+    python3 -m venv "$ROOT_DIR/.venv"
+  fi
+
+  log "Installing dev dependencies (pip install -e .[dev])..."
+  (cd "$ROOT_DIR" && "$ROOT_DIR/.venv/bin/python" -m pip install -e ".[dev]")
+}
+
+generate_secret() {
+  python3 - <<'PY'
+import base64, os
+print(base64.urlsafe_b64encode(os.urandom(32)).decode())
+PY
+}
+
+upsert_env() {
+  local key="$1"
+  local value="$2"
+  ROOT_DIR="$ROOT_DIR" KEY="$key" VALUE="$value" python3 - <<'PY'
+from os import getenv
+from pathlib import Path
+
+key = getenv("KEY")
+value = getenv("VALUE")
+path = Path(getenv("ROOT_DIR", ".")).joinpath(".env")
+lines = path.read_text().splitlines() if path.exists() else []
+out = []
+found = False
+for line in lines:
+    if not line or line.lstrip().startswith("#"):
+        out.append(line)
+        continue
+    k, sep, v = line.partition("=")
+    if sep and k == key:
+        out.append(f"{k}={value}")
+        found = True
+    else:
+        out.append(line)
+if not found:
+    out.append(f"{key}={value}")
+path.write_text("\n".join(out) + "\n")
+PY
+}
+
+ensure_env_file() {
+  if [[ ! -f "$ROOT_DIR/.env" ]]; then
+    if [[ ! -f "$ROOT_DIR/.env.template" ]]; then
+      echo ".env not found and .env.template missing" >&2
+      exit 1
+    fi
+    cp "$ROOT_DIR/.env.template" "$ROOT_DIR/.env"
+    log "Created .env from .env.template"
+    AUTO_FILL_ENV=true
+  fi
+}
+
+ensure_env_secrets() {
+  if [[ "$AUTO_FILL_ENV" != "true" ]]; then
+    return 0
+  fi
+
+  local fernet_key
+  fernet_key="${AIRFLOW_FERNET_KEY:-}"
+  if [[ -z "$fernet_key" || "$fernet_key" == change_me_* ]]; then
+    log "Generating AIRFLOW_FERNET_KEY..."
+    upsert_env "AIRFLOW_FERNET_KEY" "$(generate_secret)"
+  fi
+
+  local superset_secret
+  superset_secret="${SUPERSET_SECRET_KEY:-}"
+  if [[ -z "$superset_secret" || "$superset_secret" == change_me_* ]]; then
+    log "Generating SUPERSET_SECRET_KEY..."
+    upsert_env "SUPERSET_SECRET_KEY" "$(generate_secret)"
+  fi
+
+  local datahub_secret
+  datahub_secret="${DATAHUB_FRONTEND_SECRET:-}"
+  if [[ -z "$datahub_secret" || "$datahub_secret" == change_me_* ]]; then
+    log "Generating DATAHUB_FRONTEND_SECRET..."
+    upsert_env "DATAHUB_FRONTEND_SECRET" "$(generate_secret)"
+  fi
 }
 
 wait_for_http() {
@@ -111,14 +225,11 @@ wait_for_container_health() {
   done
 }
 
-PYTHON="$ROOT_DIR/.venv/bin/python"
-if [[ ! -x "$PYTHON" ]]; then
-  PYTHON="$(command -v python3 || true)"
-fi
-if [[ -z "${PYTHON:-}" ]]; then
-  echo "python3 not found (expected .venv or system python3)" >&2
-  exit 1
-fi
+require_compose
+require_cmd curl
+require_cmd python3
+
+ensure_env_file
 
 # Load .env for local tooling (dbt + scripts). docker compose reads it automatically.
 if [[ -f "$ROOT_DIR/.env" ]]; then
@@ -126,6 +237,27 @@ if [[ -f "$ROOT_DIR/.env" ]]; then
   # shellcheck disable=SC1091
   source "$ROOT_DIR/.env"
   set +a
+fi
+
+ensure_env_secrets
+
+# Reload .env if we modified it.
+if [[ -f "$ROOT_DIR/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$ROOT_DIR/.env"
+  set +a
+fi
+
+ensure_python_env
+
+PYTHON="$ROOT_DIR/.venv/bin/python"
+if [[ ! -x "$PYTHON" ]]; then
+  PYTHON="$(command -v python3 || true)"
+fi
+if [[ -z "${PYTHON:-}" ]]; then
+  echo "python3 not found (expected .venv or system python3)" >&2
+  exit 1
 fi
 
 if [[ "$RESET" == "true" ]]; then

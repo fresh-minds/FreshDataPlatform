@@ -39,11 +39,23 @@ make help         # Show all commands
 make test         # Run tests
 make lint         # Check code style
 make format       # Auto-format code
+make qa-test      # Run config-driven data platform QA suites
+make test-e2e     # Run full E2E QA suite + artifact capture
 make dq-list      # List centralized data quality suites
-make dq-check DATASET=finance.fact_grootboekmutaties  # Run one DQ suite
+make dq-check DATASET=job_market_nl.job_market_snapshot  # Run one DQ suite
 make dbt-debug    # Validate dbt connection
 make dbt-build-seed  # Build parallel dbt transformations with seed data
 ```
+
+## E2E Data Platform QA
+
+The repository includes a config-driven E2E testing framework for:
+- data correctness and quality
+- schema/contracts
+- pipeline idempotency/incremental behavior
+- governance controls (metadata, lineage, PII, RBAC, retention, auditability)
+
+Documentation: `docs/e2e_data_platform_testing.md`
 
 ## Job Connector Framework (RSS + Sitemap)
 

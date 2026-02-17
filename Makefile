@@ -1,5 +1,5 @@
 # Open Data Platform - Development Commands
-.PHONY: install dev-install test lint format run clean help schema-validate schema-drift-check dbt-debug dbt-build-seed e2e-test warehouse-security bootstrap-all k8s-dev-up k8s-dev-down k8s-aks-up k8s-aks-down
+.PHONY: install dev-install test lint format run clean help schema-validate schema-drift-check dbt-debug dbt-build-seed e2e-test test-e2e qa-test warehouse-security bootstrap-all k8s-dev-up k8s-dev-down k8s-aks-up k8s-aks-down
 
 # Default Python
 PYTHON := python3
@@ -76,6 +76,11 @@ dbt-build-seed:  ## Build parallel dbt project using seed data
 
 e2e-test:  ## Run end-to-end platform test suite with evidence capture
 	./scripts/run_e2e_tests.sh
+
+test-e2e: e2e-test  ## Alias for e2e-test
+
+qa-test:  ## Run config-driven QA suites (requires warehouse + dbt artifacts)
+	QA_ENV=$${QA_ENV:-test} QA_REQUIRE_SERVICES=true pytest tests/data_quality tests/contracts tests/governance tests/e2e -vv
 
 warehouse-security:  ## Apply warehouse RBAC/RLS/masking baseline
 	$(PYTHON) scripts/apply_warehouse_security.py

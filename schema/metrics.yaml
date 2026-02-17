@@ -1,44 +1,39 @@
 version: "1.0"
 updated_by: "data-governance"
 
-# Canonical metric registry for semantic governance.
-# All production dashboards should source certified metrics from this file.
-
 defaults:
   timezone: "Europe/Amsterdam"
   freshness_sla_hours: 24
   certification: "draft"
 
 metrics:
-  - id: finance_outstanding_amount
-    name: "Outstanding Amount"
-    domain: "finance"
-    owner: "finance.owner@example.com"
-    steward: "finance.steward@example.com"
-    description: "Sum of open receivables and payables in default currency."
+  - id: job_market_total_vacancies
+    name: "Total Vacancies"
+    domain: "job_market_nl"
+    owner: "job-market.owner@example.com"
+    steward: "job-market.steward@example.com"
+    description: "Sum of vacancies in the latest job market snapshot."
     status: "ACTIVE"
     certification: "DRAFT"
     grain: "month"
     source:
-      dataset: "finance.fact_grootboekmutaties"
-      primary_key: "pk_grootboek"
-      timestamp_column: "Datum_ts"
+      dataset: "job_market_nl.job_market_snapshot"
+      primary_key: "period_key"
+      timestamp_column: "period_key"
     dimensions:
-      - "AdministratieCode"
-      - "Jaar"
-      - "Periode"
+      - "sector_name"
     formula:
-      sql: "SUM(AmountDC)"
+      sql: "SUM(vacancies)"
       null_handling: "null_as_zero"
     slas:
-      freshness_hours: 24
+      freshness_hours: 168
       availability_percent: 99.0
     quality_checks:
-      - name: "amount_valid_numeric"
-        rule: "AmountDC IS NOT NULL"
+      - name: "vacancies_not_null"
+        rule: "vacancies IS NOT NULL"
         severity: "medium"
     lineage:
       upstream_datasets:
-        - "finance.silver_transactions"
+        - "job_market_nl.it_market_snapshot"
     change_policy:
       breaking_change_requires: "analytics_lead_approval"
