@@ -1,0 +1,32 @@
+# Open Data Platform Business Glossary
+# This file defines business terms that map to DataHub Glossary Terms
+# Updated to support PII and Confidentiality tagging (DMBOK Governance)
+
+version: "1.1"
+
+domains:
+  - name: Finance
+    description: Financial transactions, accounts, and bookkeeping data
+    owner: finance@example.com
+
+terms:
+  # Finance Domain
+  - term: Grootboekrekening
+    definition: General ledger account for financial transactions
+    domain: Finance
+    synonyms:
+      - GL Account
+      - Ledger Account
+      
+  - term: Kostenplaats
+    definition: Cost center for allocating expenses
+    domain: Finance
+    synonyms:
+      - Cost Center
+      
+  - term: Kostendrager
+    definition: Cost carrier / cost unit for tracking project-related costs
+    domain: Finance
+    synonyms:
+      - Cost Unit
+      - Cost Carrier

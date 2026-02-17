@@ -1,0 +1,13 @@
+routes:
+  - name: teams_default
+    channel: teams
+    severities: [critical, high]
+    webhook_env: ALERT_TEAMS_WEBHOOK_URL
+  - name: slack_default
+    channel: slack
+    severities: [critical, high, medium]
+    webhook_env: ALERT_SLACK_WEBHOOK_URL
+  - name: pagerduty_default
+    channel: pagerduty
+    severities: [critical]
+    webhook_env: ALERT_PAGERDUTY_WEBHOOK_URL

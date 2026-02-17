@@ -1,0 +1,26 @@
+version: 2
+
+sources:
+  - name: finance
+    schema: "{{ var('finance_source_schema', 'finance_bronze') }}"
+    tables:
+      - name: financial_transaction_lines
+      - name: openstaande_debiteuren
+      - name: openstaande_crediteuren
+      - name: begroting
+      - name: divisions
+      - name: gl_accounts
+      - name: gl_classifications
+      - name: glaccountclassificationmappings
+      - name: perioden
+      - name: kostenplaats
+      - name: kostendrager
+      - name: relaties
+      - name: payableslist
+      - name: receivableslist
+
+  - name: job_market_nl
+    schema: "{{ var('job_market_source_schema', 'job_market_nl') }}"
+    tables:
+      - name: it_market_snapshot
+      - name: it_market_top_skills

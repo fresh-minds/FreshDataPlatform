@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Example Jobs</title>
+    <link>https://example.com/jobs/</link>
+    <description>Example job feed</description>
+    <item>
+      <title>Data Engineer</title>
+      <link>https://example.com/jobs/123</link>
+      <guid>job-123</guid>
+      <pubDate>Mon, 15 Jan 2024 10:00:00 GMT</pubDate>
+      <description><![CDATA[<p>Remote role. Contact hr@example.com</p>]]></description>
+    </item>
+  </channel>
+</rss>
+

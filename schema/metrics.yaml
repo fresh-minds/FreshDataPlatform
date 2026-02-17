@@ -1,0 +1,44 @@
+version: "1.0"
+updated_by: "data-governance"
+
+# Canonical metric registry for semantic governance.
+# All production dashboards should source certified metrics from this file.
+
+defaults:
+  timezone: "Europe/Amsterdam"
+  freshness_sla_hours: 24
+  certification: "draft"
+
+metrics:
+  - id: finance_outstanding_amount
+    name: "Outstanding Amount"
+    domain: "finance"
+    owner: "finance.owner@example.com"
+    steward: "finance.steward@example.com"
+    description: "Sum of open receivables and payables in default currency."
+    status: "ACTIVE"
+    certification: "DRAFT"
+    grain: "month"
+    source:
+      dataset: "finance.fact_grootboekmutaties"
+      primary_key: "pk_grootboek"
+      timestamp_column: "Datum_ts"
+    dimensions:
+      - "AdministratieCode"
+      - "Jaar"
+      - "Periode"
+    formula:
+      sql: "SUM(AmountDC)"
+      null_handling: "null_as_zero"
+    slas:
+      freshness_hours: 24
+      availability_percent: 99.0
+    quality_checks:
+      - name: "amount_valid_numeric"
+        rule: "AmountDC IS NOT NULL"
+        severity: "medium"
+    lineage:
+      upstream_datasets:
+        - "finance.silver_transactions"
+    change_policy:
+      breaking_change_requires: "analytics_lead_approval"

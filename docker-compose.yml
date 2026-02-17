@@ -1,0 +1,552 @@
+version: '3'
+services:
+  airflow-webserver:
+    build:
+      context: .
+      dockerfile: airflow/Dockerfile
+    container_name: airflow-webserver
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${AIRFLOW_DB_USER:?Set AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD:?Set AIRFLOW_DB_PASSWORD}@postgres/${AIRFLOW_DB_NAME:-airflow}
+      - AIRFLOW__CORE__FERNET_KEY=${AIRFLOW_FERNET_KEY:?Set AIRFLOW_FERNET_KEY}
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__ADMIN__USER=${AIRFLOW_ADMIN_USER:-admin}
+      - AIRFLOW__ADMIN__PASSWORD=${AIRFLOW_ADMIN_PASSWORD:?Set AIRFLOW_ADMIN_PASSWORD}
+      - AIRFLOW__METRICS__STATSD_ON=True
+      - AIRFLOW__METRICS__STATSD_HOST=statsd-exporter
+      - AIRFLOW__METRICS__STATSD_PORT=9125
+      - AIRFLOW__METRICS__STATSD_PREFIX=airflow
+      - OTEL_ENABLED=${OTEL_ENABLED:-true}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
+      - OTEL_METRICS_EXPORT_INTERVAL=${OTEL_METRICS_EXPORT_INTERVAL:-60000}
+      - OTEL_SERVICE_NAMESPACE=${OTEL_SERVICE_NAMESPACE:-open-data-platform}
+      - ENVIRONMENT=${ENVIRONMENT:-local}
+      - PYTHONPATH=/opt/airflow/project
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./:/opt/airflow/project # Mount project root to access scripts/pipelines
+      - ./data:/opt/airflow/project/data # Ensure data is accessible
+    ports:
+      - "8080:8080"
+    command: webserver
+    healthcheck:
+      test: [ "CMD-SHELL", "[ -f /opt/airflow/airflow-webserver.pid ]" ]
+      interval: 30s
+      timeout: 30s
+      retries: 3
+    depends_on:
+      postgres:
+        condition: service_started
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-scheduler:
+    build:
+      context: .
+      dockerfile: airflow/Dockerfile
+    container_name: airflow-scheduler
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${AIRFLOW_DB_USER:?Set AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD:?Set AIRFLOW_DB_PASSWORD}@postgres/${AIRFLOW_DB_NAME:-airflow}
+      - AIRFLOW__CORE__FERNET_KEY=${AIRFLOW_FERNET_KEY:?Set AIRFLOW_FERNET_KEY}
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - PYTHONPATH=/opt/airflow/project
+      - USE_DATAHUB=true
+      - DATAHUB_GMS_HOST=datahub-gms
+      - DATAHUB_GMS_PORT=8080
+      - DATAHUB_REST_URL=http://datahub-gms:8080
+      - AIRFLOW__METRICS__STATSD_ON=True
+      - AIRFLOW__METRICS__STATSD_HOST=statsd-exporter
+      - AIRFLOW__METRICS__STATSD_PORT=9125
+      - AIRFLOW__METRICS__STATSD_PREFIX=airflow
+      - OTEL_ENABLED=${OTEL_ENABLED:-true}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
+      - OTEL_METRICS_EXPORT_INTERVAL=${OTEL_METRICS_EXPORT_INTERVAL:-60000}
+      - OTEL_SERVICE_NAMESPACE=${OTEL_SERVICE_NAMESPACE:-open-data-platform}
+      - ENVIRONMENT=${ENVIRONMENT:-local}
+      # Credentials for scripts running in pod
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:?Set MINIO_ROOT_USER}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD}
+      - WAREHOUSE_HOST=warehouse
+      - WAREHOUSE_PORT=5432
+      - WAREHOUSE_DB=${WAREHOUSE_DB:-open_data_platform_dw}
+      - WAREHOUSE_USER=${WAREHOUSE_USER:?Set WAREHOUSE_USER}
+      - WAREHOUSE_PASSWORD=${WAREHOUSE_PASSWORD:?Set WAREHOUSE_PASSWORD}
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./:/opt/airflow/project
+      - ./data:/opt/airflow/project/data
+    command: scheduler
+    depends_on:
+      postgres:
+        condition: service_started
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-init:
+    build:
+      context: .
+      dockerfile: airflow/Dockerfile
+    container_name: airflow-init
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${AIRFLOW_DB_USER:?Set AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD:?Set AIRFLOW_DB_PASSWORD}@postgres/${AIRFLOW_DB_NAME:-airflow}
+      - AIRFLOW__CORE__FERNET_KEY=${AIRFLOW_FERNET_KEY:?Set AIRFLOW_FERNET_KEY}
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+    command: >
+      bash -c "
+        airflow db migrate &&
+        airflow users create --username ${AIRFLOW_ADMIN_USER:-admin} --password ${AIRFLOW_ADMIN_PASSWORD:?Set AIRFLOW_ADMIN_PASSWORD} --firstname Admin --lastname User --role Admin --email ${AIRFLOW_ADMIN_EMAIL:-admin@example.com}
+      "
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:13
+    container_name: airflow-postgres
+    environment:
+      - POSTGRES_USER=${AIRFLOW_DB_USER:?Set AIRFLOW_DB_USER}
+      - POSTGRES_PASSWORD=${AIRFLOW_DB_PASSWORD:?Set AIRFLOW_DB_PASSWORD}
+      - POSTGRES_DB=${AIRFLOW_DB_NAME:-airflow}
+    volumes:
+      - postgres-db-volume:/var/lib/postgresql/data
+
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    container_name: open-data-platform-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:?Set MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD} # MinIO requires 8+ chars
+      - MINIO_PROMETHEUS_AUTH_TYPE=public
+      - MINIO_PROMETHEUS_JOB_ID=minio
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio-data:/data
+
+  create-buckets:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c " /usr/bin/mc alias set myminio http://minio:9000 ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD}; /usr/bin/mc mb myminio/bronze; /usr/bin/mc mb myminio/silver; /usr/bin/mc mb myminio/gold; exit 0; "
+
+  warehouse:
+    image: postgres:15
+    container_name: open-data-platform-warehouse
+    environment:
+      - POSTGRES_USER=${WAREHOUSE_USER:?Set WAREHOUSE_USER}
+      - POSTGRES_PASSWORD=${WAREHOUSE_PASSWORD:?Set WAREHOUSE_PASSWORD}
+      - POSTGRES_DB=${WAREHOUSE_DB:-open_data_platform_dw}
+    ports:
+      - "5433:5432"
+    volumes:
+      - warehouse-db-volume:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${WAREHOUSE_USER:?Set WAREHOUSE_USER} -d ${WAREHOUSE_DB:-open_data_platform_dw}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  superset:
+    image: apache/superset:3.0.0
+    container_name: open-data-platform-superset
+    ports:
+      - "8088:8088"
+    environment:
+      - SUPERSET_SECRET_KEY=${SUPERSET_SECRET_KEY:?Set SUPERSET_SECRET_KEY}
+      - SQLALCHEMY_DATABASE_URI=postgresql+psycopg2://${SUPERSET_DB_USER:?Set SUPERSET_DB_USER}:${SUPERSET_DB_PASSWORD:?Set SUPERSET_DB_PASSWORD}@superset-db/${SUPERSET_DB_NAME:-superset}
+      - SUPERSET_ADMIN_USER=${SUPERSET_ADMIN_USER:-admin}
+      - SUPERSET_ADMIN_PASSWORD=${SUPERSET_ADMIN_PASSWORD:?Set SUPERSET_ADMIN_PASSWORD}
+      - WAREHOUSE_HOST=warehouse
+      - WAREHOUSE_PORT=5432
+      - WAREHOUSE_DB=${WAREHOUSE_DB:-open_data_platform_dw}
+      - WAREHOUSE_USER=${WAREHOUSE_USER:?Set WAREHOUSE_USER}
+      - WAREHOUSE_PASSWORD=${WAREHOUSE_PASSWORD:?Set WAREHOUSE_PASSWORD}
+      - JOB_MARKET_SCHEMA=job_market_nl
+    depends_on:
+      - superset-db
+      - warehouse
+    command: >
+      sh -c "
+        superset fab create-admin --username ${SUPERSET_ADMIN_USER:-admin} --firstname Superset --lastname Admin --email ${SUPERSET_ADMIN_EMAIL:-admin@superset.com} --password ${SUPERSET_ADMIN_PASSWORD:?Set SUPERSET_ADMIN_PASSWORD} || true &&
+        superset db upgrade &&
+        superset init &&
+        /usr/bin/run-server.sh &
+        SERVER_PID=$$! &&
+        echo \"[Superset] Waiting for /health...\" &&
+        for i in $$(seq 1 60); do curl -sSf http://localhost:8088/health >/dev/null && break || sleep 2; done &&
+        python /app/scripts/superset_bootstrap_job_market.py || true &&
+        wait $$SERVER_PID"
+    volumes:
+      - ./scripts/superset_config.py:/app/pythonpath/superset_config.py
+      - ./scripts:/app/scripts
+
+  superset-db:
+    image: postgres:15
+    container_name: superset-postgres
+    environment:
+      - POSTGRES_USER=${SUPERSET_DB_USER:?Set SUPERSET_DB_USER}
+      - POSTGRES_PASSWORD=${SUPERSET_DB_PASSWORD:?Set SUPERSET_DB_PASSWORD}
+      - POSTGRES_DB=${SUPERSET_DB_NAME:-superset}
+    volumes:
+      - superset-db-volume:/var/lib/postgresql/data
+
+  datahub-mysql:
+    image: mysql:8.2
+    container_name: datahub-mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_bin --default-authentication-plugin=mysql_native_password
+    environment:
+      - MYSQL_DATABASE=${DATAHUB_MYSQL_DATABASE:-datahub}
+      - MYSQL_USER=${DATAHUB_MYSQL_USER:?Set DATAHUB_MYSQL_USER}
+      - MYSQL_PASSWORD=${DATAHUB_MYSQL_PASSWORD:?Set DATAHUB_MYSQL_PASSWORD}
+      - MYSQL_ROOT_PASSWORD=${DATAHUB_MYSQL_ROOT_PASSWORD:?Set DATAHUB_MYSQL_ROOT_PASSWORD}
+    volumes:
+      - datahub-mysql-volume:/var/lib/mysql
+    healthcheck:
+      test: mysqladmin ping -h localhost -u ${DATAHUB_MYSQL_USER:?Set DATAHUB_MYSQL_USER} --password=${DATAHUB_MYSQL_PASSWORD:?Set DATAHUB_MYSQL_PASSWORD}
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  datahub-elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.10.2
+    container_name: datahub-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms256m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - datahub-es-volume:/usr/share/elasticsearch/data
+    healthcheck:
+      test: curl -sS --fail http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=0s
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  datahub-zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: datahub-zookeeper
+    environment:
+      - ZOOKEEPER_CLIENT_PORT=2181
+      - ZOOKEEPER_TICK_TIME=2000
+    healthcheck:
+      test: echo srvr | nc localhost 2181
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  datahub-kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: datahub-kafka
+    environment:
+      - KAFKA_BROKER_ID=1
+      - KAFKA_ZOOKEEPER_CONNECT=datahub-zookeeper:2181
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://datahub-kafka:29092,PLAINTEXT_HOST://localhost:9092
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+      - KAFKA_HEAP_OPTS=-Xms256m -Xmx256m
+    ports:
+      - "9092:9092"
+    depends_on:
+      datahub-zookeeper:
+        condition: service_healthy
+    healthcheck:
+      test: nc -z localhost 9092
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  datahub-schema-registry:
+    image: confluentinc/cp-schema-registry:7.4.0
+    container_name: datahub-schema-registry
+    environment:
+      - SCHEMA_REGISTRY_HOST_NAME=datahub-schema-registry
+      - SCHEMA_REGISTRY_KAFKASTORE_SECURITY_PROTOCOL=PLAINTEXT
+      - SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS=datahub-kafka:29092
+    depends_on:
+      datahub-kafka:
+        condition: service_healthy
+    healthcheck:
+      test: nc -z localhost 8081
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  datahub-mysql-setup:
+    image: acryldata/datahub-mysql-setup:v1.2.0.1
+    container_name: datahub-mysql-setup
+    environment:
+      - MYSQL_HOST=datahub-mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USERNAME=root
+      - MYSQL_PASSWORD=${DATAHUB_MYSQL_ROOT_PASSWORD:?Set DATAHUB_MYSQL_ROOT_PASSWORD}
+      - DATAHUB_DB_NAME=${DATAHUB_MYSQL_DATABASE:-datahub}
+    depends_on:
+      datahub-mysql:
+        condition: service_healthy
+
+  datahub-elasticsearch-setup:
+    image: acryldata/datahub-elasticsearch-setup:v1.2.0.1
+    container_name: datahub-elasticsearch-setup
+    environment:
+      - ELASTICSEARCH_HOST=datahub-elasticsearch
+      - ELASTICSEARCH_PORT=9200
+      - ELASTICSEARCH_PROTOCOL=http
+    depends_on:
+      datahub-elasticsearch:
+        condition: service_healthy
+
+  datahub-kafka-setup:
+    image: acryldata/datahub-kafka-setup:v1.2.0.1
+    container_name: datahub-kafka-setup
+    environment:
+      - KAFKA_BOOTSTRAP_SERVER=datahub-kafka:29092
+      - KAFKA_ZOOKEEPER_CONNECT=datahub-zookeeper:2181
+    depends_on:
+      datahub-kafka:
+        condition: service_healthy
+      datahub-schema-registry:
+        condition: service_healthy
+
+  datahub-upgrade:
+    image: acryldata/datahub-upgrade:v1.2.0.1
+    container_name: datahub-upgrade
+    command:
+      - -u
+      - SystemUpdate
+    environment:
+      - EBEAN_DATASOURCE_USERNAME=root
+      - EBEAN_DATASOURCE_PASSWORD=${DATAHUB_MYSQL_ROOT_PASSWORD:?Set DATAHUB_MYSQL_ROOT_PASSWORD}
+      - EBEAN_DATASOURCE_HOST=datahub-mysql:3306
+      - EBEAN_DATASOURCE_URL=jdbc:mysql://datahub-mysql:3306/${DATAHUB_MYSQL_DATABASE:-datahub}?verifyServerCertificate=false&useSSL=true&useUnicode=yes&characterEncoding=UTF-8
+      - EBEAN_DATASOURCE_DRIVER=com.mysql.jdbc.Driver
+      - KAFKA_BOOTSTRAP_SERVER=datahub-kafka:29092
+      - KAFKA_SCHEMAREGISTRY_URL=http://datahub-schema-registry:8081
+      - ELASTICSEARCH_HOST=datahub-elasticsearch
+      - ELASTICSEARCH_PORT=9200
+      - GRAPH_SERVICE_IMPL=elasticsearch
+      - ENTITY_REGISTRY_CONFIG_PATH=/datahub/datahub-gms/resources/entity-registry.yml
+      - DATAHUB_GMS_HOST=datahub-gms
+      - DATAHUB_GMS_PORT=8080
+    depends_on:
+      datahub-mysql-setup:
+        condition: service_completed_successfully
+      datahub-elasticsearch-setup:
+        condition: service_completed_successfully
+      datahub-kafka-setup:
+        condition: service_completed_successfully
+
+  datahub-gms:
+    image: acryldata/datahub-gms:v1.2.0.1
+    container_name: datahub-gms
+    environment:
+      - DATAHUB_SERVER_TYPE=quickstart
+      - EBEAN_DATASOURCE_DRIVER=com.mysql.jdbc.Driver
+      - EBEAN_DATASOURCE_HOST=datahub-mysql:3306
+      - EBEAN_DATASOURCE_PASSWORD=${DATAHUB_MYSQL_ROOT_PASSWORD:?Set DATAHUB_MYSQL_ROOT_PASSWORD}
+      - EBEAN_DATASOURCE_URL=jdbc:mysql://datahub-mysql:3306/${DATAHUB_MYSQL_DATABASE:-datahub}?verifyServerCertificate=false&useSSL=true&useUnicode=yes&characterEncoding=UTF-8
+      - EBEAN_DATASOURCE_USERNAME=root
+      - ELASTICSEARCH_HOST=datahub-elasticsearch
+      - ELASTICSEARCH_PORT=9200
+      - GRAPH_SERVICE_IMPL=elasticsearch
+      - JAVA_OPTS=-Xms512m -Xmx512m
+      - KAFKA_BOOTSTRAP_SERVER=datahub-kafka:29092
+      - KAFKA_SCHEMAREGISTRY_URL=http://datahub-schema-registry:8081
+      - MAE_CONSUMER_ENABLED=true
+      - MCE_CONSUMER_ENABLED=true
+      - ENTITY_REGISTRY_CONFIG_PATH=/datahub/datahub-gms/resources/entity-registry.yml
+      - METADATA_SERVICE_AUTH_ENABLED=false
+    ports:
+      - "8081:8080"
+    depends_on:
+      datahub-upgrade:
+        condition: service_completed_successfully
+    healthcheck:
+      test: curl -sS --fail http://localhost:8080/health
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+
+  datahub-frontend:
+    image: acryldata/datahub-frontend-react:v1.2.0.1
+    container_name: datahub-frontend
+    environment:
+      - DATAHUB_GMS_HOST=datahub-gms
+      - DATAHUB_GMS_PORT=8080
+      - DATAHUB_SECRET=${DATAHUB_FRONTEND_SECRET:?Set DATAHUB_FRONTEND_SECRET}
+      - JAVA_OPTS=-Xms256m -Xmx256m -Dhttp.port=9002
+      - KAFKA_BOOTSTRAP_SERVER=datahub-kafka:29092
+    ports:
+      - "9002:9002"
+    depends_on:
+      datahub-gms:
+        condition: service_healthy
+
+  portal:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: open-data-platform-portal
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+  prometheus:
+    image: prom/prometheus:v2.51.2
+    container_name: open-data-platform-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./ops/observability/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./ops/observability/alerts.yml:/etc/prometheus/alerts.yml
+      - prometheus-data:/prometheus
+    depends_on:
+      - alertmanager
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: open-data-platform-alertmanager
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./ops/observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+      - alertmanager-data:/alertmanager
+    depends_on:
+      - prometheus-msteams
+
+  prometheus-msteams:
+    image: quay.io/prometheusmsteams/prometheus-msteams:v1.5.3
+    platform: linux/amd64
+    container_name: open-data-platform-prometheus-msteams
+    environment:
+      - TEAMS_INCOMING_WEBHOOK_URL=${ALERT_TEAMS_WEBHOOK_URL:?Set ALERT_TEAMS_WEBHOOK_URL}
+    ports:
+      - "2000:2000"
+
+  grafana:
+    image: grafana/grafana:10.4.1
+    container_name: open-data-platform-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD}
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./ops/observability/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+      - ./ops/observability/grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml
+      - ./ops/observability/grafana/dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+
+  loki:
+    image: grafana/loki:2.9.6
+    container_name: open-data-platform-loki
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./ops/observability/loki.yml:/etc/loki/local-config.yaml
+      - loki-data:/loki
+
+  promtail:
+    image: grafana/promtail:2.9.6
+    container_name: open-data-platform-promtail
+    command: -config.file=/etc/promtail/config.yml
+    volumes:
+      - ./ops/observability/promtail.yml:/etc/promtail/config.yml
+      - ./logs:/var/log/airflow
+    depends_on:
+      - loki
+
+  tempo:
+    image: grafana/tempo:2.4.1
+    container_name: open-data-platform-tempo
+    command: -config.file=/etc/tempo.yml
+    ports:
+      - "3200:3200"
+      - "4317:4317"
+      - "4318:4318"
+    volumes:
+      - ./ops/observability/tempo.yml:/etc/tempo.yml
+      - tempo-data:/var/tempo
+
+  otel-collector:
+    image: otel/opentelemetry-collector:0.95.0
+    container_name: open-data-platform-otel-collector
+    command: --config=/etc/otel-collector.yml
+    ports:
+      - "8889:8889"
+      - "4319:4317"
+      - "4320:4318"
+    volumes:
+      - ./ops/observability/otel-collector.yml:/etc/otel-collector.yml
+    depends_on:
+      - tempo
+
+  statsd-exporter:
+    image: prom/statsd-exporter:v0.26.1
+    container_name: open-data-platform-statsd-exporter
+    ports:
+      - "9102:9102"
+      - "9125:9125/udp"
+
+  postgres-exporter-airflow:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: open-data-platform-postgres-exporter-airflow
+    environment:
+      - DATA_SOURCE_NAME=postgresql://${AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD}@postgres:5432/${AIRFLOW_DB_NAME:-airflow}?sslmode=disable
+    ports:
+      - "9187:9187"
+    depends_on:
+      - postgres
+
+  postgres-exporter-warehouse:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: open-data-platform-postgres-exporter-warehouse
+    environment:
+      - DATA_SOURCE_NAME=postgresql://${WAREHOUSE_USER}:${WAREHOUSE_PASSWORD}@warehouse:5432/${WAREHOUSE_DB:-open_data_platform_dw}?sslmode=disable
+    ports:
+      - "9188:9187"
+    depends_on:
+      - warehouse
+
+volumes:
+  postgres-db-volume:
+  warehouse-db-volume:
+  superset-db-volume:
+  minio-data:
+  datahub-mysql-volume:
+  prometheus-data:
+  alertmanager-data:
+  grafana-data:
+  loki-data:
+  tempo-data:
+  datahub-es-volume:

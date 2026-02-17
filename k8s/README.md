@@ -1,0 +1,134 @@
+# Kubernetes Dev-Like (Phase A)
+
+This folder contains a dev-like Kubernetes first iteration for the local stack:
+
+- Airflow webserver + scheduler + init job
+- Airflow metadata Postgres
+- Warehouse Postgres
+- MinIO + bucket init job (`bronze`, `silver`, `gold`)
+
+## Local kind Prerequisites
+
+- Docker
+- [kind](https://kind.sigs.k8s.io/)
+- kubectl
+- `.env` present in repo root
+
+## Start (kind)
+
+From repo root:
+
+```bash
+make k8s-dev-up
+```
+
+What this does:
+
+1. Creates a local kind cluster (`ai-trial-dev`) and mounts your repo into the node at `/workspace/ai_trial`.
+2. Builds and loads the Airflow image (`ai-trial/airflow:dev`).
+3. Creates/updates Kubernetes Secret `odp-env` from `.env`.
+4. Applies core services, runs init Jobs, then starts Airflow.
+
+## Access (kind)
+
+Use port-forward in separate terminals:
+
+```bash
+kubectl -n odp-dev port-forward svc/airflow-webserver 8080:8080
+kubectl -n odp-dev port-forward svc/minio 9000:9000 9001:9001
+kubectl -n odp-dev port-forward svc/warehouse 5433:5432
+```
+
+Then:
+
+- Airflow: [http://localhost:8080](http://localhost:8080)
+- MinIO API: [http://localhost:9000](http://localhost:9000)
+- MinIO Console: [http://localhost:9001](http://localhost:9001)
+- Warehouse Postgres: `localhost:5433`
+
+## Stop (kind)
+
+```bash
+make k8s-dev-down
+```
+
+This removes the namespace and deletes the kind cluster.
+
+## AKS Deployment
+
+You can deploy the same dev-like stack to Azure Kubernetes Service (AKS):
+
+```bash
+make k8s-aks-up
+```
+
+To tear it down again:
+
+```bash
+make k8s-aks-down
+```
+
+What this does:
+
+1. Creates/updates an Azure resource group, ACR, and AKS cluster.
+2. Builds and pushes the Airflow image to ACR.
+3. Builds and pushes the frontend image to ACR.
+4. Installs ingress-nginx + cert-manager.
+5. Creates/updates Kubernetes Secret `odp-env` from `.env`.
+6. Applies AKS-safe manifests from `k8s/aks` (no `hostPath` mounts).
+7. Runs init Jobs and starts Airflow.
+8. Exposes the frontend and core UIs publicly over HTTPS (DNS + Let's Encrypt):
+   - `https://FRONTEND_DOMAIN` (frontend)
+   - `https://airflow.FRONTEND_DOMAIN` (Airflow UI)
+   - `https://minio.FRONTEND_DOMAIN` (MinIO Console)
+   - `https://minio-api.FRONTEND_DOMAIN` (MinIO API)
+
+Common overrides:
+
+```bash
+AKS_RESOURCE_GROUP=ai-trial-rg \
+AKS_CLUSTER_NAME=ai-trial-aks \
+AKS_LOCATION=westeurope \
+AKS_NODE_VM_SIZE=Standard_B2s \
+AKS_FORCE_ATTACH_ACR=false \
+NAMESPACE=odp-dev \
+make k8s-aks-up
+```
+
+Access (same as kind, after `az aks get-credentials` is configured by the script):
+
+```bash
+kubectl -n odp-dev port-forward svc/airflow-webserver 8080:8080
+kubectl -n odp-dev port-forward svc/minio 9000:9000 9001:9001
+kubectl -n odp-dev port-forward svc/warehouse 5433:5432
+```
+
+Public ingress routes after deployment:
+- `https://FRONTEND_DOMAIN`
+- `https://airflow.FRONTEND_DOMAIN`
+- `https://minio.FRONTEND_DOMAIN`
+- `https://minio-api.FRONTEND_DOMAIN`
+
+## AKS Ingress + TLS (Custom Domain)
+
+`make k8s-aks-up` handles this end-to-end. Under the hood it:
+
+1. Installs ingress-nginx on AKS (cloud provider manifest) with a static Public IP.
+2. Installs cert-manager and applies:
+   - `k8s/aks/frontend.yaml` (frontend service as `ClusterIP`)
+   - `k8s/aks/cert-issuer-letsencrypt-prod.yaml`
+   - `k8s/aks/frontend-ingress.yaml`
+3. Points Azure DNS records to the ingress public IP:
+   - `FRONTEND_DOMAIN` -> ingress IP
+   - `www`, `airflow`, `minio`, `minio-api` -> CNAME to `FRONTEND_DOMAIN`
+
+Important:
+- The certificate remains `pending` until DNS resolves to the ingress IP.
+- cert-manager will issue/update `frontend-tls` automatically once propagation completes.
+
+## Notes
+
+- This is intentionally **dev-like**, not production-grade.
+- kind mode uses a host-mounted repo path so DAG/code changes are visible without rebuilding every time.
+- AKS mode bakes DAG/project code into the Airflow image.
+- Database/object-store state is ephemeral in this first iteration (pods use `emptyDir`).

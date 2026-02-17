@@ -1,0 +1,11 @@
+version: 1
+product:
+  name: "Example Domain Product"
+  owner: "data.owner@example.com"
+  steward: "data.steward@example.com"
+  description: "Short description of the domain data product."
+  classification: "internal"
+  sla:
+    freshness_hours: 24
+    availability_percent: 99.0
+  datasets: []

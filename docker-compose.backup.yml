@@ -1,0 +1,132 @@
+version: '3'
+services:
+  airflow-webserver:
+    image: apache/airflow:2.8.0
+    container_name: airflow-webserver
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      - AIRFLOW__CORE__FERNET_KEY=FB0eSSa2y6K0X6j8k641_z9g8e6-1234
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__ADMIN__USER=admin
+      - AIRFLOW__ADMIN__PASSWORD=admin
+      # Install project dependencies for local execution
+      - _PIP_ADDITIONAL_REQUIREMENTS=pyspark delta-spark pandas requests python-dotenv pydantic pydantic-settings pytz
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./:/opt/airflow/project # Mount project root to access scripts/pipelines
+      - ./data:/opt/airflow/project/data # Ensure data is accessible
+    ports:
+      - "8080:8080"
+    command: webserver
+    healthcheck:
+      test: [ "CMD-SHELL", "[ -f /opt/airflow/airflow-webserver.pid ]" ]
+      interval: 30s
+      timeout: 30s
+      retries: 3
+    depends_on:
+      - postgres
+
+  airflow-scheduler:
+    image: apache/airflow:2.8.0
+    container_name: airflow-scheduler
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      - AIRFLOW__CORE__FERNET_KEY=46JNPaWlk7vXo-J9F_zW3u3n8w-Q5b9Jz3x2v_E1m7U=
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - _PIP_ADDITIONAL_REQUIREMENTS=pyspark delta-spark pandas requests python-dotenv pydantic pydantic-settings pytz
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./:/opt/airflow/project
+      - ./data:/opt/airflow/project/data
+    command: scheduler
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:13
+    container_name: airflow-postgres
+    environment:
+      - POSTGRES_USER=airflow
+      - POSTGRES_PASSWORD=airflow
+      - POSTGRES_DB=airflow
+    volumes:
+      - postgres-db-volume:/var/lib/postgresql/data
+
+  minio:
+    image: minio/minio:latest
+    container_name: open-data-platform-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio-data:/data
+
+  create-buckets:
+    image: minio/mc
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c " /usr/bin/mc alias set myminio http://minio:9000 minioadmin minioadmin; /usr/bin/mc mb myminio/bronze; /usr/bin/mc mb myminio/silver; /usr/bin/mc mb myminio/gold; exit 0; "
+
+  warehouse:
+    image: postgres:15
+    container_name: open-data-platform-warehouse
+    environment:
+      - POSTGRES_USER=warehouse_user
+      - POSTGRES_PASSWORD=warehouse_password
+      - POSTGRES_DB=open_data_platform_dw
+    ports:
+      - "5433:5432"
+    volumes:
+      - warehouse-db-volume:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U warehouse_user -d open_data_platform_dw" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  superset:
+    image: apache/superset:3.0.0
+    container_name: open-data-platform-superset
+    ports:
+      - "8088:8088"
+    environment:
+      - SUPERSET_SECRET_KEY=TEST_SECRET_KEY_12345
+      - SQLALCHEMY_DATABASE_URI=postgresql+psycopg2://superset:superset@superset-db/superset
+    depends_on:
+      - superset-db
+      - warehouse
+    command: >
+      sh -c "
+        superset fab create-admin --username admin --firstname Superset --lastname Admin --email admin@superset.com --password admin &&
+        superset db upgrade &&
+        superset init &&
+        /usr/bin/run-server.sh"
+    volumes:
+      - ./scripts/superset_config.py:/app/pythonpath/superset_config.py
+
+  superset-db:
+    image: postgres:15
+    container_name: superset-postgres
+    environment:
+      - POSTGRES_USER=superset
+      - POSTGRES_PASSWORD=superset
+      - POSTGRES_DB=superset
+    volumes:
+      - superset-db-volume:/var/lib/postgresql/data
+
+volumes:
+  postgres-db-volume:
+  warehouse-db-volume:
+  superset-db-volume:
+  minio-data:

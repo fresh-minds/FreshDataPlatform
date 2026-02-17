@@ -1,0 +1,70 @@
+flowchart LR
+  subgraph "User Surface"
+    "Browser" --> "Frontend (Portal :3000)"
+  end
+
+  subgraph "Orchestration & Pipelines"
+    "Airflow Webserver :8080" --> "Airflow Scheduler"
+    "Airflow Scheduler" --> "Pipelines (Spark / Python)"
+  end
+
+  subgraph "Storage & Data Plane"
+    "MinIO S3 :9000"
+    "MinIO Console :9001"
+    "Lakehouse (Bronze/Silver/Gold)"
+    "Warehouse (Postgres)"
+  end
+
+  subgraph "Analytics & BI"
+    "Superset :8088"
+  end
+
+  subgraph "Governance"
+    "DataHub UI :9002"
+    "DataHub GMS"
+    "DataHub Elasticsearch"
+    "DataHub Kafka"
+  end
+
+  subgraph "Observability"
+    "Prometheus :9090"
+    "Grafana :3001"
+    "Loki :3100"
+    "Tempo :3200"
+    "OTEL Collector :4318"
+    "StatsD Exporter :9102"
+    "Postgres Exporter (Airflow) :9187"
+    "Postgres Exporter (Warehouse) :9188"
+  end
+
+  "Frontend (Portal :3000)" --> "Airflow Webserver :8080"
+  "Frontend (Portal :3000)" --> "DataHub UI :9002"
+  "Frontend (Portal :3000)" --> "Superset :8088"
+  "Frontend (Portal :3000)" --> "Grafana :3001"
+
+  "Airflow Scheduler" --> "MinIO S3 :9000"
+  "Airflow Scheduler" --> "Lakehouse (Bronze/Silver/Gold)"
+  "Pipelines (Spark / Python)" --> "Lakehouse (Bronze/Silver/Gold)"
+  "Lakehouse (Bronze/Silver/Gold)" --> "Warehouse (Postgres)"
+  "Warehouse (Postgres)" --> "Superset :8088"
+
+  "Airflow Scheduler" --> "DataHub GMS"
+  "DataHub GMS" --> "DataHub Elasticsearch"
+  "DataHub GMS" --> "DataHub Kafka"
+  "DataHub UI :9002" --> "DataHub GMS"
+
+  "Airflow Webserver :8080" --> "StatsD Exporter :9102"
+  "Airflow Scheduler" --> "StatsD Exporter :9102"
+  "StatsD Exporter :9102" --> "Prometheus :9090"
+  "Postgres Exporter (Airflow) :9187" --> "Prometheus :9090"
+  "Postgres Exporter (Warehouse) :9188" --> "Prometheus :9090"
+  "MinIO S3 :9000" --> "Prometheus :9090"
+
+  "Pipelines (Spark / Python)" --> "OTEL Collector :4318"
+  "OTEL Collector :4318" --> "Prometheus :9090"
+  "OTEL Collector :4318" --> "Tempo :3200"
+
+  "Airflow Logs" --> "Loki :3100"
+  "Grafana :3001" --> "Prometheus :9090"
+  "Grafana :3001" --> "Loki :3100"
+  "Grafana :3001" --> "Tempo :3200"

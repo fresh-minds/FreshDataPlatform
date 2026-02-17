@@ -1,0 +1,43 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-create-buckets
+  namespace: odp-dev
+  labels:
+    app.kubernetes.io/name: minio-create-buckets
+spec:
+  backoffLimit: 5
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: minio-create-buckets
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: mc
+          image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: odp-env
+                  key: MINIO_ROOT_USER
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: odp-env
+                  key: MINIO_ROOT_PASSWORD
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              until /usr/bin/mc alias set myminio http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"; do
+                echo "Waiting for MinIO..."
+                sleep 2
+              done
+
+              /usr/bin/mc mb --ignore-existing myminio/bronze
+              /usr/bin/mc mb --ignore-existing myminio/silver
+              /usr/bin/mc mb --ignore-existing myminio/gold
+              echo "Buckets are ready."

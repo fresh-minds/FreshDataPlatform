@@ -1,0 +1,123 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airflow-webserver
+  namespace: odp-dev
+  labels:
+    app.kubernetes.io/name: airflow-webserver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: airflow-webserver
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: airflow-webserver
+    spec:
+      containers:
+        - name: airflow-webserver
+          image: ai-trial/airflow:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+          envFrom:
+            - secretRef:
+                name: odp-env
+          env:
+            - name: AIRFLOW__CORE__EXECUTOR
+              value: LocalExecutor
+            - name: AIRFLOW__CORE__LOAD_EXAMPLES
+              value: "False"
+            - name: AIRFLOW__METRICS__STATSD_ON
+              value: "False"
+            - name: OTEL_ENABLED
+              valueFrom:
+                secretKeyRef:
+                  name: odp-env
+                  key: OTEL_ENABLED
+                  optional: true
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: odp-env
+                  key: OTEL_EXPORTER_OTLP_ENDPOINT
+                  optional: true
+            - name: OTEL_METRICS_EXPORT_INTERVAL
+              valueFrom:
+                secretKeyRef:
+                  name: odp-env
+                  key: OTEL_METRICS_EXPORT_INTERVAL
+                  optional: true
+            - name: OTEL_SERVICE_NAMESPACE
+              valueFrom:
+                secretKeyRef:
+                  name: odp-env
+                  key: OTEL_SERVICE_NAMESPACE
+                  optional: true
+            - name: ENVIRONMENT
+              value: local
+            - name: PYTHONPATH
+              value: /opt/airflow/project
+          command: ["/bin/bash", "-ec"]
+          args:
+            - |
+              set -euo pipefail
+              export AIRFLOW__CORE__SQL_ALCHEMY_CONN="postgresql+psycopg2://${AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD}@postgres/${AIRFLOW_DB_NAME:-airflow}"
+              export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="$AIRFLOW__CORE__SQL_ALCHEMY_CONN"
+              export AIRFLOW__CORE__FERNET_KEY="${AIRFLOW_FERNET_KEY}"
+              exec airflow webserver
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 40
+            periodSeconds: 15
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: dags
+              mountPath: /opt/airflow/dags
+            - name: logs
+              mountPath: /opt/airflow/logs
+            - name: plugins
+              mountPath: /opt/airflow/plugins
+            - name: project
+              mountPath: /opt/airflow/project
+      volumes:
+        - name: dags
+          hostPath:
+            path: /workspace/ai_trial/dags
+            type: Directory
+        - name: logs
+          emptyDir: {}
+        - name: plugins
+          hostPath:
+            path: /workspace/ai_trial/plugins
+            type: DirectoryOrCreate
+        - name: project
+          hostPath:
+            path: /workspace/ai_trial
+            type: Directory
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: airflow-webserver
+  namespace: odp-dev
+  labels:
+    app.kubernetes.io/name: airflow-webserver
+spec:
+  selector:
+    app.kubernetes.io/name: airflow-webserver
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

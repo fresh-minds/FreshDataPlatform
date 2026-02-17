@@ -1,0 +1,69 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: frontend
+  namespace: __NAMESPACE__
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - __FRONTEND_DOMAIN__
+        - www.__FRONTEND_DOMAIN__
+        - airflow.__FRONTEND_DOMAIN__
+        - minio.__FRONTEND_DOMAIN__
+        - minio-api.__FRONTEND_DOMAIN__
+      secretName: frontend-tls
+  rules:
+    - host: __FRONTEND_DOMAIN__
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80
+    - host: airflow.__FRONTEND_DOMAIN__
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: airflow-webserver
+                port:
+                  number: 8080
+    - host: minio.__FRONTEND_DOMAIN__
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: minio
+                port:
+                  number: 9001
+    - host: minio-api.__FRONTEND_DOMAIN__
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: minio
+                port:
+                  number: 9000
+    - host: www.__FRONTEND_DOMAIN__
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80

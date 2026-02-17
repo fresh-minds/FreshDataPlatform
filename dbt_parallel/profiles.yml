@@ -1,0 +1,14 @@
+open_data_platform_parallel_dbt:
+  target: local
+  outputs:
+    local:
+      type: postgres
+      host: "{{ env_var('WAREHOUSE_HOST', 'localhost') }}"
+      port: "{{ env_var('WAREHOUSE_PORT', '5433') | int }}"
+      user: "{{ env_var('WAREHOUSE_USER', 'admin') }}"
+      pass: "{{ env_var('WAREHOUSE_PASSWORD', 'admin') }}"
+      dbname: "{{ env_var('WAREHOUSE_DB', 'open_data_platform_dw') }}"
+      schema: "{{ env_var('DBT_SCHEMA', 'dbt_parallel') }}"
+      threads: 4
+      connect_timeout: 10
+      sslmode: disable

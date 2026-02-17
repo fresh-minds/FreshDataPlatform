@@ -1,0 +1,3 @@
+timelogid,approvalstatus,billingstatus,billedstatus,erecno,db_workdate,jobid,projectid,projectname,clientid,hours,jobname,jobisactive,employeefirstname,employeelastname
+TL1,Approved,Billable,No,1,2026-01-15,J1,P1,Project One,C1,08:30,Job Alpha,true,Anna,Bakker
+TL2,Approved,Billable,No,2,2026-01-16,J2,P2,Project Two,C2,07:45,Job Beta,true,Bob,Jansen

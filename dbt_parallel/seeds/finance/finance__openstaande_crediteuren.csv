@@ -1,0 +1,2 @@
+amount,account_name,invoice_date,due_date,amount_in_transit,description,invoice_number
+1200.00,Leverancier X,/Date(1735603200000)/,/Date(1736467200000)/,1200.00,Licentie factuur,CR-10

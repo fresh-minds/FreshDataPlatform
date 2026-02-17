@@ -1,0 +1,61 @@
+{
+  "uid": "platform-overview",
+  "title": "Platform Overview",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Targets Up",
+      "datasource": "Prometheus",
+      "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+      "targets": [
+        {
+          "expr": "sum(up)",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Targets Down",
+      "datasource": "Prometheus",
+      "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
+      "targets": [
+        {
+          "expr": "sum(up == 0)",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Pipeline Runs (Last 24h)",
+      "datasource": "Prometheus",
+      "gridPos": {"x": 0, "y": 4, "w": 12, "h": 6},
+      "targets": [
+        {
+          "expr": "sum by (status) (increase(pipeline_runs_total[24h]))",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Data Quality Failures (Last 24h)",
+      "datasource": "Prometheus",
+      "gridPos": {"x": 0, "y": 10, "w": 12, "h": 6},
+      "targets": [
+        {
+          "expr": "sum by (dataset) (increase(dq_checks_total{status=\"fail\"}[24h]))",
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}

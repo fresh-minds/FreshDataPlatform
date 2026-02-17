@@ -1,0 +1,142 @@
+# Environment Variables & Secrets
+# NOTE: Never commit .env files containing real credentials
+.env
+.env_copy
+.env.*
+!.env.template
+.env.local
+.env.*.local
+.env.*.backup
+.env.production
+.env.staging
+secrets.json
+airflow_secrets.json
+*_secrets.*
+credentials.json
+config.local.*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+.venv
+venv/
+ENV/
+env/
+.venv/
+
+# Testing
+.pytest_cache/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+.hypothesis/
+tests/e2e/evidence/**
+!tests/e2e/evidence/.gitkeep
+!tests/e2e/evidence/README.md
+
+# IDE & Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+
+# Node.js / Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.venv/
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/pnpm-debug.log*
+
+# Type checking
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+
+# Linting
+.pylintrc.local
+
+# Airflow & Logs
+logs/
+airflow.db
+airflow_secrets.json
+
+# Data & Artifacts
+test_parquet_local/
+*.parquet
+*.pkl
+*.pickle
+*.joblib
+
+# Docker
+docker-compose.override.yml
+.docker/
+.dockerignore
+
+# Local development
+.local/
+.cache/
+
+# OS-specific
+.vscode/settings.json
+.vscode/launch.json
+.idea/workspace.xml
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+*~
+
+# Generated files
+dags/__pycache__
+scripts/__pycache__
+shared/__pycache__
+pipelines/__pycache__
+dbt_parallel/target/
+dbt_parallel/logs/
+dbt_parallel/dbt_packages/
+dbt_parallel/.user.yml

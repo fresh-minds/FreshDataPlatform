@@ -1,0 +1,51 @@
+groups:
+  - name: platform-health
+    rules:
+      - alert: TargetDown
+        expr: up == 0
+        for: 5m
+        labels:
+          severity: high
+        annotations:
+          summary: "Prometheus target down (job={{ $labels.job }}, instance={{ $labels.instance }})"
+          description: "Prometheus has not scraped {{ $labels.job }} ({{ $labels.instance }}) for more than 5 minutes."
+
+      - alert: ScrapeDurationHigh
+        expr: scrape_duration_seconds > 5
+        for: 10m
+        labels:
+          severity: medium
+        annotations:
+          summary: "Prometheus scrape duration high (job={{ $labels.job }})"
+          description: "Scrape duration for {{ $labels.job }} has been over 5s for 10 minutes."
+
+  - name: pipeline-health
+    rules:
+      - alert: PipelineRunFailure
+        expr: increase(pipeline_runs_total{status="failure"}[15m]) > 0
+        for: 5m
+        labels:
+          severity: high
+        annotations:
+          summary: "Pipeline failure detected"
+          description: "At least one pipeline run failed in the last 15 minutes."
+
+      - alert: PipelineStale
+        expr: (time() - pipeline_last_success_timestamp_seconds) > 86400
+        for: 30m
+        labels:
+          severity: medium
+        annotations:
+          summary: "Pipeline stale"
+          description: "A pipeline has not succeeded in more than 24 hours."
+
+  - name: data-quality
+    rules:
+      - alert: DataQualityFailure
+        expr: increase(dq_checks_total{status="fail"}[1h]) > 0
+        for: 5m
+        labels:
+          severity: high
+        annotations:
+          summary: "Data quality checks failing"
+          description: "One or more data quality checks failed in the last hour."

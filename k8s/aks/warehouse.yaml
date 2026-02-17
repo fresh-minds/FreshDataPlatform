@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: warehouse
+  namespace: __NAMESPACE__
+  labels:
+    app.kubernetes.io/name: warehouse
+    app.kubernetes.io/component: warehouse-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: warehouse
+      app.kubernetes.io/component: warehouse-db
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: warehouse
+        app.kubernetes.io/component: warehouse-db
+    spec:
+      containers:
+        - name: warehouse
+          image: postgres:15
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5432
+              name: postgres
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: odp-env
+                  key: WAREHOUSE_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: odp-env
+                  key: WAREHOUSE_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: odp-env
+                  key: WAREHOUSE_DB
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: warehouse-data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: warehouse-data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: warehouse
+  namespace: __NAMESPACE__
+  labels:
+    app.kubernetes.io/name: warehouse
+    app.kubernetes.io/component: warehouse-db
+spec:
+  selector:
+    app.kubernetes.io/name: warehouse
+    app.kubernetes.io/component: warehouse-db
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432

@@ -1,0 +1,42 @@
+name: open_data_platform_parallel_dbt
+version: 1.0.0
+config-version: 2
+profile: open_data_platform_parallel_dbt
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+snapshot-paths: ["snapshots"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+  - "logs"
+
+vars:
+  use_seed_data: false
+
+models:
+  open_data_platform_parallel_dbt:
+    +materialized: view
+    finance:
+      silver:
+        +materialized: table
+        +schema: finance_silver
+      gold:
+        +materialized: table
+        +schema: finance
+    job_market_nl:
+      +schema: job_market_nl_dbt
+
+seeds:
+  open_data_platform_parallel_dbt:
+    +quote_columns: false
+    finance:
+      +schema: raw_finance
+
+snapshots:
+  open_data_platform_parallel_dbt:
+    +target_schema: snapshots

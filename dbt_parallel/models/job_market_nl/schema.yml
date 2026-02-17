@@ -1,0 +1,19 @@
+version: 2
+
+models:
+  - name: job_market_snapshot
+    description: "Latest IT market snapshot derived from CBS vacancy rate and job ads."
+    columns:
+      - name: period_key
+        tests:
+          - not_null
+      - name: sector_name
+        tests:
+          - not_null
+
+  - name: job_market_top_skills
+    description: "Top skills extracted from job ads."
+    columns:
+      - name: skill
+        tests:
+          - not_null

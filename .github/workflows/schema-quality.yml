@@ -1,0 +1,28 @@
+name: Schema Quality
+
+on:
+  pull_request:
+    paths:
+      - "schema/**"
+      - "scripts/validate_dbml.py"
+      - "scripts/validate_governance_metadata.py"
+      - "Makefile"
+      - ".github/workflows/schema-quality.yml"
+
+jobs:
+  validate-dbml:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Validate DBML schema
+        run: make schema-validate
+
+      - name: Validate governance metadata
+        run: make governance-validate
