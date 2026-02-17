@@ -97,6 +97,12 @@ const QUICK_ACTION_ITEMS = [OVERVIEW_ACTION, ...QUICK_ACTIONS].map((action) => {
 });
 
 function Dashboard() {
+    const overviewItem = QUICK_ACTION_ITEMS.find((item) => item.label === 'One-screen overview');
+    const secondaryItems = [
+        ...QUICK_ACTION_ITEMS.filter((item) => item.label !== 'One-screen overview'),
+        ...STATUS_ITEMS
+    ];
+
     return (
         <div className="docs-page docs-dashboard">
             <div className="docs-container">
@@ -113,44 +119,57 @@ function Dashboard() {
                                 This dashboard is the front door to the platform. Launch each surface to
                                 orchestrate pipelines, trace lineage, explore data, and monitor operations.
                             </p>
-                            <div className="panel-list launchpad-list">
-                                {QUICK_ACTION_ITEMS.map((item) => {
-                                    const Icon = item.icon ?? Terminal;
-                                    const isOverview = item.label === 'One-screen overview';
-                                    return (
-                                    <a
-                                        key={item.label}
-                                        href={item.href}
-                                        className={`panel-item launchpad-item${isOverview ? ' launchpad-item--featured' : ''}`}
-                                        target={item.href.startsWith('/') ? undefined : '_blank'}
-                                        rel={item.href.startsWith('/') ? undefined : 'noreferrer'}
-                                    >
-                                        <Icon size={18} />
-                                        <div className="launchpad-text">
-                                            <span>{item.subject}</span>
-                                            <strong>{item.detail}</strong>
+                            <div className="launchpad-shell">
+                                <div className="launchpad-section">
+                                    <p className="launchpad-section-title">Primary</p>
+                                    {overviewItem ? (
+                                        <a
+                                            href={overviewItem.href}
+                                            className="launchpad-primary"
+                                            target={overviewItem.href.startsWith('/') ? undefined : '_blank'}
+                                            rel={overviewItem.href.startsWith('/') ? undefined : 'noreferrer'}
+                                        >
+                                            <div className="launchpad-primary-text">
+                                                <span>{overviewItem.subject}</span>
+                                                <strong>{overviewItem.detail}</strong>
+                                            </div>
+                                            <span className="launchpad-primary-meta">Opens overview</span>
+                                        </a>
+                                    ) : (
+                                        <div className="launchpad-empty">
+                                            No overview is configured yet.
                                         </div>
-                                    </a>
-                                    );
-                                })}
-                                {STATUS_ITEMS.map((item) => {
-                                    const Icon = item.icon ?? Terminal;
-                                    return (
-                                    <a
-                                        key={item.label}
-                                        href={item.href}
-                                        className="panel-item launchpad-item"
-                                        target="_blank"
-                                        rel="noreferrer"
-                                    >
-                                        <Icon size={18} />
-                                        <div className="launchpad-text">
-                                            <span>{item.subject}</span>
-                                            <strong>{item.detail}</strong>
+                                    )}
+                                </div>
+                                <div className="launchpad-section">
+                                    <p className="launchpad-section-title">Destinations</p>
+                                    {secondaryItems.length ? (
+                                        <div className="launchpad-list">
+                                            {secondaryItems.map((item) => {
+                                                const Icon = item.icon ?? Terminal;
+                                                return (
+                                                <a
+                                                    key={item.label}
+                                                    href={item.href}
+                                                    className="launchpad-item"
+                                                    target={item.href.startsWith('/') ? undefined : '_blank'}
+                                                    rel={item.href.startsWith('/') ? undefined : 'noreferrer'}
+                                                >
+                                                    <Icon size={18} aria-hidden="true" />
+                                                    <div className="launchpad-text">
+                                                        <span>{item.subject}</span>
+                                                        <strong>{item.detail}</strong>
+                                                    </div>
+                                                </a>
+                                                );
+                                            })}
                                         </div>
-                                    </a>
-                                    );
-                                })}
+                                    ) : (
+                                        <div className="launchpad-empty">
+                                            No services are available yet. Add service URLs to enable links.
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
