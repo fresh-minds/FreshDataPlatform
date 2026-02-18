@@ -13,7 +13,15 @@ def url_host(url: str) -> str:
 def is_keycloak_auth_url(url: str, keycloak_base_url: str) -> bool:
     parsed = urlparse(url)
     keycloak_host = url_host(keycloak_base_url)
-    return parsed.netloc.lower() == keycloak_host and "/protocol/openid-connect/auth" in parsed.path
+    accepted_hosts = {keycloak_host}
+
+    # Local docker setups often use `keycloak` in redirects while tests use localhost.
+    if keycloak_host.startswith("localhost:"):
+        accepted_hosts.add(keycloak_host.replace("localhost", "keycloak", 1))
+    elif keycloak_host.startswith("127.0.0.1:"):
+        accepted_hosts.add(keycloak_host.replace("127.0.0.1", "keycloak", 1))
+
+    return parsed.netloc.lower() in accepted_hosts and "/protocol/openid-connect/auth" in parsed.path
 
 
 def query_params(url: str) -> dict[str, str]:

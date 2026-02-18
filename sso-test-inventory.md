@@ -13,9 +13,9 @@
 
 | Client ID | Protocol | Type | Redirect URIs (local) | Redirect URIs (AKS) | Web Origins |
 |---|---|---|---|---|---|
-| `airflow` | OIDC | Confidential | `http://localhost:8080/oauth-authorized/keycloak`, `http://localhost:8080/auth/oauth-authorized/keycloak` | `https://airflow.<FRONTEND_DOMAIN>/oauth-authorized/keycloak`, `https://airflow.<FRONTEND_DOMAIN>/auth/oauth-authorized/keycloak` | `*` |
-| `datahub` | OIDC | Confidential | `http://localhost:9002/callback/oidc` | `https://datahub.<FRONTEND_DOMAIN>/callback/oidc` | `*` |
-| `minio` | OIDC | Confidential | `http://localhost:9001/oauth_callback` | `https://minio.<FRONTEND_DOMAIN>/oauth_callback` | `*` |
+| `airflow` | OIDC | Confidential | `http://localhost:8080/oauth-authorized/keycloak`, `http://localhost:8080/auth/oauth-authorized/keycloak` | `https://airflow.<FRONTEND_DOMAIN>/oauth-authorized/keycloak`, `https://airflow.<FRONTEND_DOMAIN>/auth/oauth-authorized/keycloak` | `http://localhost:8080`, `https://airflow.<FRONTEND_DOMAIN>` |
+| `datahub` | OIDC | Confidential | `http://localhost:9002/callback/oidc` | `https://datahub.<FRONTEND_DOMAIN>/callback/oidc` | `http://localhost:9002`, `https://datahub.<FRONTEND_DOMAIN>` |
+| `minio` | OIDC | Confidential | `http://localhost:9001/oauth_callback` | `https://minio.<FRONTEND_DOMAIN>/oauth_callback` | `http://localhost:9001`, `https://minio.<FRONTEND_DOMAIN>` |
 
 Additional notes:
 - `minio` has protocol mapper `minio-policy` injecting claim `policy=consoleAdmin` into access/id/userinfo tokens.
@@ -27,7 +27,7 @@ Additional notes:
 ### Web apps using Keycloak SSO
 - Airflow UI: `http://localhost:8080` or `https://airflow.<FRONTEND_DOMAIN>`
 - DataHub Frontend: `http://localhost:9002` (AKS redirect configured for `https://datahub.<FRONTEND_DOMAIN>`, but ingress route not present in `k8s/aks/frontend-ingress.yaml`)
-- MinIO Console: `http://localhost:9001` or `https://minio.<FRONTEND_DOMAIN>`
+- MinIO Console: `http://localhost:9001` or `https://minio.<FRONTEND_DOMAIN>` (OpenID configured on server; browser SSO checks are disabled by default in the E2E suite via `SSO_BROWSER_SSO_MINIO=false` because current console login strategy remains username/password form)
 
 ### Related APIs / gateways
 - Keycloak OIDC endpoints under `/realms/odp/protocol/openid-connect/*`
@@ -81,7 +81,7 @@ Additional notes:
 - Cookies:
   - SameSite/secure attributes are runtime-generated; must be browser-verified.
 - CORS:
-  - Client `webOrigins` currently `*` for all clients.
+  - Client `webOrigins` are explicit allowlists (no wildcard `*`) for airflow/datahub/minio.
 - CSP:
   - No explicit CSP policy settings found for Keycloak or dependent apps in manifests.
 

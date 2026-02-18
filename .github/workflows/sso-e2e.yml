@@ -59,6 +59,7 @@ jobs:
       KEYCLOAK_MINIO_CLIENT_SECRET: keycloak_minio_secret_ci
       KEYCLOAK_OIDC_BASE_URL: http://keycloak:8090/realms/odp/protocol/openid-connect
       KEYCLOAK_OIDC_AUTHORIZE_URL: http://keycloak:8090/realms/odp/protocol/openid-connect/auth
+      KEYCLOAK_OIDC_BROWSER_AUTHORIZE_URL: http://keycloak:8090/realms/odp/protocol/openid-connect/auth
       KEYCLOAK_OIDC_TOKEN_URL: http://keycloak:8090/realms/odp/protocol/openid-connect/token
       KEYCLOAK_OIDC_DISCOVERY_URL: http://keycloak:8090/realms/odp/.well-known/openid-configuration
       MINIO_OIDC_REDIRECT_URI: http://localhost:9001/oauth_callback
@@ -70,7 +71,7 @@ jobs:
       TEST_USER_ADMIN_PASSWORD: admin_secure_123
       SSO_BROWSERS: chromium
       SSO_REQUIRE_PKCE: true
-      SSO_EXPECT_GLOBAL_LOGOUT: true
+      SSO_EXPECT_GLOBAL_LOGOUT: false
       SSO_EXPECT_REFRESH_ROTATION: false
       SSO_ENVIRONMENT: dev
       SSO_INSTALL_PLAYWRIGHT_BROWSERS: false

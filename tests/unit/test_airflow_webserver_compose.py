@@ -24,3 +24,17 @@ def test_airflow_webserver_sets_gunicorn_header_limit():
     service_block = _extract_service_block(compose_path.read_text(), "airflow-webserver")
 
     assert "GUNICORN_CMD_ARGS=--limit-request-field_size 32768" in service_block
+
+
+def test_airflow_webserver_oauth_urls_split_browser_and_internal():
+    compose_path = Path(__file__).resolve().parents[2] / "docker-compose.yml"
+    service_block = _extract_service_block(compose_path.read_text(), "airflow-webserver")
+
+    assert (
+        "AIRFLOW_OAUTH_AUTHORIZE_URL=${KEYCLOAK_OIDC_BROWSER_AUTHORIZE_URL:-http://localhost:8090/realms/odp/protocol/openid-connect/auth}"
+        in service_block
+    )
+    assert (
+        "AIRFLOW_OAUTH_TOKEN_URL=${KEYCLOAK_OIDC_TOKEN_URL:-http://keycloak:8090/realms/odp/protocol/openid-connect/token}"
+        in service_block
+    )

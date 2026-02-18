@@ -30,6 +30,7 @@ class SSOApp:
     login_trigger_selector: str | None
     logout_url: str | None
     enabled: bool = True
+    browser_sso: bool = True
 
 
 @dataclass(frozen=True)
@@ -125,6 +126,7 @@ def _build_app(
     *,
     name: str,
     enabled_default: bool,
+    browser_sso_default: bool,
     default_url: str,
     default_client_id: str,
     default_redirect_path: str,
@@ -151,6 +153,7 @@ def _build_app(
         logout_url = None
 
     enabled = _env_bool(f"SSO_ENABLE_{upper}", enabled_default)
+    browser_sso = _env_bool(f"SSO_BROWSER_SSO_{upper}", browser_sso_default)
 
     return SSOApp(
         name=name,
@@ -161,6 +164,7 @@ def _build_app(
         login_trigger_selector=login_selector,
         logout_url=logout_url,
         enabled=enabled,
+        browser_sso=browser_sso,
     )
 
 
@@ -285,6 +289,7 @@ def load_sso_settings() -> SSOSettings:
         _build_app(
             name="airflow",
             enabled_default=True,
+            browser_sso_default=True,
             default_url="http://localhost:8080",
             default_client_id="airflow",
             default_redirect_path="/oauth-authorized/keycloak",
@@ -294,6 +299,7 @@ def load_sso_settings() -> SSOSettings:
         _build_app(
             name="datahub",
             enabled_default=True,
+            browser_sso_default=True,
             default_url="http://localhost:9002",
             default_client_id="datahub",
             default_redirect_path="/callback/oidc",
@@ -303,6 +309,7 @@ def load_sso_settings() -> SSOSettings:
         _build_app(
             name="minio",
             enabled_default=True,
+            browser_sso_default=False,
             default_url="http://localhost:9001",
             default_client_id="minio",
             default_redirect_path="/oauth_callback",
@@ -312,12 +319,12 @@ def load_sso_settings() -> SSOSettings:
     )
 
     enabled_apps = tuple(app for app in apps if app.enabled)
-    enabled_app_names = {app.name for app in enabled_apps}
+    browser_sso_app_names = {app.name for app in enabled_apps if app.browser_sso}
 
     browser_names = _split_csv(_env("SSO_BROWSERS", "chromium")) or ("chromium",)
     cross_app_pairs = _parse_cross_app_pairs(
         _split_csv(_env("SSO_CROSS_APP_PAIRS")),
-        enabled_app_names,
+        browser_sso_app_names,
     )
 
     expected_groups = _split_csv(_env("EXPECTED_GROUPS"))

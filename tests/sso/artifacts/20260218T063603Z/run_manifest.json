@@ -1,0 +1,14 @@
+{
+  "run_id": "20260218T063603Z",
+  "started_at_utc": "2026-02-18T06:36:03.753610+00:00",
+  "artifact_root": "/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial/tests/sso/artifacts",
+  "keycloak_base_url": "http://localhost:8090",
+  "realms": [
+    "odp"
+  ],
+  "apps": [
+    "airflow",
+    "datahub",
+    "minio"
+  ]
+}

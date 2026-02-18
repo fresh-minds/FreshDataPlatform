@@ -24,7 +24,20 @@ data:
                     "http://localhost:8080/auth/oauth-authorized/keycloak"
                 ],
                 "webOrigins": [
-                    "*"
+                    "http://localhost:8080"
+                ],
+                "protocolMappers": [
+                    {
+                        "name": "airflow-audience",
+                        "protocol": "openid-connect",
+                        "protocolMapper": "oidc-audience-mapper",
+                        "config": {
+                            "included.client.audience": "airflow",
+                            "access.token.claim": "true",
+                            "id.token.claim": "false",
+                            "userinfo.token.claim": "false"
+                        }
+                    }
                 ]
             },
             {
@@ -40,7 +53,20 @@ data:
                     "http://localhost:9002/callback/oidc"
                 ],
                 "webOrigins": [
-                    "*"
+                    "http://localhost:9002"
+                ],
+                "protocolMappers": [
+                    {
+                        "name": "datahub-audience",
+                        "protocol": "openid-connect",
+                        "protocolMapper": "oidc-audience-mapper",
+                        "config": {
+                            "included.client.audience": "datahub",
+                            "access.token.claim": "true",
+                            "id.token.claim": "false",
+                            "userinfo.token.claim": "false"
+                        }
+                    }
                 ]
             },
             {
@@ -56,9 +82,20 @@ data:
                     "http://localhost:9001/oauth_callback"
                 ],
                 "webOrigins": [
-                    "*"
+                    "http://localhost:9001"
                 ],
                 "protocolMappers": [
+                    {
+                        "name": "minio-audience",
+                        "protocol": "openid-connect",
+                        "protocolMapper": "oidc-audience-mapper",
+                        "config": {
+                            "included.client.audience": "minio",
+                            "access.token.claim": "true",
+                            "id.token.claim": "false",
+                            "userinfo.token.claim": "false"
+                        }
+                    },
                     {
                         "name": "minio-policy",
                         "protocol": "openid-connect",

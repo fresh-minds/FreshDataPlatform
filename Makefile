@@ -1,5 +1,5 @@
 # Open Data Platform - Development Commands
-.PHONY: install dev-install test lint format run clean help schema-validate schema-drift-check dbt-debug dbt-build-seed e2e-test test-e2e test-sso qa-test warehouse-security bootstrap-all k8s-dev-up k8s-dev-down k8s-aks-up k8s-aks-down
+.PHONY: install dev-install test lint format run clean help schema-validate schema-drift-check dbt-debug dbt-build-seed e2e-test test-e2e test-sso qa-test warehouse-security bootstrap-all bootstrap_all k8s-dev-up k8s-dev-down k8s-aks-up k8s-aks-down
 
 # Default Python
 PYTHON := python3
@@ -90,6 +90,8 @@ warehouse-security:  ## Apply warehouse RBAC/RLS/masking baseline
 
 bootstrap-all:  ## Start docker stack + seed MinIO/Superset/DataHub/warehouse in one go
 	./scripts/bootstrap_all.sh
+
+bootstrap_all: bootstrap-all  ## Alias for bootstrap-all
 
 k8s-dev-up:  ## Start dev-like Kubernetes Phase A stack on a local kind cluster
 	./scripts/k8s_dev_up.sh

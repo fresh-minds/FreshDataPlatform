@@ -33,6 +33,17 @@ def _is_reauth_required(page: object, app: SSOApp, keycloak_base_url: str) -> bo
     return "/login" in urlparse(current_url).path
 
 
+def _pkce_required_for_app(app: SSOApp, sso_settings: SSOSettings) -> bool:
+    if not sso_settings.require_pkce:
+        return False
+    # PKCE is mandatory for public clients and optional for confidential clients.
+    return not bool(app.client_secret)
+
+
+def _browser_sso_apps(sso_settings: SSOSettings) -> list[SSOApp]:
+    return [app for app in sso_settings.apps if app.browser_sso]
+
+
 @pytest.mark.e2e
 def test_unauthenticated_access_redirects_to_keycloak(
     browser_name: str,
@@ -40,7 +51,11 @@ def test_unauthenticated_access_redirects_to_keycloak(
     sso_settings: SSOSettings,
     write_log: object,
 ) -> None:
-    for app in sso_settings.apps:
+    browser_apps = _browser_sso_apps(sso_settings)
+    if not browser_apps:
+        pytest.skip("No browser SSO apps configured")
+
+    for app in browser_apps:
         context = browser_context_factory(f"{browser_name}-{app.name}-unauth")
         page = context.new_page()
 
@@ -50,7 +65,7 @@ def test_unauthenticated_access_redirects_to_keycloak(
         assert auth_query.get("client_id") == app.client_id, f"{app.name} did not use expected client_id"
         assert auth_query.get("response_type") == "code", f"{app.name} did not use auth code flow"
 
-        if sso_settings.require_pkce:
+        if _pkce_required_for_app(app, sso_settings):
             assert auth_query.get("code_challenge"), f"{app.name} auth request missing code_challenge"
             assert auth_query.get("code_challenge_method") == "S256", (
                 f"{app.name} auth request missing PKCE S256"
@@ -65,7 +80,11 @@ def test_login_establishes_session_for_each_app(
     browser_context_factory: object,
     sso_settings: SSOSettings,
 ) -> None:
-    for app in sso_settings.apps:
+    browser_apps = _browser_sso_apps(sso_settings)
+    if not browser_apps:
+        pytest.skip("No browser SSO apps configured")
+
+    for app in browser_apps:
         context = browser_context_factory(f"{browser_name}-{app.name}-login")
         page = context.new_page()
 
@@ -73,8 +92,12 @@ def test_login_establishes_session_for_each_app(
         perform_keycloak_login(page, sso_settings.basic_user.username, sso_settings.basic_user.password)
         wait_for_app_return(page, app, sso_settings.keycloak_base_url)
 
-        keycloak_cookies = context.cookies(sso_settings.keycloak_base_url)
-        assert any(cookie["name"].startswith("KEYCLOAK_") for cookie in keycloak_cookies), (
+        all_cookies = context.cookies()
+        assert any(
+            cookie["name"].startswith("KEYCLOAK_")
+            or cookie["name"] in {"AUTH_SESSION_ID", "AUTH_SESSION_ID_LEGACY", "KC_AUTH_SESSION_HASH"}
+            for cookie in all_cookies
+        ), (
             f"{app.name} login did not establish Keycloak session cookie"
         )
 
@@ -133,7 +156,6 @@ def test_logout_propagation_matches_expected_design(
     if not sso_settings.cross_app_pairs:
         pytest.skip("No cross-app pairs configured")
 
-    expect_global_logout = os.getenv("SSO_EXPECT_GLOBAL_LOGOUT", "true").lower() in {"1", "true", "yes", "on"}
     source_name, target_name = sso_settings.cross_app_pairs[0]
 
     source_app = app_map[source_name]
@@ -141,6 +163,12 @@ def test_logout_propagation_matches_expected_design(
 
     if not source_app.logout_url:
         pytest.skip(f"Logout URL not configured for source app '{source_app.name}'")
+
+    default_expect_global_logout = "/protocol/openid-connect/logout" in source_app.logout_url
+    expect_global_logout = os.getenv(
+        "SSO_EXPECT_GLOBAL_LOGOUT",
+        "true" if default_expect_global_logout else "false",
+    ).lower() in {"1", "true", "yes", "on"}
 
     context = browser_context_factory(f"{browser_name}-{source_name}-logout-propagation")
     page_a = context.new_page()

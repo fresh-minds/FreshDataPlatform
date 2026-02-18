@@ -17,7 +17,7 @@ services:
       - AIRFLOW_OAUTH_CLIENT_ID=${KEYCLOAK_AIRFLOW_CLIENT_ID:-airflow}
       - AIRFLOW_OAUTH_CLIENT_SECRET=${KEYCLOAK_AIRFLOW_CLIENT_SECRET:?Set KEYCLOAK_AIRFLOW_CLIENT_SECRET}
       - AIRFLOW_OAUTH_BASE_URL=${KEYCLOAK_OIDC_BASE_URL:-http://keycloak:8090/realms/odp/protocol/openid-connect}
-      - AIRFLOW_OAUTH_AUTHORIZE_URL=${KEYCLOAK_OIDC_AUTHORIZE_URL:-http://keycloak:8090/realms/odp/protocol/openid-connect/auth}
+      - AIRFLOW_OAUTH_AUTHORIZE_URL=${KEYCLOAK_OIDC_BROWSER_AUTHORIZE_URL:-http://keycloak:8090/realms/odp/protocol/openid-connect/auth}
       - AIRFLOW_OAUTH_TOKEN_URL=${KEYCLOAK_OIDC_TOKEN_URL:-http://keycloak:8090/realms/odp/protocol/openid-connect/token}
       - AIRFLOW_OAUTH_DEFAULT_ROLE=${AIRFLOW_OAUTH_DEFAULT_ROLE:-Admin}
       - AIRFLOW__METRICS__STATSD_ON=True
@@ -155,12 +155,15 @@ services:
       - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD} # MinIO requires 8+ chars
       - MINIO_PROMETHEUS_AUTH_TYPE=public
       - MINIO_PROMETHEUS_JOB_ID=minio
+      - MINIO_IDENTITY_OPENID_ENABLE=on
       - MINIO_IDENTITY_OPENID_CONFIG_URL=${KEYCLOAK_OIDC_DISCOVERY_URL:-http://keycloak:8090/realms/odp/.well-known/openid-configuration}
       - MINIO_IDENTITY_OPENID_CLIENT_ID=${KEYCLOAK_MINIO_CLIENT_ID:-minio}
       - MINIO_IDENTITY_OPENID_CLIENT_SECRET=${KEYCLOAK_MINIO_CLIENT_SECRET:?Set KEYCLOAK_MINIO_CLIENT_SECRET}
       - MINIO_IDENTITY_OPENID_SCOPES=openid,profile,email
       - MINIO_IDENTITY_OPENID_CLAIM_NAME=policy
       - MINIO_IDENTITY_OPENID_REDIRECT_URI=http://localhost:9001/oauth_callback
+      - MINIO_BROWSER_REDIRECT_URL=http://localhost:9001
+      - MINIO_SERVER_URL=http://localhost:9000
     command: server /data --console-address ":9001"
     volumes:
       - minio-data:/data

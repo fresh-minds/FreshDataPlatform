@@ -105,4 +105,4 @@ Service links are resolved via:
   - inspect `tests/e2e/evidence/latest/`
 - SSO failures:
   - inspect `tests/sso/artifacts/latest/`
-  - verify Keycloak host mapping (`127.0.0.1 keycloak`)
+  - verify `KEYCLOAK_OIDC_BROWSER_AUTHORIZE_URL` points to a browser-reachable host (default: `http://localhost:8090/.../auth`)

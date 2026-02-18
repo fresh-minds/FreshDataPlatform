@@ -40,6 +40,8 @@ spec:
               value: public
             - name: MINIO_PROMETHEUS_JOB_ID
               value: minio
+            - name: MINIO_IDENTITY_OPENID_ENABLE
+              value: "on"
             - name: MINIO_IDENTITY_OPENID_CONFIG_URL
               valueFrom:
                 secretKeyRef:
@@ -66,6 +68,18 @@ spec:
                 secretKeyRef:
                   name: odp-env
                   key: MINIO_OIDC_REDIRECT_URI
+                  optional: true
+            - name: MINIO_BROWSER_REDIRECT_URL
+              valueFrom:
+                secretKeyRef:
+                  name: odp-env
+                  key: MINIO_BROWSER_REDIRECT_URL
+                  optional: true
+            - name: MINIO_SERVER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: odp-env
+                  key: MINIO_SERVER_URL
                   optional: true
           readinessProbe:
             httpGet:

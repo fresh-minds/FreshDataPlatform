@@ -8,6 +8,7 @@ SKIP_DBT=false
 SKIP_MINIO=false
 SKIP_SUPERSET=false
 SKIP_DATAHUB=false
+SKIP_KEYCLOAK_CHECK=false
 SKIP_DEV_INSTALL=false
 AUTO_FILL_ENV=false
 
@@ -29,6 +30,7 @@ Options:
   --skip-minio      skip uploading fixtures to MinIO
   --skip-superset   skip running Superset setup/bootstrap scripts
   --skip-datahub    skip DataHub metadata sync/registration
+  --skip-keycloak-check  skip Keycloak/OIDC verification checks
   -h, --help        show this help
 EOF
 }
@@ -42,6 +44,7 @@ while [[ $# -gt 0 ]]; do
     --skip-minio) SKIP_MINIO=true; shift ;;
     --skip-superset) SKIP_SUPERSET=true; shift ;;
     --skip-datahub) SKIP_DATAHUB=true; shift ;;
+    --skip-keycloak-check) SKIP_KEYCLOAK_CHECK=true; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown arg: $1" >&2; usage; exit 2 ;;
   esac
@@ -409,6 +412,13 @@ wait_for_http "MinIO" "http://localhost:9000/minio/health/live" 240
 wait_for_container_health "open-data-platform-warehouse" 240
 wait_for_http "Superset" "http://localhost:8088/health" 360 || wait_for_http "Superset" "http://localhost:8088/login/" 360
 wait_for_http "DataHub GMS" "http://localhost:8081/health" 420
+
+if [[ "$SKIP_KEYCLOAK_CHECK" != "true" ]]; then
+  log "Verifying Keycloak + OIDC resources (Airflow/DataHub/MinIO clients)..."
+  "$PYTHON" "$ROOT_DIR/scripts/verify_keycloak_resources.py" --timeout 20 --retries 30 --retry-delay 3
+else
+  log "Skipping Keycloak verification (--skip-keycloak-check)."
+fi
 
 if [[ "$SKIP_MINIO" != "true" ]]; then
   log "Populating MinIO buckets with deterministic fixture files..."
