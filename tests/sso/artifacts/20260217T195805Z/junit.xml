@@ -1,0 +1,333 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="7" skipped="5" tests="22" time="2.980" timestamp="2026-02-17T20:58:05.652272+01:00" hostname="Karels-MacBook-Pro.local"><testcase classname="tests.sso.test_api_authorization" name="test_access_token_claim_mapping" time="0.184"><failure message="AssertionError: aud claim missing&#10;assert (False)&#10; +  where False = isinstance(None, str)">sso_settings = SSOSettings(repo_root=PosixPath('/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial')...ng/production/ai_trial/ops/keycloak/odp-realm.json'), session_idle_timeout_seconds=None, run_session_expiry_test=False)
+keycloak_metadata = {'authorization_endpoint': 'http://localhost:8090/realms/odp/protocol/openid-connect/auth', 'end_session_endpoint': 'h... 'http://localhost:8090/realms/odp', 'jwks_uri': 'http://localhost:8090/realms/odp/protocol/openid-connect/certs', ...}
+issued_tokens = {'basic': {'_meta': {'auth_url': 'http://localhost:8090/realms/odp/protocol/openid-connect/auth?client_id=airflow&amp;redi...vKQL8K6qZkv05pvUi80kQoE8OL1E4VBPlJT3f_6pa5scCd0BhxMXMuEaNATtDdTT4C3ydl4KSD-n-gqL7jwrLZQ', 'not-before-policy': 0, ...}}
+first_app = SSOApp(name='airflow', base_url='http://localhost:8080', client_id='airflow', client_secret='change_me_keycloak_airflo...lector="a:has-text('keycloak'), button:has-text('keycloak')", logout_url='http://localhost:8080/logout/', enabled=True)
+write_log = &lt;function write_log.&lt;locals&gt;._write at 0x10c1a60d0&gt;
+
+    @pytest.mark.e2e
+    def test_access_token_claim_mapping(
+        sso_settings: SSOSettings,
+        keycloak_metadata: dict[str, object],
+        issued_tokens: dict[str, dict[str, Any]],
+        first_app: SSOApp,
+        write_log: object,
+    ) -&gt; None:
+        access_token = issued_tokens["basic"]["access_token"]
+        claims = decode_jwt_claims(access_token)
+    
+        expected_issuer = str(keycloak_metadata["issuer"])
+        assert claims.get("iss") == expected_issuer, "Unexpected issuer claim"
+    
+        aud_claim = claims.get("aud")
+        if isinstance(aud_claim, list):
+            assert aud_claim, "aud claim list is empty"
+        else:
+&gt;           assert isinstance(aud_claim, str) and aud_claim, "aud claim missing"
+E           AssertionError: aud claim missing
+E           assert (False)
+E            +  where False = isinstance(None, str)
+
+tests/sso/test_api_authorization.py:106: AssertionError</failure></testcase><testcase classname="tests.sso.test_api_authorization" name="test_keycloak_userinfo_authorization" time="0.031" /><testcase classname="tests.sso.test_api_authorization" name="test_keycloak_admin_api_requires_elevated_role" time="0.108" /><testcase classname="tests.sso.test_api_authorization" name="test_configured_protected_api_matrix" time="0.004"><skipped type="pytest.skip" message="No protected API matrix configured (SSO_API_MATRIX_JSON)">/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial/tests/sso/test_api_authorization.py:187: No protected API matrix configured (SSO_API_MATRIX_JSON)</skipped></testcase><testcase classname="tests.sso.test_browser_flows" name="test_unauthenticated_access_redirects_to_keycloak[chromium]" time="1.150"><failure message="playwright._impl._errors.Error: Page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:8080/&#10;Call log:&#10;  - navigating to &quot;http://localhost:8080/&quot;, waiting until &quot;domcontentloaded&quot;">browser_name = 'chromium'
+browser_context_factory = &lt;function browser_context_factory.&lt;locals&gt;._create at 0x10c3f6160&gt;
+sso_settings = SSOSettings(repo_root=PosixPath('/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial')...ng/production/ai_trial/ops/keycloak/odp-realm.json'), session_idle_timeout_seconds=None, run_session_expiry_test=False)
+write_log = &lt;function write_log.&lt;locals&gt;._write at 0x10c6a3d30&gt;
+
+    @pytest.mark.e2e
+    def test_unauthenticated_access_redirects_to_keycloak(
+        browser_name: str,
+        browser_context_factory: object,
+        sso_settings: SSOSettings,
+        write_log: object,
+    ) -&gt; None:
+        for app in sso_settings.apps:
+            context = browser_context_factory(f"{browser_name}-{app.name}-unauth")
+            page = context.new_page()
+    
+&gt;           auth_url = navigate_to_login(page, app, sso_settings.keycloak_base_url)
+
+tests/sso/test_browser_flows.py:47: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/sso/browser_utils.py:41: in navigate_to_login
+    page.goto(app.base_url, wait_until="domcontentloaded")
+.venv/lib/python3.9/site-packages/playwright/sync_api/_generated.py:9054: in goto
+    self._sync(
+.venv/lib/python3.9/site-packages/playwright/_impl/_page.py:552: in goto
+    return await self._main_frame.goto(**locals_to_params(locals()))
+.venv/lib/python3.9/site-packages/playwright/_impl/_frame.py:153: in goto
+    await self._channel.send(
+.venv/lib/python3.9/site-packages/playwright/_impl/_connection.py:69: in send
+    return await self._connection.wrap_api_call(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;playwright._impl._connection.Connection object at 0x10c13ff10&gt;
+cb = &lt;function Channel.send.&lt;locals&gt;.&lt;lambda&gt; at 0x10c6ee670&gt;
+is_internal = False, title = None
+
+    async def wrap_api_call(
+        self, cb: Callable[[], Any], is_internal: bool = False, title: str = None
+    ) -&gt; Any:
+        if self._api_zone.get():
+            return await cb()
+        task = asyncio.current_task(self._loop)
+        st: List[inspect.FrameInfo] = getattr(
+            task, "__pw_stack__", None
+        ) or inspect.stack(0)
+    
+        parsed_st = _extract_stack_trace_information_from_stack(st, is_internal, title)
+        self._api_zone.set(parsed_st)
+        try:
+            return await cb()
+        except Exception as error:
+&gt;           raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+E           playwright._impl._errors.Error: Page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:8080/
+E           Call log:
+E             - navigating to "http://localhost:8080/", waiting until "domcontentloaded"
+
+.venv/lib/python3.9/site-packages/playwright/_impl/_connection.py:559: Error</failure></testcase><testcase classname="tests.sso.test_browser_flows" name="test_login_establishes_session_for_each_app[chromium]" time="0.144"><failure message="playwright._impl._errors.Error: Page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:8080/&#10;Call log:&#10;  - navigating to &quot;http://localhost:8080/&quot;, waiting until &quot;domcontentloaded&quot;">browser_name = 'chromium'
+browser_context_factory = &lt;function browser_context_factory.&lt;locals&gt;._create at 0x10bf20160&gt;
+sso_settings = SSOSettings(repo_root=PosixPath('/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial')...ng/production/ai_trial/ops/keycloak/odp-realm.json'), session_idle_timeout_seconds=None, run_session_expiry_test=False)
+
+    @pytest.mark.e2e
+    def test_login_establishes_session_for_each_app(
+        browser_name: str,
+        browser_context_factory: object,
+        sso_settings: SSOSettings,
+    ) -&gt; None:
+        for app in sso_settings.apps:
+            context = browser_context_factory(f"{browser_name}-{app.name}-login")
+            page = context.new_page()
+    
+&gt;           navigate_to_login(page, app, sso_settings.keycloak_base_url)
+
+tests/sso/test_browser_flows.py:72: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/sso/browser_utils.py:41: in navigate_to_login
+    page.goto(app.base_url, wait_until="domcontentloaded")
+.venv/lib/python3.9/site-packages/playwright/sync_api/_generated.py:9054: in goto
+    self._sync(
+.venv/lib/python3.9/site-packages/playwright/_impl/_page.py:552: in goto
+    return await self._main_frame.goto(**locals_to_params(locals()))
+.venv/lib/python3.9/site-packages/playwright/_impl/_frame.py:153: in goto
+    await self._channel.send(
+.venv/lib/python3.9/site-packages/playwright/_impl/_connection.py:69: in send
+    return await self._connection.wrap_api_call(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;playwright._impl._connection.Connection object at 0x10c13ff10&gt;
+cb = &lt;function Channel.send.&lt;locals&gt;.&lt;lambda&gt; at 0x10bf200d0&gt;
+is_internal = False, title = None
+
+    async def wrap_api_call(
+        self, cb: Callable[[], Any], is_internal: bool = False, title: str = None
+    ) -&gt; Any:
+        if self._api_zone.get():
+            return await cb()
+        task = asyncio.current_task(self._loop)
+        st: List[inspect.FrameInfo] = getattr(
+            task, "__pw_stack__", None
+        ) or inspect.stack(0)
+    
+        parsed_st = _extract_stack_trace_information_from_stack(st, is_internal, title)
+        self._api_zone.set(parsed_st)
+        try:
+            return await cb()
+        except Exception as error:
+&gt;           raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+E           playwright._impl._errors.Error: Page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:8080/
+E           Call log:
+E             - navigating to "http://localhost:8080/", waiting until "domcontentloaded"
+
+.venv/lib/python3.9/site-packages/playwright/_impl/_connection.py:559: Error</failure></testcase><testcase classname="tests.sso.test_browser_flows" name="test_cross_app_sso_uses_existing_session[chromium]" time="0.137"><failure message="playwright._impl._errors.Error: Page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:8080/&#10;Call log:&#10;  - navigating to &quot;http://localhost:8080/&quot;, waiting until &quot;domcontentloaded&quot;">browser_name = 'chromium'
+browser_context_factory = &lt;function browser_context_factory.&lt;locals&gt;._create at 0x10c783ca0&gt;
+sso_settings = SSOSettings(repo_root=PosixPath('/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial')...ng/production/ai_trial/ops/keycloak/odp-realm.json'), session_idle_timeout_seconds=None, run_session_expiry_test=False)
+app_map = {'airflow': SSOApp(name='airflow', base_url='http://localhost:8080', client_id='airflow', client_secret='change_me_key...th_callback', login_trigger_selector="button:has-text('OpenID'), a:has-text('OpenID')", logout_url=None, enabled=True)}
+
+    @pytest.mark.e2e
+    def test_cross_app_sso_uses_existing_session(
+        browser_name: str,
+        browser_context_factory: object,
+        sso_settings: SSOSettings,
+        app_map: dict[str, SSOApp],
+    ) -&gt; None:
+        if not sso_settings.cross_app_pairs:
+            pytest.skip("No cross-app pairs configured")
+    
+        for source_name, target_name in sso_settings.cross_app_pairs:
+            source_app = app_map[source_name]
+            target_app = app_map[target_name]
+    
+            context = browser_context_factory(f"{browser_name}-{source_name}-to-{target_name}-sso")
+            page_a = context.new_page()
+&gt;           navigate_to_login(page_a, source_app, sso_settings.keycloak_base_url)
+
+tests/sso/test_browser_flows.py:100: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/sso/browser_utils.py:41: in navigate_to_login
+    page.goto(app.base_url, wait_until="domcontentloaded")
+.venv/lib/python3.9/site-packages/playwright/sync_api/_generated.py:9054: in goto
+    self._sync(
+.venv/lib/python3.9/site-packages/playwright/_impl/_page.py:552: in goto
+    return await self._main_frame.goto(**locals_to_params(locals()))
+.venv/lib/python3.9/site-packages/playwright/_impl/_frame.py:153: in goto
+    await self._channel.send(
+.venv/lib/python3.9/site-packages/playwright/_impl/_connection.py:69: in send
+    return await self._connection.wrap_api_call(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;playwright._impl._connection.Connection object at 0x10c13ff10&gt;
+cb = &lt;function Channel.send.&lt;locals&gt;.&lt;lambda&gt; at 0x10c6a3d30&gt;
+is_internal = False, title = None
+
+    async def wrap_api_call(
+        self, cb: Callable[[], Any], is_internal: bool = False, title: str = None
+    ) -&gt; Any:
+        if self._api_zone.get():
+            return await cb()
+        task = asyncio.current_task(self._loop)
+        st: List[inspect.FrameInfo] = getattr(
+            task, "__pw_stack__", None
+        ) or inspect.stack(0)
+    
+        parsed_st = _extract_stack_trace_information_from_stack(st, is_internal, title)
+        self._api_zone.set(parsed_st)
+        try:
+            return await cb()
+        except Exception as error:
+&gt;           raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+E           playwright._impl._errors.Error: Page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:8080/
+E           Call log:
+E             - navigating to "http://localhost:8080/", waiting until "domcontentloaded"
+
+.venv/lib/python3.9/site-packages/playwright/_impl/_connection.py:559: Error</failure></testcase><testcase classname="tests.sso.test_browser_flows" name="test_logout_propagation_matches_expected_design[chromium]" time="0.127"><failure message="playwright._impl._errors.Error: Page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:8080/&#10;Call log:&#10;  - navigating to &quot;http://localhost:8080/&quot;, waiting until &quot;domcontentloaded&quot;">browser_name = 'chromium'
+browser_context_factory = &lt;function browser_context_factory.&lt;locals&gt;._create at 0x11391b670&gt;
+sso_settings = SSOSettings(repo_root=PosixPath('/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial')...ng/production/ai_trial/ops/keycloak/odp-realm.json'), session_idle_timeout_seconds=None, run_session_expiry_test=False)
+app_map = {'airflow': SSOApp(name='airflow', base_url='http://localhost:8080', client_id='airflow', client_secret='change_me_key...th_callback', login_trigger_selector="button:has-text('OpenID'), a:has-text('OpenID')", logout_url=None, enabled=True)}
+
+    @pytest.mark.e2e
+    def test_logout_propagation_matches_expected_design(
+        browser_name: str,
+        browser_context_factory: object,
+        sso_settings: SSOSettings,
+        app_map: dict[str, SSOApp],
+    ) -&gt; None:
+        if not sso_settings.cross_app_pairs:
+            pytest.skip("No cross-app pairs configured")
+    
+        expect_global_logout = os.getenv("SSO_EXPECT_GLOBAL_LOGOUT", "true").lower() in {"1", "true", "yes", "on"}
+        source_name, target_name = sso_settings.cross_app_pairs[0]
+    
+        source_app = app_map[source_name]
+        target_app = app_map[target_name]
+    
+        if not source_app.logout_url:
+            pytest.skip(f"Logout URL not configured for source app '{source_app.name}'")
+    
+        context = browser_context_factory(f"{browser_name}-{source_name}-logout-propagation")
+        page_a = context.new_page()
+&gt;       navigate_to_login(page_a, source_app, sso_settings.keycloak_base_url)
+
+tests/sso/test_browser_flows.py:147: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/sso/browser_utils.py:41: in navigate_to_login
+    page.goto(app.base_url, wait_until="domcontentloaded")
+.venv/lib/python3.9/site-packages/playwright/sync_api/_generated.py:9054: in goto
+    self._sync(
+.venv/lib/python3.9/site-packages/playwright/_impl/_page.py:552: in goto
+    return await self._main_frame.goto(**locals_to_params(locals()))
+.venv/lib/python3.9/site-packages/playwright/_impl/_frame.py:153: in goto
+    await self._channel.send(
+.venv/lib/python3.9/site-packages/playwright/_impl/_connection.py:69: in send
+    return await self._connection.wrap_api_call(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;playwright._impl._connection.Connection object at 0x10c13ff10&gt;
+cb = &lt;function Channel.send.&lt;locals&gt;.&lt;lambda&gt; at 0x11391bdc0&gt;
+is_internal = False, title = None
+
+    async def wrap_api_call(
+        self, cb: Callable[[], Any], is_internal: bool = False, title: str = None
+    ) -&gt; Any:
+        if self._api_zone.get():
+            return await cb()
+        task = asyncio.current_task(self._loop)
+        st: List[inspect.FrameInfo] = getattr(
+            task, "__pw_stack__", None
+        ) or inspect.stack(0)
+    
+        parsed_st = _extract_stack_trace_information_from_stack(st, is_internal, title)
+        self._api_zone.set(parsed_st)
+        try:
+            return await cb()
+        except Exception as error:
+&gt;           raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+E           playwright._impl._errors.Error: Page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:8080/
+E           Call log:
+E             - navigating to "http://localhost:8080/", waiting until "domcontentloaded"
+
+.venv/lib/python3.9/site-packages/playwright/_impl/_connection.py:559: Error</failure></testcase><testcase classname="tests.sso.test_browser_flows" name="test_session_expiry_behavior[chromium]" time="0.000"><skipped type="pytest.skip" message="Session expiry test disabled (SSO_RUN_SESSION_EXPIRY_TEST=false)">/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial/tests/sso/test_browser_flows.py:182: Session expiry test disabled (SSO_RUN_SESSION_EXPIRY_TEST=false)</skipped></testcase><testcase classname="tests.sso.test_browser_flows" name="test_mfa_prompt_or_completion[chromium]" time="0.000"><skipped type="pytest.skip" message="MFA user not configured">/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial/tests/sso/test_browser_flows.py:211: MFA user not configured</skipped></testcase><testcase classname="tests.sso.test_negative_security" name="test_redirect_uri_injection_rejected" time="0.049" /><testcase classname="tests.sso.test_negative_security" name="test_invalid_code_verifier_rejected" time="0.116" /><testcase classname="tests.sso.test_negative_security" name="test_token_substitution_audience_protection" time="0.074" /><testcase classname="tests.sso.test_negative_security" name="test_clock_skew_handling_sanity" time="0.070" /><testcase classname="tests.sso.test_negative_security" name="test_refresh_token_rotation_behavior" time="0.115"><skipped type="pytest.skip" message="Rotation expectation not configured (set SSO_EXPECT_REFRESH_ROTATION=true|false to enforce)">/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial/tests/sso/test_negative_security.py:194: Rotation expectation not configured (set SSO_EXPECT_REFRESH_ROTATION=true|false to enforce)</skipped></testcase><testcase classname="tests.sso.test_negative_security" name="test_logout_capabilities_discovery" time="0.008" /><testcase classname="tests.sso.test_smoke_config" name="test_openid_configuration_reachable_for_each_realm" time="0.008" /><testcase classname="tests.sso.test_smoke_config" name="test_jwks_endpoint_reachable_and_keys_parseable" time="0.018" /><testcase classname="tests.sso.test_smoke_config" name="test_client_redirect_uris_match_inventory" time="0.001"><failure message="AssertionError: Client 'airflow' uses wildcard webOrigins. Replace '*' with explicit origins to reduce token leakage and CORS risk.&#10;assert '*' not in {'*'}">sso_settings = SSOSettings(repo_root=PosixPath('/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial')...ng/production/ai_trial/ops/keycloak/odp-realm.json'), session_idle_timeout_seconds=None, run_session_expiry_test=False)
+
+    @pytest.mark.e2e
+    def test_client_redirect_uris_match_inventory(sso_settings: SSOSettings) -&gt; None:
+        realm_import_path: Path = sso_settings.realm_import_path
+        if not realm_import_path.exists():
+            pytest.skip(f"Realm import file not found: {realm_import_path}")
+    
+        realm_payload = json.loads(realm_import_path.read_text(encoding="utf-8"))
+        clients = {client["clientId"]: client for client in realm_payload.get("clients", [])}
+    
+        for app in sso_settings.apps:
+            client = clients.get(app.client_id)
+            assert client is not None, f"Client '{app.client_id}' missing from realm import file"
+    
+            redirect_uris = set(client.get("redirectUris", []))
+            assert app.redirect_uri in redirect_uris, (
+                f"{app.name} redirect URI '{app.redirect_uri}' missing for client '{app.client_id}'. "
+                f"Found={sorted(redirect_uris)}"
+            )
+    
+            if app.name in {"airflow", "datahub", "minio"}:
+                web_origins = set(client.get("webOrigins", []))
+&gt;               assert "*" not in web_origins, (
+                    f"Client '{app.client_id}' uses wildcard webOrigins. "
+                    "Replace '*' with explicit origins to reduce token leakage and CORS risk."
+                )
+E               AssertionError: Client 'airflow' uses wildcard webOrigins. Replace '*' with explicit origins to reduce token leakage and CORS risk.
+E               assert '*' not in {'*'}
+
+tests/sso/test_smoke_config.py:73: AssertionError</failure></testcase><testcase classname="tests.sso.test_smoke_config" name="test_auth_code_pkce_token_exchange_per_client" time="0.071"><failure message="AssertionError: Missing aud claim in access token for airflow&#10;assert 'aud' in {'exp': 1771358588, 'iat': 1771358288, 'auth_time': 1771358288, 'jti': 'c483d8c4-17c7-444d-a2be-9c68e034b1c3', 'iss': 'http://localhost:8090/realms/odp', 'sub': 'd17bf29a-f67c-432f-9be5-f87df4c1c98a', 'typ': 'Bearer', 'azp': 'airflow', 'sid': 'e3cc3f6a-2e6a-453b-92ac-e1abcf78f15d', 'acr': '1', 'allowed-origins': ['*'], 'scope': 'openid email profile', 'email_verified': True, 'name': 'ODP Admin', 'preferred_username': 'odp-admin', 'given_name': 'ODP', 'family_name': 'Admin', 'email': 'admin@example.com'}">sso_settings = SSOSettings(repo_root=PosixPath('/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial')...ng/production/ai_trial/ops/keycloak/odp-realm.json'), session_idle_timeout_seconds=None, run_session_expiry_test=False)
+write_log = &lt;function write_log.&lt;locals&gt;._write at 0x10c783310&gt;
+
+    @pytest.mark.e2e
+    def test_auth_code_pkce_token_exchange_per_client(sso_settings: SSOSettings, write_log: object) -&gt; None:
+        if not sso_settings.basic_user.username or not sso_settings.basic_user.password:
+            pytest.skip("Basic user credentials are missing")
+    
+        for app in sso_settings.apps:
+            tokens = fetch_tokens_auth_code_pkce(
+                keycloak_base_url=sso_settings.keycloak_base_url,
+                realm=sso_settings.keycloak_primary_realm,
+                client_id=app.client_id,
+                client_secret=app.client_secret,
+                redirect_uri=app.redirect_uri,
+                username=sso_settings.basic_user.username,
+                password=sso_settings.basic_user.password,
+            )
+    
+            auth_query = extract_authorization_query(str(tokens["_meta"]["auth_url"]))
+            if sso_settings.require_pkce:
+                assert auth_query.get("code_challenge"), f"PKCE code_challenge missing for {app.name}"
+                assert auth_query.get("code_challenge_method") == "S256", f"PKCE method is not S256 for {app.name}"
+    
+            assert auth_query.get("response_type") == "code", f"{app.name} is not using authorization code flow"
+            assert auth_query.get("client_id") == app.client_id, f"Unexpected client_id in auth flow for {app.name}"
+    
+            access_token = tokens.get("access_token")
+            assert access_token, f"Token endpoint did not return access_token for {app.name}"
+    
+            claims = decode_jwt_claims(access_token)
+            for required_claim in ("iss", "aud", "azp", "exp", "iat", "sub"):
+&gt;               assert required_claim in claims, f"Missing {required_claim} claim in access token for {app.name}"
+E               AssertionError: Missing aud claim in access token for airflow
+E               assert 'aud' in {'exp': 1771358588, 'iat': 1771358288, 'auth_time': 1771358288, 'jti': 'c483d8c4-17c7-444d-a2be-9c68e034b1c3', 'iss': 'http://localhost:8090/realms/odp', 'sub': 'd17bf29a-f67c-432f-9be5-f87df4c1c98a', 'typ': 'Bearer', 'azp': 'airflow', 'sid': 'e3cc3f6a-2e6a-453b-92ac-e1abcf78f15d', 'acr': '1', 'allowed-origins': ['*'], 'scope': 'openid email profile', 'email_verified': True, 'name': 'ODP Admin', 'preferred_username': 'odp-admin', 'given_name': 'ODP', 'family_name': 'Admin', 'email': 'admin@example.com'}
+
+tests/sso/test_smoke_config.py:108: AssertionError</failure></testcase><testcase classname="tests.sso.test_smoke_config" name="test_https_enforcement_when_required" time="0.000"><skipped type="pytest.skip" message="HTTPS enforcement check disabled (SSO_REQUIRE_HTTPS=false)">/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial/tests/sso/test_smoke_config.py:119: HTTPS enforcement check disabled (SSO_REQUIRE_HTTPS=false)</skipped></testcase><testcase classname="tests.sso.test_smoke_config" name="test_logout_endpoint_published" time="0.026" /></testsuite></testsuites>

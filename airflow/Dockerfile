@@ -26,7 +26,11 @@ RUN pip install --no-cache-dir \
     opentelemetry-sdk \
     opentelemetry-exporter-otlp \
     apache-airflow-providers-fab \
+    apache-airflow-providers-openlineage>=1.8.0 \
     authlib
+
+# Force upgrade to compatible openlineage provider for Airflow >= 2.10
+RUN pip install --no-cache-dir --upgrade "apache-airflow-providers-openlineage>=1.8.0"
 
 # Bake DAGs and project code into the image so Kubernetes clusters do not need hostPath mounts.
 USER root

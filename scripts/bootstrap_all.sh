@@ -335,6 +335,24 @@ ensure_airflow_init() {
   fi
 }
 
+reset_datahub_kafka() {
+  log "Resetting DataHub Kafka/Zookeeper containers to recover from broker registration errors..."
+  $COMPOSE -f "$ROOT_DIR/docker-compose.yml" rm -f -v datahub-kafka-setup datahub-schema-registry datahub-kafka datahub-zookeeper || true
+  $COMPOSE -f "$ROOT_DIR/docker-compose.yml" up -d datahub-zookeeper datahub-kafka datahub-schema-registry datahub-kafka-setup
+}
+
+ensure_datahub_kafka() {
+  local status
+  status="$(docker inspect -f '{{.State.Status}}' datahub-kafka 2>/dev/null || true)"
+  if [[ "$status" == "exited" ]]; then
+    local logs
+    logs="$(docker logs --tail=200 datahub-kafka 2>/dev/null || true)"
+    if echo "$logs" | grep -q "NodeExistsException"; then
+      reset_datahub_kafka
+    fi
+  fi
+}
+
 require_compose
 require_cmd curl
 require_cmd python3
@@ -377,6 +395,9 @@ fi
 
 log "Starting docker compose stack..."
 $COMPOSE -f "$ROOT_DIR/docker-compose.yml" up -d
+
+# Ensure DataHub Kafka is healthy (can fail on stale ZK broker registration).
+ensure_datahub_kafka
 
 # Ensure DataHub MySQL setup completed (can fail on old volumes).
 ensure_datahub_mysql_setup

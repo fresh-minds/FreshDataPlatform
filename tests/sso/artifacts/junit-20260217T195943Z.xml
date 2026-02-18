@@ -1,0 +1,388 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="10" skipped="9" tests="22" time="2.274" timestamp="2026-02-17T20:59:43.778900+01:00" hostname="Karels-MacBook-Pro.local"><testcase classname="tests.sso.test_api_authorization" name="test_access_token_claim_mapping" time="0.115"><skipped type="pytest.skip" message="Unable to fetch basic user token: Could not find Keycloak login form. Status=500. Snippet={&quot;error&quot;:&quot;unknown_error&quot;,&quot;error_description&quot;:&quot;For more on this error consult the server log.&quot;}">/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial/tests/sso/test_api_authorization.py:88: Unable to fetch basic user token: Could not find Keycloak login form. Status=500. Snippet={"error":"unknown_error","error_description":"For more on this error consult the server log."}</skipped></testcase><testcase classname="tests.sso.test_api_authorization" name="test_keycloak_userinfo_authorization" time="0.000"><skipped type="pytest.skip" message="Unable to fetch basic user token: Could not find Keycloak login form. Status=500. Snippet={&quot;error&quot;:&quot;unknown_error&quot;,&quot;error_description&quot;:&quot;For more on this error consult the server log.&quot;}">/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial/tests/sso/test_api_authorization.py:128: Unable to fetch basic user token: Could not find Keycloak login form. Status=500. Snippet={"error":"unknown_error","error_description":"For more on this error consult the server log."}</skipped></testcase><testcase classname="tests.sso.test_api_authorization" name="test_keycloak_admin_api_requires_elevated_role" time="0.000"><skipped type="pytest.skip" message="Unable to fetch basic user token: Could not find Keycloak login form. Status=500. Snippet={&quot;error&quot;:&quot;unknown_error&quot;,&quot;error_description&quot;:&quot;For more on this error consult the server log.&quot;}">/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial/tests/sso/test_api_authorization.py:151: Unable to fetch basic user token: Could not find Keycloak login form. Status=500. Snippet={"error":"unknown_error","error_description":"For more on this error consult the server log."}</skipped></testcase><testcase classname="tests.sso.test_api_authorization" name="test_configured_protected_api_matrix" time="0.000"><skipped type="pytest.skip" message="Unable to fetch basic user token: Could not find Keycloak login form. Status=500. Snippet={&quot;error&quot;:&quot;unknown_error&quot;,&quot;error_description&quot;:&quot;For more on this error consult the server log.&quot;}">/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial/tests/sso/test_api_authorization.py:180: Unable to fetch basic user token: Could not find Keycloak login form. Status=500. Snippet={"error":"unknown_error","error_description":"For more on this error consult the server log."}</skipped></testcase><testcase classname="tests.sso.test_browser_flows" name="test_unauthenticated_access_redirects_to_keycloak[chromium]" time="1.233"><failure message="playwright._impl._errors.Error: Page.goto: net::ERR_CONNECTION_RESET at http://localhost:9002/&#10;Call log:&#10;  - navigating to &quot;http://localhost:9002/&quot;, waiting until &quot;domcontentloaded&quot;">browser_name = 'chromium'
+browser_context_factory = &lt;function browser_context_factory.&lt;locals&gt;._create at 0x1135ae430&gt;
+sso_settings = SSOSettings(repo_root=PosixPath('/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial')...ng/production/ai_trial/ops/keycloak/odp-realm.json'), session_idle_timeout_seconds=None, run_session_expiry_test=False)
+write_log = &lt;function write_log.&lt;locals&gt;._write at 0x1135ae4c0&gt;
+
+    @pytest.mark.e2e
+    def test_unauthenticated_access_redirects_to_keycloak(
+        browser_name: str,
+        browser_context_factory: object,
+        sso_settings: SSOSettings,
+        write_log: object,
+    ) -&gt; None:
+        for app in sso_settings.apps:
+            context = browser_context_factory(f"{browser_name}-{app.name}-unauth")
+            page = context.new_page()
+    
+&gt;           auth_url = navigate_to_login(page, app, sso_settings.keycloak_base_url)
+
+tests/sso/test_browser_flows.py:47: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/sso/browser_utils.py:41: in navigate_to_login
+    page.goto(app.base_url, wait_until="domcontentloaded")
+.venv/lib/python3.9/site-packages/playwright/sync_api/_generated.py:9054: in goto
+    self._sync(
+.venv/lib/python3.9/site-packages/playwright/_impl/_page.py:552: in goto
+    return await self._main_frame.goto(**locals_to_params(locals()))
+.venv/lib/python3.9/site-packages/playwright/_impl/_frame.py:153: in goto
+    await self._channel.send(
+.venv/lib/python3.9/site-packages/playwright/_impl/_connection.py:69: in send
+    return await self._connection.wrap_api_call(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;playwright._impl._connection.Connection object at 0x1130de7c0&gt;
+cb = &lt;function Channel.send.&lt;locals&gt;.&lt;lambda&gt; at 0x1135ae3a0&gt;
+is_internal = False, title = None
+
+    async def wrap_api_call(
+        self, cb: Callable[[], Any], is_internal: bool = False, title: str = None
+    ) -&gt; Any:
+        if self._api_zone.get():
+            return await cb()
+        task = asyncio.current_task(self._loop)
+        st: List[inspect.FrameInfo] = getattr(
+            task, "__pw_stack__", None
+        ) or inspect.stack(0)
+    
+        parsed_st = _extract_stack_trace_information_from_stack(st, is_internal, title)
+        self._api_zone.set(parsed_st)
+        try:
+            return await cb()
+        except Exception as error:
+&gt;           raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+E           playwright._impl._errors.Error: Page.goto: net::ERR_CONNECTION_RESET at http://localhost:9002/
+E           Call log:
+E             - navigating to "http://localhost:9002/", waiting until "domcontentloaded"
+
+.venv/lib/python3.9/site-packages/playwright/_impl/_connection.py:559: Error</failure></testcase><testcase classname="tests.sso.test_browser_flows" name="test_login_establishes_session_for_each_app[chromium]" time="0.230"><failure message="playwright._impl._errors.Error: Page.goto: net::ERR_CONNECTION_RESET at http://localhost:9002/&#10;Call log:&#10;  - navigating to &quot;http://localhost:9002/&quot;, waiting until &quot;domcontentloaded&quot;">browser_name = 'chromium'
+browser_context_factory = &lt;function browser_context_factory.&lt;locals&gt;._create at 0x113645ee0&gt;
+sso_settings = SSOSettings(repo_root=PosixPath('/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial')...ng/production/ai_trial/ops/keycloak/odp-realm.json'), session_idle_timeout_seconds=None, run_session_expiry_test=False)
+
+    @pytest.mark.e2e
+    def test_login_establishes_session_for_each_app(
+        browser_name: str,
+        browser_context_factory: object,
+        sso_settings: SSOSettings,
+    ) -&gt; None:
+        for app in sso_settings.apps:
+            context = browser_context_factory(f"{browser_name}-{app.name}-login")
+            page = context.new_page()
+    
+&gt;           navigate_to_login(page, app, sso_settings.keycloak_base_url)
+
+tests/sso/test_browser_flows.py:72: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/sso/browser_utils.py:41: in navigate_to_login
+    page.goto(app.base_url, wait_until="domcontentloaded")
+.venv/lib/python3.9/site-packages/playwright/sync_api/_generated.py:9054: in goto
+    self._sync(
+.venv/lib/python3.9/site-packages/playwright/_impl/_page.py:552: in goto
+    return await self._main_frame.goto(**locals_to_params(locals()))
+.venv/lib/python3.9/site-packages/playwright/_impl/_frame.py:153: in goto
+    await self._channel.send(
+.venv/lib/python3.9/site-packages/playwright/_impl/_connection.py:69: in send
+    return await self._connection.wrap_api_call(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;playwright._impl._connection.Connection object at 0x1130de7c0&gt;
+cb = &lt;function Channel.send.&lt;locals&gt;.&lt;lambda&gt; at 0x10be7fb80&gt;
+is_internal = False, title = None
+
+    async def wrap_api_call(
+        self, cb: Callable[[], Any], is_internal: bool = False, title: str = None
+    ) -&gt; Any:
+        if self._api_zone.get():
+            return await cb()
+        task = asyncio.current_task(self._loop)
+        st: List[inspect.FrameInfo] = getattr(
+            task, "__pw_stack__", None
+        ) or inspect.stack(0)
+    
+        parsed_st = _extract_stack_trace_information_from_stack(st, is_internal, title)
+        self._api_zone.set(parsed_st)
+        try:
+            return await cb()
+        except Exception as error:
+&gt;           raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+E           playwright._impl._errors.Error: Page.goto: net::ERR_CONNECTION_RESET at http://localhost:9002/
+E           Call log:
+E             - navigating to "http://localhost:9002/", waiting until "domcontentloaded"
+
+.venv/lib/python3.9/site-packages/playwright/_impl/_connection.py:559: Error</failure></testcase><testcase classname="tests.sso.test_browser_flows" name="test_cross_app_sso_uses_existing_session[chromium]" time="0.000"><skipped type="pytest.skip" message="No cross-app pairs configured">/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial/tests/sso/test_browser_flows.py:92: No cross-app pairs configured</skipped></testcase><testcase classname="tests.sso.test_browser_flows" name="test_logout_propagation_matches_expected_design[chromium]" time="0.000"><skipped type="pytest.skip" message="No cross-app pairs configured">/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial/tests/sso/test_browser_flows.py:134: No cross-app pairs configured</skipped></testcase><testcase classname="tests.sso.test_browser_flows" name="test_session_expiry_behavior[chromium]" time="0.000"><skipped type="pytest.skip" message="Session expiry test disabled (SSO_RUN_SESSION_EXPIRY_TEST=false)">/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial/tests/sso/test_browser_flows.py:182: Session expiry test disabled (SSO_RUN_SESSION_EXPIRY_TEST=false)</skipped></testcase><testcase classname="tests.sso.test_browser_flows" name="test_mfa_prompt_or_completion[chromium]" time="0.000"><skipped type="pytest.skip" message="MFA user not configured">/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial/tests/sso/test_browser_flows.py:211: MFA user not configured</skipped></testcase><testcase classname="tests.sso.test_negative_security" name="test_redirect_uri_injection_rejected" time="0.031"><failure message="AssertionError: Expected redirect URI rejection, got 500&#10;assert 500 in {400, 401}&#10; +  where 500 = &lt;Response [500 Internal Server Error]&gt;.status_code">sso_settings = SSOSettings(repo_root=PosixPath('/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial')...ng/production/ai_trial/ops/keycloak/odp-realm.json'), session_idle_timeout_seconds=None, run_session_expiry_test=False)
+api_client = &lt;httpx.Client object at 0x1138ef370&gt;
+primary_app = SSOApp(name='datahub', base_url='http://localhost:9002', client_id='datahub', client_secret='change_me_keycloak_datahu...://localhost:9002/callback/oidc', login_trigger_selector=None, logout_url='http://localhost:9002/logout', enabled=True)
+
+    @pytest.mark.e2e
+    def test_redirect_uri_injection_rejected(
+        sso_settings: SSOSettings,
+        api_client: object,
+        primary_app: SSOApp,
+    ) -&gt; None:
+        metadata = fetch_openid_configuration(
+            sso_settings.keycloak_base_url,
+            sso_settings.keycloak_primary_realm,
+        )
+    
+        malicious_redirect = "https://attacker.invalid/callback"
+        response = api_client.get(
+            metadata.authorization_endpoint,
+            params={
+                "client_id": primary_app.client_id,
+                "response_type": "code",
+                "scope": "openid profile email",
+                "redirect_uri": malicious_redirect,
+                "state": "state123",
+                "nonce": "nonce123",
+                "code_challenge": "abc",
+                "code_challenge_method": "S256",
+            },
+        )
+    
+&gt;       assert response.status_code in {400, 401}, f"Expected redirect URI rejection, got {response.status_code}"
+E       AssertionError: Expected redirect URI rejection, got 500
+E       assert 500 in {400, 401}
+E        +  where 500 = &lt;Response [500 Internal Server Error]&gt;.status_code
+
+tests/sso/test_negative_security.py:54: AssertionError</failure></testcase><testcase classname="tests.sso.test_negative_security" name="test_invalid_code_verifier_rejected" time="0.031"><failure message="scripts.sso.oidc.OIDCFlowError: Could not find Keycloak login form. Status=500. Snippet={&quot;error&quot;:&quot;unknown_error&quot;,&quot;error_description&quot;:&quot;For more on this error consult the server log.&quot;}">sso_settings = SSOSettings(repo_root=PosixPath('/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial')...ng/production/ai_trial/ops/keycloak/odp-realm.json'), session_idle_timeout_seconds=None, run_session_expiry_test=False)
+primary_app = SSOApp(name='datahub', base_url='http://localhost:9002', client_id='datahub', client_secret='change_me_keycloak_datahu...://localhost:9002/callback/oidc', login_trigger_selector=None, logout_url='http://localhost:9002/logout', enabled=True)
+
+    @pytest.mark.e2e
+    def test_invalid_code_verifier_rejected(
+        sso_settings: SSOSettings,
+        primary_app: SSOApp,
+    ) -&gt; None:
+        metadata = fetch_openid_configuration(
+            sso_settings.keycloak_base_url,
+            sso_settings.keycloak_primary_realm,
+        )
+    
+&gt;       auth = request_authorization_code(
+            metadata=metadata,
+            client_id=primary_app.client_id,
+            redirect_uri=primary_app.redirect_uri,
+            username=sso_settings.basic_user.username,
+            password=sso_settings.basic_user.password,
+        )
+
+tests/sso/test_negative_security.py:68: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+scripts/sso/oidc.py:203: in request_authorization_code
+    form_action, form_fields = _extract_form(auth_response)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+response = &lt;Response [500 Internal Server Error]&gt;
+
+    def _extract_form(response: httpx.Response) -&gt; tuple[str, dict[str, str]]:
+        soup = BeautifulSoup(response.text, "html.parser")
+        form = soup.find("form", attrs={"id": "kc-form-login"}) or soup.find("form")
+        if form is None:
+            snippet = response.text[:500].replace("\n", " ")
+&gt;           raise OIDCFlowError(f"Could not find Keycloak login form. Status={response.status_code}. Snippet={snippet}")
+E           scripts.sso.oidc.OIDCFlowError: Could not find Keycloak login form. Status=500. Snippet={"error":"unknown_error","error_description":"For more on this error consult the server log."}
+
+scripts/sso/oidc.py:116: OIDCFlowError</failure></testcase><testcase classname="tests.sso.test_negative_security" name="test_token_substitution_audience_protection" time="0.021"><failure message="scripts.sso.oidc.OIDCFlowError: Could not find Keycloak login form. Status=500. Snippet={&quot;error&quot;:&quot;unknown_error&quot;,&quot;error_description&quot;:&quot;For more on this error consult the server log.&quot;}">sso_settings = SSOSettings(repo_root=PosixPath('/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial')...ng/production/ai_trial/ops/keycloak/odp-realm.json'), session_idle_timeout_seconds=None, run_session_expiry_test=False)
+
+    @pytest.mark.e2e
+    def test_token_substitution_audience_protection(sso_settings: SSOSettings) -&gt; None:
+        if len(sso_settings.apps) &lt; 2:
+            pytest.skip("Need at least two apps for token substitution test")
+    
+        source_app = sso_settings.apps[0]
+        target_app = sso_settings.apps[1]
+    
+&gt;       tokens = fetch_tokens_auth_code_pkce(
+            keycloak_base_url=sso_settings.keycloak_base_url,
+            realm=sso_settings.keycloak_primary_realm,
+            client_id=source_app.client_id,
+            client_secret=source_app.client_secret,
+            redirect_uri=source_app.redirect_uri,
+            username=sso_settings.basic_user.username,
+            password=sso_settings.basic_user.password,
+        )
+
+tests/sso/test_negative_security.py:95: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+scripts/sso/oidc.py:333: in fetch_tokens_auth_code_pkce
+    auth = request_authorization_code(
+scripts/sso/oidc.py:203: in request_authorization_code
+    form_action, form_fields = _extract_form(auth_response)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+response = &lt;Response [500 Internal Server Error]&gt;
+
+    def _extract_form(response: httpx.Response) -&gt; tuple[str, dict[str, str]]:
+        soup = BeautifulSoup(response.text, "html.parser")
+        form = soup.find("form", attrs={"id": "kc-form-login"}) or soup.find("form")
+        if form is None:
+            snippet = response.text[:500].replace("\n", " ")
+&gt;           raise OIDCFlowError(f"Could not find Keycloak login form. Status={response.status_code}. Snippet={snippet}")
+E           scripts.sso.oidc.OIDCFlowError: Could not find Keycloak login form. Status=500. Snippet={"error":"unknown_error","error_description":"For more on this error consult the server log."}
+
+scripts/sso/oidc.py:116: OIDCFlowError</failure></testcase><testcase classname="tests.sso.test_negative_security" name="test_clock_skew_handling_sanity" time="0.029"><failure message="scripts.sso.oidc.OIDCFlowError: Could not find Keycloak login form. Status=500. Snippet={&quot;error&quot;:&quot;unknown_error&quot;,&quot;error_description&quot;:&quot;For more on this error consult the server log.&quot;}">sso_settings = SSOSettings(repo_root=PosixPath('/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial')...ng/production/ai_trial/ops/keycloak/odp-realm.json'), session_idle_timeout_seconds=None, run_session_expiry_test=False)
+primary_app = SSOApp(name='datahub', base_url='http://localhost:9002', client_id='datahub', client_secret='change_me_keycloak_datahu...://localhost:9002/callback/oidc', login_trigger_selector=None, logout_url='http://localhost:9002/logout', enabled=True)
+
+    @pytest.mark.e2e
+    def test_clock_skew_handling_sanity(sso_settings: SSOSettings, primary_app: SSOApp) -&gt; None:
+&gt;       tokens = fetch_tokens_auth_code_pkce(
+            keycloak_base_url=sso_settings.keycloak_base_url,
+            realm=sso_settings.keycloak_primary_realm,
+            client_id=primary_app.client_id,
+            client_secret=primary_app.client_secret,
+            redirect_uri=primary_app.redirect_uri,
+            username=sso_settings.basic_user.username,
+            password=sso_settings.basic_user.password,
+        )
+
+tests/sso/test_negative_security.py:135: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+scripts/sso/oidc.py:333: in fetch_tokens_auth_code_pkce
+    auth = request_authorization_code(
+scripts/sso/oidc.py:203: in request_authorization_code
+    form_action, form_fields = _extract_form(auth_response)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+response = &lt;Response [500 Internal Server Error]&gt;
+
+    def _extract_form(response: httpx.Response) -&gt; tuple[str, dict[str, str]]:
+        soup = BeautifulSoup(response.text, "html.parser")
+        form = soup.find("form", attrs={"id": "kc-form-login"}) or soup.find("form")
+        if form is None:
+            snippet = response.text[:500].replace("\n", " ")
+&gt;           raise OIDCFlowError(f"Could not find Keycloak login form. Status={response.status_code}. Snippet={snippet}")
+E           scripts.sso.oidc.OIDCFlowError: Could not find Keycloak login form. Status=500. Snippet={"error":"unknown_error","error_description":"For more on this error consult the server log."}
+
+scripts/sso/oidc.py:116: OIDCFlowError</failure></testcase><testcase classname="tests.sso.test_negative_security" name="test_refresh_token_rotation_behavior" time="0.019"><failure message="scripts.sso.oidc.OIDCFlowError: Could not find Keycloak login form. Status=500. Snippet={&quot;error&quot;:&quot;unknown_error&quot;,&quot;error_description&quot;:&quot;For more on this error consult the server log.&quot;}">sso_settings = SSOSettings(repo_root=PosixPath('/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial')...ng/production/ai_trial/ops/keycloak/odp-realm.json'), session_idle_timeout_seconds=None, run_session_expiry_test=False)
+primary_app = SSOApp(name='datahub', base_url='http://localhost:9002', client_id='datahub', client_secret='change_me_keycloak_datahu...://localhost:9002/callback/oidc', login_trigger_selector=None, logout_url='http://localhost:9002/logout', enabled=True)
+
+    @pytest.mark.e2e
+    def test_refresh_token_rotation_behavior(sso_settings: SSOSettings, primary_app: SSOApp) -&gt; None:
+&gt;       tokens = fetch_tokens_auth_code_pkce(
+            keycloak_base_url=sso_settings.keycloak_base_url,
+            realm=sso_settings.keycloak_primary_realm,
+            client_id=primary_app.client_id,
+            client_secret=primary_app.client_secret,
+            redirect_uri=primary_app.redirect_uri,
+            username=sso_settings.basic_user.username,
+            password=sso_settings.basic_user.password,
+        )
+
+tests/sso/test_negative_security.py:159: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+scripts/sso/oidc.py:333: in fetch_tokens_auth_code_pkce
+    auth = request_authorization_code(
+scripts/sso/oidc.py:203: in request_authorization_code
+    form_action, form_fields = _extract_form(auth_response)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+response = &lt;Response [500 Internal Server Error]&gt;
+
+    def _extract_form(response: httpx.Response) -&gt; tuple[str, dict[str, str]]:
+        soup = BeautifulSoup(response.text, "html.parser")
+        form = soup.find("form", attrs={"id": "kc-form-login"}) or soup.find("form")
+        if form is None:
+            snippet = response.text[:500].replace("\n", " ")
+&gt;           raise OIDCFlowError(f"Could not find Keycloak login form. Status={response.status_code}. Snippet={snippet}")
+E           scripts.sso.oidc.OIDCFlowError: Could not find Keycloak login form. Status=500. Snippet={"error":"unknown_error","error_description":"For more on this error consult the server log."}
+
+scripts/sso/oidc.py:116: OIDCFlowError</failure></testcase><testcase classname="tests.sso.test_negative_security" name="test_logout_capabilities_discovery" time="0.009" /><testcase classname="tests.sso.test_smoke_config" name="test_openid_configuration_reachable_for_each_realm" time="0.009"><failure message="OSError: [Errno 28] No space left on device: '/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial/tests/sso/artifacts/20260217T195944Z/logs/discovery-odp.log'">sso_settings = SSOSettings(repo_root=PosixPath('/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial')...ng/production/ai_trial/ops/keycloak/odp-realm.json'), session_idle_timeout_seconds=None, run_session_expiry_test=False)
+api_client = &lt;httpx.Client object at 0x10be9af10&gt;
+write_log = &lt;function write_log.&lt;locals&gt;._write at 0x1135edb80&gt;
+
+    @pytest.mark.e2e
+    def test_openid_configuration_reachable_for_each_realm(
+        sso_settings: SSOSettings,
+        api_client: object,
+        write_log: object,
+    ) -&gt; None:
+        for realm in sso_settings.keycloak_realms:
+            url = f"{sso_settings.keycloak_base_url}/realms/{realm}/.well-known/openid-configuration"
+            response = api_client.get(url)
+&gt;           write_log(f"discovery-{realm}", response.text)
+
+tests/sso/test_smoke_config.py:27: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/sso/conftest.py:202: in _write
+    target.write_text(content, encoding="utf-8")
+/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/pathlib.py:1275: in write_text
+    with self.open(mode='w', encoding=encoding, errors=errors) as f:
+/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/pathlib.py:1242: in open
+    return io.open(self, mode, buffering, encoding, errors, newline,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial/tests/sso/artifacts/20260217T195944Z/logs/discovery-odp.log')
+name = '/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial/tests/sso/artifacts/20260217T195944Z/logs/discovery-odp.log'
+flags = 16778753, mode = 438
+
+    def _opener(self, name, flags, mode=0o666):
+        # A stub for the opener argument to built-in open()
+&gt;       return self._accessor.open(self, flags, mode)
+E       OSError: [Errno 28] No space left on device: '/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial/tests/sso/artifacts/20260217T195944Z/logs/discovery-odp.log'
+
+/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/pathlib.py:1110: OSError</failure></testcase><testcase classname="tests.sso.test_smoke_config" name="test_jwks_endpoint_reachable_and_keys_parseable" time="0.017" /><testcase classname="tests.sso.test_smoke_config" name="test_client_redirect_uris_match_inventory" time="0.001"><failure message="AssertionError: Client 'datahub' uses wildcard webOrigins. Replace '*' with explicit origins to reduce token leakage and CORS risk.&#10;assert '*' not in {'*'}">sso_settings = SSOSettings(repo_root=PosixPath('/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial')...ng/production/ai_trial/ops/keycloak/odp-realm.json'), session_idle_timeout_seconds=None, run_session_expiry_test=False)
+
+    @pytest.mark.e2e
+    def test_client_redirect_uris_match_inventory(sso_settings: SSOSettings) -&gt; None:
+        realm_import_path: Path = sso_settings.realm_import_path
+        if not realm_import_path.exists():
+            pytest.skip(f"Realm import file not found: {realm_import_path}")
+    
+        realm_payload = json.loads(realm_import_path.read_text(encoding="utf-8"))
+        clients = {client["clientId"]: client for client in realm_payload.get("clients", [])}
+    
+        for app in sso_settings.apps:
+            client = clients.get(app.client_id)
+            assert client is not None, f"Client '{app.client_id}' missing from realm import file"
+    
+            redirect_uris = set(client.get("redirectUris", []))
+            assert app.redirect_uri in redirect_uris, (
+                f"{app.name} redirect URI '{app.redirect_uri}' missing for client '{app.client_id}'. "
+                f"Found={sorted(redirect_uris)}"
+            )
+    
+            if app.name in {"airflow", "datahub", "minio"}:
+                web_origins = set(client.get("webOrigins", []))
+&gt;               assert "*" not in web_origins, (
+                    f"Client '{app.client_id}' uses wildcard webOrigins. "
+                    "Replace '*' with explicit origins to reduce token leakage and CORS risk."
+                )
+E               AssertionError: Client 'datahub' uses wildcard webOrigins. Replace '*' with explicit origins to reduce token leakage and CORS risk.
+E               assert '*' not in {'*'}
+
+tests/sso/test_smoke_config.py:73: AssertionError</failure></testcase><testcase classname="tests.sso.test_smoke_config" name="test_auth_code_pkce_token_exchange_per_client" time="0.020"><failure message="scripts.sso.oidc.OIDCFlowError: Could not find Keycloak login form. Status=500. Snippet={&quot;error&quot;:&quot;unknown_error&quot;,&quot;error_description&quot;:&quot;For more on this error consult the server log.&quot;}">sso_settings = SSOSettings(repo_root=PosixPath('/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial')...ng/production/ai_trial/ops/keycloak/odp-realm.json'), session_idle_timeout_seconds=None, run_session_expiry_test=False)
+write_log = &lt;function write_log.&lt;locals&gt;._write at 0x113865a60&gt;
+
+    @pytest.mark.e2e
+    def test_auth_code_pkce_token_exchange_per_client(sso_settings: SSOSettings, write_log: object) -&gt; None:
+        if not sso_settings.basic_user.username or not sso_settings.basic_user.password:
+            pytest.skip("Basic user credentials are missing")
+    
+        for app in sso_settings.apps:
+&gt;           tokens = fetch_tokens_auth_code_pkce(
+                keycloak_base_url=sso_settings.keycloak_base_url,
+                realm=sso_settings.keycloak_primary_realm,
+                client_id=app.client_id,
+                client_secret=app.client_secret,
+                redirect_uri=app.redirect_uri,
+                username=sso_settings.basic_user.username,
+                password=sso_settings.basic_user.password,
+            )
+
+tests/sso/test_smoke_config.py:85: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+scripts/sso/oidc.py:333: in fetch_tokens_auth_code_pkce
+    auth = request_authorization_code(
+scripts/sso/oidc.py:203: in request_authorization_code
+    form_action, form_fields = _extract_form(auth_response)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+response = &lt;Response [500 Internal Server Error]&gt;
+
+    def _extract_form(response: httpx.Response) -&gt; tuple[str, dict[str, str]]:
+        soup = BeautifulSoup(response.text, "html.parser")
+        form = soup.find("form", attrs={"id": "kc-form-login"}) or soup.find("form")
+        if form is None:
+            snippet = response.text[:500].replace("\n", " ")
+&gt;           raise OIDCFlowError(f"Could not find Keycloak login form. Status={response.status_code}. Snippet={snippet}")
+E           scripts.sso.oidc.OIDCFlowError: Could not find Keycloak login form. Status=500. Snippet={"error":"unknown_error","error_description":"For more on this error consult the server log."}
+
+scripts/sso/oidc.py:116: OIDCFlowError</failure></testcase><testcase classname="tests.sso.test_smoke_config" name="test_https_enforcement_when_required" time="0.001"><skipped type="pytest.skip" message="HTTPS enforcement check disabled (SSO_REQUIRE_HTTPS=false)">/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial/tests/sso/test_smoke_config.py:119: HTTPS enforcement check disabled (SSO_REQUIRE_HTTPS=false)</skipped></testcase><testcase classname="tests.sso.test_smoke_config" name="test_logout_endpoint_published" time="0.077" /></testsuite></testsuites>

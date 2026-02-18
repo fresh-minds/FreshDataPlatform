@@ -1,6 +1,6 @@
 import os
 
-from airflow.www.fab_security.manager import AirflowSecurityManager
+from airflow.www.security import AirflowSecurityManager
 from flask_appbuilder.security.manager import AUTH_OAUTH
 
 AUTH_TYPE = AUTH_OAUTH
