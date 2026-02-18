@@ -1,197 +1,203 @@
 # Open Data Platform
 
-A data platform with local development support and Microsoft Fabric compatibility.
+An open, developer-first data platform that combines orchestration, lakehouse processing, governance, BI, and observability in one stack.
+
+## What This Project Is
+Open Data Platform is a reference implementation for running analytics workloads end to end:
+
+- Ingest and transform data through medallion layers (Bronze -> Silver -> Gold)
+- Orchestrate jobs with Airflow
+- Serve analytics from Postgres and Superset
+- Track metadata and lineage in DataHub
+- Monitor metrics, logs, and traces with Prometheus + Grafana + Loki + Tempo
+- Expose all operator surfaces through a React launchpad (`frontend/`)
+
+## Core Features
+- Hybrid pipeline runtime:
+  - Spark/Fabric-compatible pipelines in `pipelines/`
+  - Postgres-only fallback pipeline for local execution without Java/Spark
+- Governance and quality:
+  - Schema-as-code in `schema/`
+  - Config-driven data quality and governance checks
+  - E2E QA suite with evidence artifacts
+- Deployment flexibility:
+  - Local Docker Compose stack
+  - Local Kubernetes (kind)
+  - Azure Kubernetes Service (AKS)
+- Security and identity:
+  - Keycloak-based SSO flows for Airflow, DataHub, and MinIO
+  - Dedicated SSO test suite and reports
+
+## Architecture Overview
+The platform is composed of three planes: control plane, data plane, and operator plane.
+
+```mermaid
+flowchart LR
+  subgraph OperatorPlane[Operator Plane]
+    Portal["React Launchpad (:3000)"]
+    AirflowUI["Airflow UI (:8080)"]
+    DataHubUI["DataHub UI (:9002)"]
+    SupersetUI["Superset UI (:8088)"]
+    GrafanaUI["Grafana UI (:3001)"]
+  end
+
+  subgraph ControlPlane[Control Plane]
+    Scheduler["Airflow Scheduler"]
+    DAGs["DAGs (dags/)"]
+    Tests["QA + SSO Test Suites"]
+  end
+
+  subgraph DataPlane[Data Plane]
+    Sources["External Sources (CBS, Adzuna, UWV, RSS, Sitemaps)"]
+    MinIO["MinIO (Bronze/Silver/Gold)"]
+    Warehouse["Postgres Warehouse"]
+    DataHub["DataHub GMS + Kafka + Elasticsearch + MySQL"]
+    O11y["Prometheus + Loki + Tempo"]
+  end
+
+  Portal --> AirflowUI
+  Portal --> DataHubUI
+  Portal --> SupersetUI
+  Portal --> GrafanaUI
+
+  DAGs --> Scheduler
+  Scheduler --> MinIO
+  Scheduler --> Warehouse
+  Scheduler --> DataHub
+
+  Sources --> MinIO
+  MinIO --> Warehouse
+  Warehouse --> SupersetUI
+
+  Scheduler --> O11y
+  MinIO --> O11y
+  Warehouse --> O11y
+```
+
+## Key Concepts
+- Medallion flow:
+  - Bronze: raw ingestion
+  - Silver: cleaned and standardized datasets
+  - Gold: analytics-ready aggregates
+- Dual transformation path:
+  - Python/Spark pipelines for richer processing and Fabric compatibility
+  - dbt project (`dbt_parallel/`) for SQL-native transformations and tests
+- Metadata and governance:
+  - DataHub registration scripts publish schema, tags, and lineage
+  - Governance policies and contract checks live under `tests/configs/`
+
+## Repository Structure
+```text
+airflow/                 Airflow image and web auth config
+dags/                    Orchestration DAGs
+pipelines/               Domain pipeline logic (job_market_nl)
+shared/                  Shared runtime/config/connectors/utilities
+scripts/                 Bootstrap, QA, governance, and ops scripts
+dbt_parallel/            Parallel dbt project and seeds
+schema/                  DBML, glossary, metrics, DQ rules
+tests/                   Unit, integration, governance, E2E, SSO suites
+frontend/                Operator launchpad and architecture UI
+docs/                    Supporting docs and diagrams
+guides/                  Additional implementation guides
+k8s/                     kind and AKS manifests
+ops/                     Keycloak realm + observability configs
+```
 
 ## Quick Start
+### Prerequisites
+- Python `3.9+`
+- Docker + Docker Compose
+- Make
+- Node.js `18+` (only needed for standalone frontend development)
 
+### 1) Bootstrap environment
 ```bash
-# 1. Create and activate virtual environment
-python3 -m venv .venv
-source .venv/bin/activate  # macOS/Linux
-
-# 2. Install dependencies
-make dev-install
-
-# 3. Configure environment
 cp .env.template .env
-# Edit .env with required local stack secrets + connector credentials
-
-# 4. Run a pipeline locally
-make run PIPELINE=domain.layer_job
+python3 -m venv .venv
+source .venv/bin/activate
+make dev-install
 ```
 
-## Project Structure
-
-```
-ai_trial/
-├── shared/          # Shared library (Fabric mocks, config, clients)
-├── pipelines/       # Portable pipeline logic
-├── notebooks/       # Fabric notebook wrappers
-├── scripts/         # Local utilities
-├── tests/           # Test suite
-└── data/            # Local lakehouse data
-```
-
-## Development Commands
-
+### 2) Start the local platform stack
+Option A (recommended, full bootstrap including seed/setup):
 ```bash
-make help         # Show all commands
-make test         # Run tests
-make lint         # Check code style
-make format       # Auto-format code
-make qa-test      # Run config-driven data platform QA suites
-make test-e2e     # Run full E2E QA suite + artifact capture
-make dq-list      # List centralized data quality suites
-make dq-check DATASET=job_market_nl.job_market_snapshot  # Run one DQ suite
-make dbt-debug    # Validate dbt connection
-make dbt-build-seed  # Build parallel dbt transformations with seed data
+./scripts/bootstrap_all.sh --auto-fill-env
 ```
 
-## E2E Data Platform QA
-
-The repository includes a config-driven E2E testing framework for:
-- data correctness and quality
-- schema/contracts
-- pipeline idempotency/incremental behavior
-- governance controls (metadata, lineage, PII, RBAC, retention, auditability)
-
-Documentation: `docs/e2e_data_platform_testing.md`
-
-## Job Connector Framework (RSS + Sitemap)
-
-Connectors live in `shared/job_connectors/` and are run via `scripts/run_job_connectors.py`.
-
-Run locally:
-
+Option B (just services):
 ```bash
-# Configure:
-# - JOB_CONNECTORS_ALLOWLIST_HOSTS (required by default)
-# - CONNECTOR_RSS_FEED_URLS and/or CONNECTOR_SITEMAP_URLS
-python scripts/run_job_connectors.py --list
-python scripts/run_job_connectors.py --dry-run
-python scripts/run_job_connectors.py --output ./data/job_connectors/jobs.jsonl
-python scripts/run_job_connectors.py --connector rss --dry-run
+docker compose up -d
 ```
 
-Add a new connector:
-
-1. Implement `shared/job_connectors/connectors/base.py` interface.
-2. Register it in `shared/job_connectors/registry.py`.
-3. Add deterministic parsing tests with fixtures in `tests/fixtures/job_connectors/<connector>/` (no live network calls in tests).
-
-Compliance checklist:
-
-- Respect `robots.txt` (enabled by default; strict mode configurable via `JOB_CONNECTORS_ROBOTS_STRICT`).
-- Do not bypass logins, CAPTCHAs, paywalls, or anti-bot controls.
-- Only crawl hosts you are allowed to crawl (enforced by default via `JOB_CONNECTORS_ALLOWLIST_HOSTS`).
-- Store only what is needed for aggregation; descriptions are PII-redacted by default (`JOB_CONNECTORS_REDACT_PII=true`).
-- Raw payload persistence is off by default; if enabled, treat raw captures as sensitive and use retention (`JOB_CONNECTORS_PERSIST_RAW`, `JOB_CONNECTORS_RAW_RETENTION_DAYS`).
-
-## Observability (OSS)
-
-The docker compose file includes an OSS observability stack:
-- Prometheus (metrics) on port 9090
-- Grafana (dashboards) on port 3001
-- Loki (logs) on port 3100
-- Tempo (traces) on port 3200
-- Alertmanager (alerts) on port 9093
-
-Minimal startup:
+### 3) Run a pipeline
+Postgres-only end-to-end job market pipeline:
 ```bash
-docker compose up -d prometheus alertmanager prometheus-msteams grafana loki promtail tempo otel-collector statsd-exporter postgres-exporter-airflow postgres-exporter-warehouse
+make run-job-market
 ```
 
-Set these in `.env` before starting:
-- `GRAFANA_ADMIN_PASSWORD`
-- `ALERT_TEAMS_WEBHOOK_URL`
-- `OTEL_EXPORTER_OTLP_ENDPOINT` (default `http://localhost:4320` for local scripts)
-
-If you run pipelines inside Docker containers, use:
-- `OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318`
-
-## SSO (Keycloak)
-
-The local stack can use Keycloak-based SSO for Airflow, DataHub, and MinIO.
-
-Prereqs:
-- Add a hosts entry so the browser can resolve the Keycloak hostname used by the containers:
-  - `127.0.0.1 keycloak`
-- Set the Keycloak and client secrets in `.env` (see the SSO section in `.env.template`).
-
-Start Keycloak with the stack:
+Run a specific pipeline entrypoint:
 ```bash
-docker compose up -d keycloak
+LOCAL_MOCK_PIPELINES=false make run PIPELINE=job_market_nl.bronze_cbs_vacancy_rate
 ```
 
-Keycloak admin console:
-- `http://keycloak:8090` (admin user + password from `.env`)
-
-Default realm user (for SSO logins):
-- Username: `odp-admin`
-- Password: `KEYCLOAK_DEFAULT_USER_PASSWORD` from `.env`
-
-## Parallel dbt setup
-
-A full dbt-based parallel transformation stack now lives in `dbt_parallel/`.
-
-Use this to validate or run SQL-native transformations alongside the existing PySpark implementation.
-
-## Kubernetes (Dev-Like First Iteration)
-
-You can run a local Kubernetes Phase A stack (Airflow + metadata DB, warehouse DB, MinIO) on kind:
-
+### 4) Run tests
 ```bash
-make k8s-dev-up
+make test
+make qa-test
+make test-e2e
+make test-sso
 ```
 
-See `k8s/README.md` for details and access commands.
+## Configuration
+Main configuration lives in `.env` (see `.env.template`).
 
-You can also provision AKS and deploy the same dev-like stack:
+Key groups:
+- Runtime and storage:
+  - `IS_LOCAL`, `USE_MINIO`, `LOCAL_LAKEHOUSE_PATH`
+- Service credentials:
+  - `AIRFLOW_*`, `WAREHOUSE_*`, `MINIO_*`, `SUPERSET_*`, `DATAHUB_*`
+- SSO/identity:
+  - `KEYCLOAK_*`, `MINIO_OIDC_REDIRECT_URI`
+- Observability:
+  - `OTEL_*`, `GRAFANA_ADMIN_*`, `ALERT_TEAMS_WEBHOOK_URL`
+- Connector controls:
+  - `JOB_CONNECTORS_*`, `CONNECTOR_RSS_*`, `CONNECTOR_SITEMAP_*`
 
-```bash
-make k8s-aks-up
-```
+Do not commit secrets in `.env`.
 
-To tear it down again (workloads + ingress/cert-manager; optional infra flags inside the script):
+## Development
+For local workflows, coding standards, and extension patterns:
 
-```bash
-make k8s-aks-down
-```
+- [DEVELOPMENT.md](DEVELOPMENT.md)
 
-Optional environment overrides for AKS deployment:
-- `AKS_RESOURCE_GROUP` (default: `ai-trial-rg`)
-- `AKS_CLUSTER_NAME` (default: `ai-trial-aks`)
-- `AKS_LOCATION` (default: `westeurope`)
-- `AKS_NODE_COUNT` (default: `1`)
-- `AKS_NODE_VM_SIZE` (default: `Standard_B2s`)
-- `ACR_NAME` (default: derived from subscription id)
-- `NAMESPACE` (default: `odp-dev`)
-- `AKS_FORCE_ATTACH_ACR` (default: `false`; set `true` to force re-attach ACR on existing clusters)
-- `FRONTEND_DOMAIN` (default: `eu-sovereigndataplatform.com`)
-- `DNS_RESOURCE_GROUP` (default: `AKS_RESOURCE_GROUP`)
-- `LETSENCRYPT_EMAIL` (default: `karel.goense@freshminds.nl`)
+## Deployment
+For Docker Compose, kind, and AKS deployment flows:
 
-Example:
+- [DEPLOYMENT.md](DEPLOYMENT.md)
 
-```bash
-AKS_RESOURCE_GROUP=odp-rg AKS_CLUSTER_NAME=odp-aks AKS_LOCATION=westeurope make k8s-aks-up
-```
+## Data Model
+For medallion entities, serving tables, and governance metadata:
 
-For public frontend exposure on AKS with TLS/custom domain, use nginx ingress + cert-manager and the manifests in:
-- `k8s/aks/frontend.yaml`
-- `k8s/aks/cert-issuer-letsencrypt-prod.yaml`
-- `k8s/aks/frontend-ingress.yaml`
+- [DATA_MODEL.md](DATA_MODEL.md)
 
-`make k8s-aks-up` also installs ingress-nginx + cert-manager, configures Azure DNS for `FRONTEND_DOMAIN`, and waits for `frontend-tls` to become Ready.
-It publishes:
-- `https://FRONTEND_DOMAIN` (frontend app)
-- `https://airflow.FRONTEND_DOMAIN` (Airflow UI)
-- `https://minio.FRONTEND_DOMAIN` (MinIO Console)
-- `https://minio-api.FRONTEND_DOMAIN` (MinIO API)
+## Architecture Deep Dive
+For component-level architecture and runtime flows:
 
-## Microsoft Fabric Deployment
+- [ARCHITECTURE.md](ARCHITECTURE.md)
 
-The `shared/` and `pipelines/` packages can be deployed to Fabric via:
-1. Fabric Environment with git integration
-2. Upload as wheel package
-3. Include in notebook resources
+## Roadmap (Inferred)
+- Expand beyond `job_market_nl` into additional governed domains
+- Increase dbt model parity with Python/Spark transformations
+- Harden AKS path from dev-like to production-grade defaults
+- Add more automated lineage and policy gates in CI
+
+## Contributing
+1. Create a branch for your change.
+2. Run local quality gates:
+   - `make lint`
+   - `make test`
+   - `make schema-validate`
+3. For platform-impacting changes, run:
+   - `make qa-test`
+   - `make test-e2e`
+4. Open a PR with a clear scope and validation notes.

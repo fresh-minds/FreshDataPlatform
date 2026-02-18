@@ -19,7 +19,6 @@ const OVERVIEW_ACTION = { label: 'One-screen overview', href: '/overview', icon:
 const PRIMARY_ENDPOINTS = [
     { label: 'Airflow UI', href: serviceUrls.airflow, icon: Network },
     { label: 'DataHub', href: serviceUrls.datahub, icon: Database },
-    { label: 'Grafana', href: serviceUrls.grafana, icon: Activity },
     { label: 'MinIO Console', href: serviceUrls.minioConsole, icon: Database }
 ].filter((link) => hasServiceUrl(link.href));
 
@@ -31,10 +30,6 @@ const STATUS_SUBJECTS = {
     DataHub: {
         subject: 'Catalog & lineage',
         detail: 'DataHub services'
-    },
-    Grafana: {
-        subject: 'BI & reporting',
-        detail: 'Grafana dashboards'
     },
     'MinIO Console': {
         subject: 'Storage & warehouse',
