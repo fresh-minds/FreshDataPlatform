@@ -10,6 +10,8 @@ SERVICES = {
     "Airflow Webserver": {"url": "http://localhost:8080/health", "method": "GET"},
     "DataHub GMS": {"url": f"http://{os.getenv('DATAHUB_GMS_HOST', 'localhost')}:8081/health", "method": "GET"},
     "MinIO": {"url": f"{os.getenv('MINIO_ENDPOINT', 'http://localhost:9000')}/minio/health/live", "method": "GET"},
+    "MinIO SSO Bridge": {"url": os.getenv("MINIO_SSO_BRIDGE_HEALTH_URL", "http://localhost:9011/healthz"), "method": "GET"},
+    "JupyterLab": {"url": os.getenv("JUPYTER_URL", "http://localhost:8888/lab"), "method": "GET", "ok_statuses": {200, 302}},
     # Postgres/Warehouse check would need psycopg2 connection, skipping http check for them
 }
 
@@ -17,10 +19,11 @@ def check_service(name: str, config: Dict) -> Tuple[bool, str]:
     """Check if a service is healthy."""
     url = config["url"]
     auth = config.get("auth")
+    ok_statuses = config.get("ok_statuses", {200})
     
     try:
         response = requests.get(url, auth=auth, timeout=5)
-        if response.status_code == 200:
+        if response.status_code in ok_statuses:
             return True, f"OK ({response.status_code})"
         else:
             return False, f"Failed ({response.status_code})"

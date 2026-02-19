@@ -409,6 +409,7 @@ ensure_airflow_init
 
 # Core readiness checks
 wait_for_http "MinIO" "http://localhost:9000/minio/health/live" 240
+wait_for_http "MinIO SSO Bridge" "http://localhost:9011/healthz" 240
 wait_for_container_health "open-data-platform-warehouse" 240
 wait_for_http "Superset" "http://localhost:8088/health" 360 || wait_for_http "Superset" "http://localhost:8088/login/" 360
 wait_for_http "DataHub GMS" "http://localhost:8081/health" 420
@@ -500,6 +501,7 @@ if [[ "$SKIP_DATAHUB" != "true" ]]; then
   "$PYTHON" "$ROOT_DIR/scripts/create_governance_defs.py" || true
   "$PYTHON" "$ROOT_DIR/scripts/sync_dbml_to_datahub.py" || true
   "$PYTHON" "$ROOT_DIR/scripts/register_datahub_catalog.py" || true
+  "$PYTHON" "$ROOT_DIR/scripts/refresh_datahub_catalog.py" || true
 else
   log "Skipping DataHub bootstrap (--skip-datahub)."
 fi
@@ -511,4 +513,5 @@ log "Bootstrap complete."
 log "Superset: http://localhost:8088 (user: ${SUPERSET_ADMIN_USER:-admin})"
 log "DataHub:  http://localhost:9002"
 log "MinIO:    http://localhost:9001"
+log "MinIO SSO Bridge: http://localhost:9011"
 log "Airflow:  http://localhost:8080"

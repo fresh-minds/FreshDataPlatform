@@ -19,7 +19,8 @@ const OVERVIEW_ACTION = { label: 'One-screen overview', href: '/overview', icon:
 const PRIMARY_ENDPOINTS = [
     { label: 'Airflow UI', href: serviceUrls.airflow, icon: Network },
     { label: 'DataHub', href: serviceUrls.datahub, icon: Database },
-    { label: 'MinIO Console', href: serviceUrls.minioConsole, icon: Database }
+    { label: 'MinIO Console', href: serviceUrls.minioUi, icon: Database },
+    { label: 'JupyterLab', href: serviceUrls.jupyter, icon: Terminal }
 ].filter((link) => hasServiceUrl(link.href));
 
 const STATUS_SUBJECTS = {
@@ -32,8 +33,12 @@ const STATUS_SUBJECTS = {
         detail: 'DataHub services'
     },
     'MinIO Console': {
-        subject: 'Storage & warehouse',
-        detail: 'MinIO + Postgres'
+        subject: 'Storage (S3)',
+        detail: 'MinIO'
+    },
+    JupyterLab: {
+        subject: 'Notebook workspace',
+        detail: 'Ad hoc analysis with platform data'
     }
 };
 

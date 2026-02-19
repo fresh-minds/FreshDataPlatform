@@ -17,8 +17,11 @@ services:
       - AIRFLOW_OAUTH_CLIENT_ID=${KEYCLOAK_AIRFLOW_CLIENT_ID:-airflow}
       - AIRFLOW_OAUTH_CLIENT_SECRET=${KEYCLOAK_AIRFLOW_CLIENT_SECRET:?Set KEYCLOAK_AIRFLOW_CLIENT_SECRET}
       - AIRFLOW_OAUTH_BASE_URL=${KEYCLOAK_OIDC_BASE_URL:-http://keycloak:8090/realms/odp/protocol/openid-connect}
-      - AIRFLOW_OAUTH_AUTHORIZE_URL=${KEYCLOAK_OIDC_BROWSER_AUTHORIZE_URL:-http://keycloak:8090/realms/odp/protocol/openid-connect/auth}
+      - AIRFLOW_OAUTH_AUTHORIZE_URL=${KEYCLOAK_OIDC_BROWSER_AUTHORIZE_URL:-http://localhost:8090/realms/odp/protocol/openid-connect/auth}
       - AIRFLOW_OAUTH_TOKEN_URL=${KEYCLOAK_OIDC_TOKEN_URL:-http://keycloak:8090/realms/odp/protocol/openid-connect/token}
+      - AIRFLOW_OAUTH_DISCOVERY_URL=${KEYCLOAK_OIDC_DISCOVERY_URL:-http://keycloak:8090/realms/odp/.well-known/openid-configuration}
+      - AIRFLOW_OAUTH_ISSUER=${AIRFLOW_OAUTH_ISSUER:-http://localhost:8090/realms/odp}
+      - AIRFLOW_OAUTH_JWKS_URL=${AIRFLOW_OAUTH_JWKS_URL:-http://keycloak:8090/realms/odp/protocol/openid-connect/certs}
       - AIRFLOW_OAUTH_DEFAULT_ROLE=${AIRFLOW_OAUTH_DEFAULT_ROLE:-Admin}
       - AIRFLOW__METRICS__STATSD_ON=True
       - AIRFLOW__METRICS__STATSD_HOST=statsd-exporter
@@ -37,6 +40,7 @@ services:
       - ./plugins:/opt/airflow/plugins
       - ./:/opt/airflow/project # Mount project root to access scripts/pipelines
       - ./data:/opt/airflow/project/data # Ensure data is accessible
+      - ./airflow/webserver_config.py:/opt/airflow/webserver_config.py:ro
     ports:
       - "8080:8080"
     command: webserver
@@ -132,11 +136,15 @@ services:
     image: quay.io/keycloak/keycloak:26.1.2
     container_name: open-data-platform-keycloak
     environment:
+      - KC_HOSTNAME=http://localhost:8090
+      - KC_HOSTNAME_STRICT=false
+      - KC_HOSTNAME_BACKCHANNEL_DYNAMIC=true
       - KC_BOOTSTRAP_ADMIN_USERNAME=${KEYCLOAK_ADMIN_USER:?Set KEYCLOAK_ADMIN_USER}
       - KC_BOOTSTRAP_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:?Set KEYCLOAK_ADMIN_PASSWORD}
       - KEYCLOAK_AIRFLOW_CLIENT_SECRET=${KEYCLOAK_AIRFLOW_CLIENT_SECRET:?Set KEYCLOAK_AIRFLOW_CLIENT_SECRET}
       - KEYCLOAK_DATAHUB_CLIENT_SECRET=${KEYCLOAK_DATAHUB_CLIENT_SECRET:?Set KEYCLOAK_DATAHUB_CLIENT_SECRET}
       - KEYCLOAK_MINIO_CLIENT_SECRET=${KEYCLOAK_MINIO_CLIENT_SECRET:?Set KEYCLOAK_MINIO_CLIENT_SECRET}
+      - KEYCLOAK_SUPERSET_CLIENT_SECRET=${KEYCLOAK_SUPERSET_CLIENT_SECRET:-change_me_keycloak_superset_secret}
       - KEYCLOAK_DEFAULT_USER_PASSWORD=${KEYCLOAK_DEFAULT_USER_PASSWORD:?Set KEYCLOAK_DEFAULT_USER_PASSWORD}
     command: start-dev --http-port=8090 --import-realm
     ports:
@@ -147,6 +155,8 @@ services:
   minio:
     image: minio/minio:RELEASE.2025-09-07T16-13-09Z
     container_name: open-data-platform-minio
+    depends_on:
+      - keycloak
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -156,17 +166,46 @@ services:
       - MINIO_PROMETHEUS_AUTH_TYPE=public
       - MINIO_PROMETHEUS_JOB_ID=minio
       - MINIO_IDENTITY_OPENID_ENABLE=on
+      - MINIO_IDENTITY_OPENID_DISPLAY_NAME=${MINIO_OIDC_DISPLAY_NAME:-Keycloak}
       - MINIO_IDENTITY_OPENID_CONFIG_URL=${KEYCLOAK_OIDC_DISCOVERY_URL:-http://keycloak:8090/realms/odp/.well-known/openid-configuration}
       - MINIO_IDENTITY_OPENID_CLIENT_ID=${KEYCLOAK_MINIO_CLIENT_ID:-minio}
       - MINIO_IDENTITY_OPENID_CLIENT_SECRET=${KEYCLOAK_MINIO_CLIENT_SECRET:?Set KEYCLOAK_MINIO_CLIENT_SECRET}
       - MINIO_IDENTITY_OPENID_SCOPES=openid,profile,email
       - MINIO_IDENTITY_OPENID_CLAIM_NAME=policy
+      - MINIO_IDENTITY_OPENID_ROLE_POLICY=${MINIO_OIDC_ROLE_POLICY:-}
       - MINIO_IDENTITY_OPENID_REDIRECT_URI=http://localhost:9001/oauth_callback
       - MINIO_BROWSER_REDIRECT_URL=http://localhost:9001
       - MINIO_SERVER_URL=http://localhost:9000
     command: server /data --console-address ":9001"
     volumes:
       - minio-data:/data
+
+  minio-sso-bridge:
+    build:
+      context: .
+      dockerfile: ops/minio-sso-bridge/Dockerfile
+    container_name: open-data-platform-minio-sso-bridge
+    depends_on:
+      - minio
+      - keycloak
+    environment:
+      - BRIDGE_BASE_URL=${MINIO_SSO_BRIDGE_BASE_URL:-http://localhost:9011}
+      - MINIO_SSO_BRIDGE_SESSION_SECRET=${MINIO_SSO_BRIDGE_SESSION_SECRET:-change_me_minio_sso_bridge_session_secret}
+      - MINIO_SSO_BRIDGE_STATE_TTL_SECONDS=${MINIO_SSO_BRIDGE_STATE_TTL_SECONDS:-300}
+      - KEYCLOAK_BROWSER_BASE_URL=${KEYCLOAK_BROWSER_BASE_URL:-http://localhost:8090}
+      - KEYCLOAK_INTERNAL_BASE_URL=${KEYCLOAK_INTERNAL_BASE_URL:-http://keycloak:8090}
+      - KEYCLOAK_REALM=${KEYCLOAK_REALM:-odp}
+      - KEYCLOAK_MINIO_CLIENT_ID=${KEYCLOAK_MINIO_CLIENT_ID:-minio}
+      - KEYCLOAK_MINIO_CLIENT_SECRET=${KEYCLOAK_MINIO_CLIENT_SECRET:?Set KEYCLOAK_MINIO_CLIENT_SECRET}
+      - KEYCLOAK_ADMIN_USER=${KEYCLOAK_ADMIN_USER:?Set KEYCLOAK_ADMIN_USER}
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:?Set KEYCLOAK_ADMIN_PASSWORD}
+      - KEYCLOAK_ADMIN_REALM=${KEYCLOAK_ADMIN_REALM:-master}
+      - MINIO_CONSOLE_PUBLIC_URL=${MINIO_CONSOLE_PUBLIC_URL:-http://localhost:9001}
+      - MINIO_CONSOLE_INTERNAL_URL=http://minio:9001
+      - MINIO_API_INTERNAL_URL=http://minio:9000
+      - LOG_LEVEL=${MINIO_SSO_BRIDGE_LOG_LEVEL:-INFO}
+    ports:
+      - "9011:9011"
 
   create-buckets:
     image: minio/mc:RELEASE.2025-08-13T08-35-41Z
@@ -202,6 +241,12 @@ services:
       - SQLALCHEMY_DATABASE_URI=postgresql+psycopg2://${SUPERSET_DB_USER:?Set SUPERSET_DB_USER}:${SUPERSET_DB_PASSWORD:?Set SUPERSET_DB_PASSWORD}@superset-db/${SUPERSET_DB_NAME:-superset}
       - SUPERSET_ADMIN_USER=${SUPERSET_ADMIN_USER:-admin}
       - SUPERSET_ADMIN_PASSWORD=${SUPERSET_ADMIN_PASSWORD:?Set SUPERSET_ADMIN_PASSWORD}
+      - KEYCLOAK_SUPERSET_CLIENT_ID=${KEYCLOAK_SUPERSET_CLIENT_ID:-superset}
+      - KEYCLOAK_SUPERSET_CLIENT_SECRET=${KEYCLOAK_SUPERSET_CLIENT_SECRET:-change_me_keycloak_superset_secret}
+      - KEYCLOAK_OIDC_BASE_URL=${KEYCLOAK_OIDC_BASE_URL:-http://keycloak:8090/realms/odp/protocol/openid-connect}
+      - KEYCLOAK_OIDC_DISCOVERY_URL=${KEYCLOAK_OIDC_DISCOVERY_URL:-http://keycloak:8090/realms/odp/.well-known/openid-configuration}
+      - KEYCLOAK_OIDC_TOKEN_URL=${KEYCLOAK_OIDC_TOKEN_URL:-http://keycloak:8090/realms/odp/protocol/openid-connect/token}
+      - KEYCLOAK_OIDC_SUPERSET_BROWSER_AUTHORIZE_URL=${KEYCLOAK_OIDC_SUPERSET_BROWSER_AUTHORIZE_URL:-http://localhost:8090/realms/odp/protocol/openid-connect/auth}
       - WAREHOUSE_HOST=warehouse
       - WAREHOUSE_PORT=5432
       - WAREHOUSE_DB=${WAREHOUSE_DB:-open_data_platform_dw}
@@ -213,6 +258,7 @@ services:
       - warehouse
     command: >
       sh -c "
+        pip install --no-cache-dir authlib &&
         superset fab create-admin --username ${SUPERSET_ADMIN_USER:-admin} --firstname Superset --lastname Admin --email ${SUPERSET_ADMIN_EMAIL:-admin@superset.com} --password ${SUPERSET_ADMIN_PASSWORD:?Set SUPERSET_ADMIN_PASSWORD} || true &&
         superset db upgrade &&
         superset init &&
@@ -455,6 +501,37 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
+
+  jupyter:
+    build:
+      context: ./notebooks
+      dockerfile: Dockerfile
+    container_name: open-data-platform-jupyter
+    environment:
+      - JUPYTER_PORT=8888
+      - JUPYTER_WORKDIR=/workspace/notebooks
+      - JUPYTER_TOKEN=${JUPYTER_TOKEN:-}
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:?Set MINIO_ROOT_USER}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD}
+      - MINIO_SECURE=false
+      - WAREHOUSE_HOST=warehouse
+      - WAREHOUSE_PORT=5432
+      - WAREHOUSE_DB=${WAREHOUSE_DB:-open_data_platform_dw}
+      - WAREHOUSE_USER=${WAREHOUSE_USER:?Set WAREHOUSE_USER}
+      - WAREHOUSE_PASSWORD=${WAREHOUSE_PASSWORD:?Set WAREHOUSE_PASSWORD}
+      - AWS_ACCESS_KEY_ID=${MINIO_ROOT_USER:?Set MINIO_ROOT_USER}
+      - AWS_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD}
+      - AWS_DEFAULT_REGION=us-east-1
+      - AWS_EC2_METADATA_DISABLED=true
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./notebooks:/workspace/notebooks
+      - ./.env:/workspace/.env:ro
+    depends_on:
+      - minio
+      - warehouse
 
   prometheus:
     image: prom/prometheus:v2.51.2

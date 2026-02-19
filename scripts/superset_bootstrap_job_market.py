@@ -165,12 +165,28 @@ def create_database(session: requests.Session, headers: Dict[str, str]) -> int:
         "allow_ctas": True,
         "allow_cvas": True,
         "allow_dml": True,
-        "allow_run_async": True,
+        "allow_run_async": False,
         "extra": json.dumps({"engine_params": {}}),
     }
     resp = session.post(f"{SUPERSET_URL}/api/v1/database/", headers=headers, json=payload)
     resp.raise_for_status()
     return resp.json().get("id")
+
+
+def update_database(session: requests.Session, headers: Dict[str, str], database_id: int) -> None:
+    sqlalchemy_uri = f"postgresql+psycopg2://{WAREHOUSE_USER}:{WAREHOUSE_PASSWORD}@{WAREHOUSE_HOST}:{WAREHOUSE_PORT}/{WAREHOUSE_DB}"
+    payload = {
+        "database_name": DATABASE_NAME,
+        "sqlalchemy_uri": sqlalchemy_uri,
+        "expose_in_sqllab": True,
+        "allow_ctas": True,
+        "allow_cvas": True,
+        "allow_dml": True,
+        "allow_run_async": False,
+        "extra": json.dumps({"engine_params": {}}),
+    }
+    resp = session.put(f"{SUPERSET_URL}/api/v1/database/{database_id}", headers=headers, json=payload)
+    resp.raise_for_status()
 
 
 def sync_database(session: requests.Session, headers: Dict[str, str], database_id: int) -> None:
@@ -425,6 +441,8 @@ def main() -> None:
     if db_match:
         database_id = db_match.get("id")
         _log(f"Database already exists (id={database_id}).")
+        update_database(session, headers, database_id)
+        _log("Updated database configuration (async disabled).")
     else:
         database_id = create_database(session, headers)
         _log(f"Created database '{DATABASE_NAME}' (id={database_id}).")

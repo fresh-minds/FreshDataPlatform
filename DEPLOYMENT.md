@@ -28,6 +28,7 @@ This sets up/validates env, starts services, and bootstraps MinIO/Superset/DataH
 - DataHub: `http://localhost:9002`
 - MinIO API: `http://localhost:9000`
 - MinIO Console: `http://localhost:9001`
+- JupyterLab: `http://localhost:8888`
 - Grafana: `http://localhost:3001`
 - Prometheus: `http://localhost:9090`
 
@@ -125,4 +126,3 @@ These validate:
   - stricter network policies
   - secret manager integration
   - hardened TLS, authz, and service exposure controls
-

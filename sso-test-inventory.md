@@ -15,7 +15,8 @@
 |---|---|---|---|---|---|
 | `airflow` | OIDC | Confidential | `http://localhost:8080/oauth-authorized/keycloak`, `http://localhost:8080/auth/oauth-authorized/keycloak` | `https://airflow.<FRONTEND_DOMAIN>/oauth-authorized/keycloak`, `https://airflow.<FRONTEND_DOMAIN>/auth/oauth-authorized/keycloak` | `http://localhost:8080`, `https://airflow.<FRONTEND_DOMAIN>` |
 | `datahub` | OIDC | Confidential | `http://localhost:9002/callback/oidc` | `https://datahub.<FRONTEND_DOMAIN>/callback/oidc` | `http://localhost:9002`, `https://datahub.<FRONTEND_DOMAIN>` |
-| `minio` | OIDC | Confidential | `http://localhost:9001/oauth_callback` | `https://minio.<FRONTEND_DOMAIN>/oauth_callback` | `http://localhost:9001`, `https://minio.<FRONTEND_DOMAIN>` |
+| `minio` | OIDC | Confidential | `http://localhost:9001/oauth_callback`, `http://localhost:9011/callback` | `https://minio.<FRONTEND_DOMAIN>/oauth_callback` | `http://localhost:9001`, `http://localhost:9011`, `https://minio.<FRONTEND_DOMAIN>` |
+| `superset` | OIDC | Confidential | `http://localhost:8088/oauth-authorized/keycloak` | N/A (not defined in AKS manifests) | `http://localhost:8088` |
 
 Additional notes:
 - `minio` has protocol mapper `minio-policy` injecting claim `policy=consoleAdmin` into access/id/userinfo tokens.
@@ -27,7 +28,9 @@ Additional notes:
 ### Web apps using Keycloak SSO
 - Airflow UI: `http://localhost:8080` or `https://airflow.<FRONTEND_DOMAIN>`
 - DataHub Frontend: `http://localhost:9002` (AKS redirect configured for `https://datahub.<FRONTEND_DOMAIN>`, but ingress route not present in `k8s/aks/frontend-ingress.yaml`)
-- MinIO Console: `http://localhost:9001` or `https://minio.<FRONTEND_DOMAIN>` (OpenID configured on server; browser SSO checks are disabled by default in the E2E suite via `SSO_BROWSER_SSO_MINIO=false` because current console login strategy remains username/password form)
+- MinIO Console: `http://localhost:9001` or `https://minio.<FRONTEND_DOMAIN>`
+- MinIO SSO Bridge/Proxy: `http://localhost:9011` (browser entrypoint for Keycloak login that mints MinIO console session)
+- Superset: `http://localhost:8088` (OIDC login via `/login/keycloak`, callback `/oauth-authorized/keycloak`)
 
 ### Related APIs / gateways
 - Keycloak OIDC endpoints under `/realms/odp/protocol/openid-connect/*`
@@ -54,6 +57,8 @@ Additional notes:
 ## 6) Expected Roles / Groups / Scopes Per App
 - Airflow default FAB role mapping: env `AIRFLOW_OAUTH_DEFAULT_ROLE` (default `Admin`).
 - Airflow OIDC scopes: `openid profile email`.
+- Superset default FAB role mapping: env `SUPERSET_OAUTH_DEFAULT_ROLE` (default `Admin`).
+- Superset OIDC scopes: `profile email` (browser uses Keycloak authorize endpoint and callback token exchange via Superset backend).
 - MinIO expects claim `policy` (`consoleAdmin`) from Keycloak mapper.
 - DataHub role/group expectation not explicitly declared in repo.
 - Required role/group matrix for least-privilege validation is missing and must be provided or added to test realm.
@@ -90,6 +95,7 @@ Additional notes:
 - `/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial/docker-compose.yml`
 - `/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial/.env.template`
 - `/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial/airflow/webserver_config.py`
+- `/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial/scripts/superset_config.py`
 - `/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial/k8s/dev/keycloak.yaml`
 - `/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial/k8s/aks/keycloak.yaml`
 - `/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial/k8s/aks/frontend-ingress.yaml`

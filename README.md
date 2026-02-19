@@ -129,6 +129,11 @@ Option B (just services):
 docker compose up -d
 ```
 
+Optional notebook workspace:
+```bash
+docker compose up -d jupyter
+```
+
 ### 3) Run a pipeline
 Postgres-only end-to-end job market pipeline:
 ```bash

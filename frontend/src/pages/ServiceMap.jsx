@@ -26,6 +26,13 @@ const SERVICES = [
         color: "#F97316"
     },
     {
+        name: "JupyterLab",
+        description: "Interactive notebooks with direct MinIO and Postgres access.",
+        url: serviceUrls.jupyter,
+        icon: Terminal,
+        color: "#4F46E5"
+    },
+    {
         name: "Monitoring (Grafana)",
         description: "Metrics, logs, and traces in a unified dashboard.",
         url: serviceUrls.grafana,
@@ -35,7 +42,7 @@ const SERVICES = [
     {
         name: "MinIO S3",
         description: "Object storage browser and management.",
-        url: serviceUrls.minioConsole,
+        url: serviceUrls.minioUi,
         icon: HardDrive,
         color: "#334155"
     },

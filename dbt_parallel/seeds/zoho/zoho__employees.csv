@@ -1,3 +1,0 @@
-employeeid,firstname,lastname,dateofjoining,dateofexit,business_unit,department,role,employee_type,employeestatus,experience,reporting_to,aantal_uren_per_week
-ZE1,Anna,Bakker,2022-01-10,,Data,Data,Consultant,Internal,Actief,48,Lead A,40
-ZE2,Bob,Jansen,2023-03-01,,Security,Security,Engineer,Internal,Actief,34,Lead B,32

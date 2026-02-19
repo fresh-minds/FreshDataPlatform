@@ -129,6 +129,7 @@ def _build_app(
     browser_sso_default: bool,
     default_url: str,
     default_client_id: str,
+    default_client_secret: str | None = None,
     default_redirect_path: str,
     default_login_selector: str | None,
     default_logout_path: str | None,
@@ -139,7 +140,10 @@ def _build_app(
     base_url = base_url.rstrip("/")
 
     client_id = _env(f"CLIENT_ID_{upper}", _env(f"KEYCLOAK_{upper}_CLIENT_ID", default_client_id))
-    client_secret = _env(f"CLIENT_SECRET_{upper}", _env(f"KEYCLOAK_{upper}_CLIENT_SECRET"))
+    client_secret = _env(
+        f"CLIENT_SECRET_{upper}",
+        _env(f"KEYCLOAK_{upper}_CLIENT_SECRET", default_client_secret),
+    )
 
     redirect_uri = _env(f"REDIRECT_URI_{upper}", f"{base_url}{default_redirect_path}")
     login_selector = _env(f"LOGIN_SELECTOR_{upper}", default_login_selector)
@@ -292,6 +296,7 @@ def load_sso_settings() -> SSOSettings:
             browser_sso_default=True,
             default_url="http://localhost:8080",
             default_client_id="airflow",
+            default_client_secret=None,
             default_redirect_path="/oauth-authorized/keycloak",
             default_login_selector="a:has-text('keycloak'), button:has-text('keycloak')",
             default_logout_path="/logout/",
@@ -302,6 +307,7 @@ def load_sso_settings() -> SSOSettings:
             browser_sso_default=True,
             default_url="http://localhost:9002",
             default_client_id="datahub",
+            default_client_secret=None,
             default_redirect_path="/callback/oidc",
             default_login_selector=None,
             default_logout_path="/logout",
@@ -312,9 +318,21 @@ def load_sso_settings() -> SSOSettings:
             browser_sso_default=False,
             default_url="http://localhost:9001",
             default_client_id="minio",
+            default_client_secret=None,
             default_redirect_path="/oauth_callback",
             default_login_selector="button:has-text('OpenID'), a:has-text('OpenID')",
             default_logout_path=None,
+        ),
+        _build_app(
+            name="superset",
+            enabled_default=True,
+            browser_sso_default=True,
+            default_url="http://localhost:8088",
+            default_client_id="superset",
+            default_client_secret="change_me_keycloak_superset_secret",
+            default_redirect_path="/oauth-authorized/keycloak",
+            default_login_selector="a#btn-signin-keycloak, a[href='/login/keycloak']",
+            default_logout_path="/logout/",
         ),
     )
 

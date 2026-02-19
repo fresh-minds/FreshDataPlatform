@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 
@@ -126,3 +128,44 @@ def test_https_enforcement_when_required(sso_settings: SSOSettings) -> None:
 @pytest.mark.e2e
 def test_logout_endpoint_published(keycloak_metadata: dict[str, object]) -> None:
     assert keycloak_metadata.get("end_session_endpoint"), "OIDC end_session_endpoint is missing"
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+@pytest.mark.e2e
+def test_minio_sso_bridge_start_redirects_to_keycloak(
+    sso_settings: SSOSettings,
+    api_client: object,
+    write_log: object,
+) -> None:
+    if not _env_bool("SSO_ENABLE_MINIO_BRIDGE", True):
+        pytest.skip("MinIO SSO bridge checks are disabled (SSO_ENABLE_MINIO_BRIDGE=false)")
+
+    bridge_url = os.getenv("MINIO_SSO_BRIDGE_BASE_URL", "http://localhost:9011").rstrip("/")
+
+    health = api_client.get(f"{bridge_url}/healthz")
+    write_log("minio-sso-bridge-healthz", health.text)
+    assert health.status_code == 200, f"MinIO SSO bridge health check failed: {health.status_code}"
+
+    response = api_client.get(f"{bridge_url}/start")
+    assert response.status_code in {301, 302, 303, 307, 308}, (
+        f"MinIO SSO bridge did not redirect to Keycloak: {response.status_code}"
+    )
+    location = response.headers.get("location", "")
+    assert location, "MinIO SSO bridge redirect is missing location header"
+
+    parsed = urlparse(location)
+    query = parse_qs(parsed.query)
+    assert "/protocol/openid-connect/auth" in parsed.path, "Bridge redirect did not target OIDC auth endpoint"
+    assert query.get("client_id", [None])[0] == os.getenv("KEYCLOAK_MINIO_CLIENT_ID", "minio"), (
+        "Bridge redirect used unexpected client_id"
+    )
+    assert query.get("redirect_uri", [None])[0] == f"{bridge_url}/callback", (
+        "Bridge redirect URI does not point back to bridge callback"
+    )
+    assert query.get("response_type", [None])[0] == "code", "Bridge redirect did not use auth code flow"

@@ -202,6 +202,10 @@ h1, h2, h3 {
     border-radius: 16px;
     padding: 12px;
   }
+
+  .home-cta {
+    width: 100%;
+  }
 }
 
 .app-container {

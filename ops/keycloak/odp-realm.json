@@ -72,10 +72,12 @@
             "standardFlowEnabled": true,
             "directAccessGrantsEnabled": true,
             "redirectUris": [
-                "http://localhost:9001/oauth_callback"
+                "http://localhost:9001/oauth_callback",
+                "http://localhost:9011/callback"
             ],
             "webOrigins": [
-                "http://localhost:9001"
+                "http://localhost:9001",
+                "http://localhost:9011"
             ],
             "protocolMappers": [
                 {
@@ -100,6 +102,35 @@
                         "access.token.claim": "true",
                         "id.token.claim": "true",
                         "userinfo.token.claim": "true"
+                    }
+                }
+            ]
+        },
+        {
+            "clientId": "superset",
+            "name": "Superset",
+            "enabled": true,
+            "protocol": "openid-connect",
+            "publicClient": false,
+            "secret": "${KEYCLOAK_SUPERSET_CLIENT_SECRET}",
+            "standardFlowEnabled": true,
+            "directAccessGrantsEnabled": true,
+            "redirectUris": [
+                "http://localhost:8088/oauth-authorized/keycloak"
+            ],
+            "webOrigins": [
+                "http://localhost:8088"
+            ],
+            "protocolMappers": [
+                {
+                    "name": "superset-audience",
+                    "protocol": "openid-connect",
+                    "protocolMapper": "oidc-audience-mapper",
+                    "config": {
+                        "included.client.audience": "superset",
+                        "access.token.claim": "true",
+                        "id.token.claim": "false",
+                        "userinfo.token.claim": "false"
                     }
                 }
             ]

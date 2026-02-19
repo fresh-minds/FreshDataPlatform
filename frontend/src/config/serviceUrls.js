@@ -4,7 +4,9 @@ const LOCAL_DEFAULTS = {
     airflow: 'http://localhost:8080',
     datahub: 'http://localhost:9002',
     superset: 'http://localhost:8088',
+    jupyter: 'http://localhost:8888',
     grafana: 'http://localhost:3001',
+    minioSsoBridge: 'http://localhost:9011',
     minioConsole: 'http://localhost:9001',
     minioApi: 'http://localhost:9000',
     prometheus: 'http://localhost:9090'
@@ -42,7 +44,9 @@ const cloudDefaults = {
     airflow: buildSubdomainUrl('airflow'),
     datahub: '',
     superset: '',
+    jupyter: '',
     grafana: '',
+    minioSsoBridge: '',
     minioConsole: buildSubdomainUrl('minio'),
     minioApi: buildSubdomainUrl('minio-api'),
     prometheus: ''
@@ -50,12 +54,18 @@ const cloudDefaults = {
 
 const fallbackDefaults = isLocalEnvironment ? LOCAL_DEFAULTS : cloudDefaults;
 
+const minioSsoBridge = readEnv('VITE_MINIO_SSO_BRIDGE_URL') || fallbackDefaults.minioSsoBridge;
+const minioConsole = readEnv('VITE_MINIO_CONSOLE_URL') || fallbackDefaults.minioConsole;
+
 export const serviceUrls = {
     airflow: readEnv('VITE_AIRFLOW_URL') || fallbackDefaults.airflow,
     datahub: readEnv('VITE_DATAHUB_URL') || fallbackDefaults.datahub,
     superset: readEnv('VITE_SUPERSET_URL') || fallbackDefaults.superset,
+    jupyter: readEnv('VITE_JUPYTER_URL') || fallbackDefaults.jupyter,
     grafana: readEnv('VITE_GRAFANA_URL') || fallbackDefaults.grafana,
-    minioConsole: readEnv('VITE_MINIO_CONSOLE_URL') || fallbackDefaults.minioConsole,
+    minioSsoBridge,
+    minioConsole,
+    minioUi: minioSsoBridge || minioConsole,
     minioApi: readEnv('VITE_MINIO_API_URL') || fallbackDefaults.minioApi,
     prometheus: readEnv('VITE_PROMETHEUS_URL') || fallbackDefaults.prometheus
 };

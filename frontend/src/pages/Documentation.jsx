@@ -44,6 +44,10 @@ const SYSTEM_COLUMNS = [
                 detail: 'Self-serve analytics, dashboards, and SQL exploration.'
             },
             {
+                name: 'JupyterLab',
+                detail: 'Interactive notebooks for ad hoc analysis against MinIO and warehouse Postgres.'
+            },
+            {
                 name: 'MinIO Console',
                 detail: 'Inspect object storage, buckets, and file lineage at rest.'
             }
@@ -175,9 +179,10 @@ const SERVICE_PORTS = [
     { name: 'Airflow UI', url: serviceUrls.airflow, purpose: 'Orchestration & monitoring' },
     { name: 'DataHub UI', url: serviceUrls.datahub, purpose: 'Catalog & lineage' },
     { name: 'Superset UI', url: serviceUrls.superset, purpose: 'BI & dashboards' },
+    { name: 'JupyterLab', url: serviceUrls.jupyter, purpose: 'Notebook analysis workspace' },
     { name: 'Grafana', url: serviceUrls.grafana, purpose: 'Monitoring dashboards' },
     { name: 'Prometheus', url: serviceUrls.prometheus, purpose: 'Metrics store & alerting' },
-    { name: 'MinIO Console', url: serviceUrls.minioConsole, purpose: 'Object storage management' },
+    { name: 'MinIO Console', url: serviceUrls.minioUi, purpose: 'Object storage management' },
     { name: 'MinIO S3 API', url: serviceUrls.minioApi, purpose: 'Programmatic storage access' }
 ].filter((service) => hasServiceUrl(service.url));
 

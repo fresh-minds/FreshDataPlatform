@@ -1,4 +1,6 @@
 import os
+from base64 import urlsafe_b64decode
+from json import loads as json_loads
 
 from airflow.www.security import AirflowSecurityManager
 from flask_appbuilder.security.manager import AUTH_OAUTH
@@ -11,6 +13,15 @@ _OAUTH_BASE_URL = os.getenv(
     "AIRFLOW_OAUTH_BASE_URL",
     "http://keycloak:8090/realms/odp/protocol/openid-connect",
 ).rstrip("/")
+_OAUTH_DISCOVERY_URL = os.getenv(
+    "AIRFLOW_OAUTH_DISCOVERY_URL",
+    "http://keycloak:8090/realms/odp/.well-known/openid-configuration",
+)
+_OAUTH_ISSUER = os.getenv("AIRFLOW_OAUTH_ISSUER", "http://localhost:8090/realms/odp")
+_OAUTH_JWKS_URL = os.getenv(
+    "AIRFLOW_OAUTH_JWKS_URL",
+    "http://keycloak:8090/realms/odp/protocol/openid-connect/certs",
+)
 
 OAUTH_PROVIDERS = [
     {
@@ -20,19 +31,52 @@ OAUTH_PROVIDERS = [
         "remote_app": {
             "client_id": os.getenv("AIRFLOW_OAUTH_CLIENT_ID", "airflow"),
             "client_secret": os.getenv("AIRFLOW_OAUTH_CLIENT_SECRET", ""),
+            "server_metadata_url": _OAUTH_DISCOVERY_URL,
+            "server_metadata": {
+                "issuer": _OAUTH_ISSUER,
+                "jwks_uri": _OAUTH_JWKS_URL,
+            },
             "api_base_url": f"{_OAUTH_BASE_URL}/",
             "access_token_url": os.getenv("AIRFLOW_OAUTH_TOKEN_URL", f"{_OAUTH_BASE_URL}/token"),
             "authorize_url": os.getenv("AIRFLOW_OAUTH_AUTHORIZE_URL", f"{_OAUTH_BASE_URL}/auth"),
-            "client_kwargs": {"scope": "openid profile email"},
+            "client_kwargs": {"scope": "profile email"},
         },
     }
 ]
 
 
 class KeycloakSecurityManager(AirflowSecurityManager):
+    @staticmethod
+    def _decode_access_token_claims(access_token: str) -> dict:
+        try:
+            parts = access_token.split(".")
+            if len(parts) != 3:
+                return {}
+            payload = parts[1] + "=" * (-len(parts[1]) % 4)
+            return json_loads(urlsafe_b64decode(payload).decode("utf-8"))
+        except Exception:  # noqa: BLE001
+            return {}
+
     def get_oauth_user_info(self, provider, resp):  # pylint: disable=unused-argument
         if provider != "keycloak":
             return {}
+
+        if isinstance(resp, dict):
+            access_token = resp.get("access_token")
+            if access_token:
+                claims = self._decode_access_token_claims(access_token)
+                if claims:
+                    username = claims.get("preferred_username") or claims.get("email") or claims.get("sub")
+                    email = claims.get("email")
+                    if email == "admin@example.com" and username and username != "admin":
+                        email = f"{username}@example.com"
+                    return {
+                        "name": claims.get("name") or username,
+                        "email": email or (f"{username}@example.com" if username else None),
+                        "first_name": claims.get("given_name"),
+                        "last_name": claims.get("family_name"),
+                        "username": username,
+                    }
 
         remote_app = self.oauth_remotes.get(provider)
         if not remote_app:
@@ -44,9 +88,12 @@ class KeycloakSecurityManager(AirflowSecurityManager):
 
         userinfo = userinfo_response.json() or {}
         username = userinfo.get("preferred_username") or userinfo.get("email") or userinfo.get("sub")
+        email = userinfo.get("email")
+        if email == "admin@example.com" and username and username != "admin":
+            email = f"{username}@example.com"
         return {
             "name": userinfo.get("name") or username,
-            "email": userinfo.get("email"),
+            "email": email or (f"{username}@example.com" if username else None),
             "first_name": userinfo.get("given_name"),
             "last_name": userinfo.get("family_name"),
             "username": username,

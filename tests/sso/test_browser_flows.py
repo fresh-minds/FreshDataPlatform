@@ -44,6 +44,13 @@ def _browser_sso_apps(sso_settings: SSOSettings) -> list[SSOApp]:
     return [app for app in sso_settings.apps if app.browser_sso]
 
 
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
 @pytest.mark.e2e
 def test_unauthenticated_access_redirects_to_keycloak(
     browser_name: str,
@@ -102,6 +109,48 @@ def test_login_establishes_session_for_each_app(
         )
 
         assert app_session_cookie_count(context, app) > 0, f"{app.name} did not establish an app session"
+
+
+@pytest.mark.e2e
+def test_minio_sso_bridge_login_flow(
+    browser_name: str,
+    browser_context_factory: object,
+    sso_settings: SSOSettings,
+) -> None:
+    if not _env_bool("SSO_ENABLE_MINIO_BRIDGE", True):
+        pytest.skip("MinIO SSO bridge checks are disabled (SSO_ENABLE_MINIO_BRIDGE=false)")
+
+    bridge_url = os.getenv("MINIO_SSO_BRIDGE_BASE_URL", "http://localhost:9011").rstrip("/")
+    minio_console_url = os.getenv("MINIO_CONSOLE_PUBLIC_URL", "http://localhost:9001").rstrip("/")
+    minio_host = urlparse(minio_console_url).netloc.lower()
+
+    context = browser_context_factory(f"{browser_name}-minio-bridge-login")
+    page = context.new_page()
+
+    page.goto(f"{bridge_url}/", wait_until="domcontentloaded")
+    page.locator("a:has-text('Sign in with Keycloak')").first.click()
+
+    assert is_keycloak_auth_url(page.url, sso_settings.keycloak_base_url), (
+        "MinIO SSO bridge did not redirect to Keycloak authorize endpoint"
+    )
+
+    perform_keycloak_login(page, sso_settings.basic_user.username, sso_settings.basic_user.password)
+
+    start = time.time()
+    while time.time() - start <= 30:
+        current = urlparse(page.url)
+        if current.netloc.lower() == minio_host and current.path.startswith("/browser"):
+            break
+        page.wait_for_timeout(500)
+    else:
+        raise AssertionError(
+            f"MinIO SSO bridge did not land on {minio_console_url}/browser after login; got {page.url}"
+        )
+
+    minio_cookies = context.cookies(minio_console_url)
+    assert any(cookie["name"] == "token" for cookie in minio_cookies), (
+        "MinIO SSO bridge login did not create MinIO console token cookie"
+    )
 
 
 @pytest.mark.e2e

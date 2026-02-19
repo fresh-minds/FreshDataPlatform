@@ -28,6 +28,7 @@ FLOW_MAPPING: dict[str, tuple[str, ...]] = {
     "browser_login": (
         "test_unauthenticated_access_redirects_to_keycloak",
         "test_login_establishes_session_for_each_app",
+        "test_minio_sso_bridge_login_flow",
     ),
     "cross_app_sso": (
         "test_cross_app_sso_uses_existing_session",
@@ -66,6 +67,10 @@ REMEDIATION_HINTS: dict[str, str] = {
     "test_unauthenticated_access_redirects_to_keycloak": (
         "Check app auth middleware and OIDC client settings; ensure unauthenticated routes force IdP redirect "
         "instead of local fallback login paths."
+    ),
+    "test_minio_sso_bridge_login_flow": (
+        "Ensure the bridge uses browser-reachable Keycloak authorize URL, callback URI is allowlisted on client "
+        "'minio', and bridge forwards MinIO console session cookies after STS login."
     ),
     "test_cross_app_sso_uses_existing_session": (
         "Ensure all apps trust the same Keycloak realm/session cookie domain and do not force prompt=login "
@@ -158,7 +163,7 @@ def flow_emoji(status: str) -> str:
 
 
 def app_flow_table(cases: list[CaseResult]) -> str:
-    apps = ["airflow", "datahub", "minio"]
+    apps = ["airflow", "datahub", "minio", "superset"]
     flow_statuses = {flow: summarize_flow(cases, tests) for flow, tests in FLOW_MAPPING.items()}
 
     lines = [
@@ -183,6 +188,7 @@ def compute_overall_status(cases: list[CaseResult]) -> str:
     critical_tests = (
         "test_unauthenticated_access_redirects_to_keycloak",
         "test_login_establishes_session_for_each_app",
+        "test_minio_sso_bridge_login_flow",
         "test_cross_app_sso_uses_existing_session",
         "test_logout_propagation_matches_expected_design",
         "test_keycloak_userinfo_authorization",

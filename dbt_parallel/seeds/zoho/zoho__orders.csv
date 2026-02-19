@@ -1,3 +1,0 @@
-id,subject,urencontract,team_name,team_id,currency,factuur_info,startdatum_contract,einddatum_contract,betaaltermijn,grand_total,contact_name_name,name,eindklantnaam_name,verkooporder_status,type_klant,project_manager_name
-SO1,Order One,40,Data,P1,EUR,Desc one,2026-01-01,2026-12-31,Monthly,100000.00,Klant Contact,FM Contact,Klant A,Actief,Consultancy,Manager A
-SO2,Order Two,32,Security,P2,EUR,Desc two,2026-01-01,2026-06-30,Monthly,50000.00,Klant Contact B,FM Contact B,Klant B,Inactief,Consultancy,Manager B
