@@ -1,0 +1,3 @@
+* @your-org/devops @your-org/data-platform
+/.github/ @your-org/devops
+/docs/cicd/ @your-org/devops

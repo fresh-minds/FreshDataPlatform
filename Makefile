@@ -1,5 +1,5 @@
 # Open Data Platform - Development Commands
-.PHONY: install dev-install test lint format run clean help schema-validate schema-drift-check dbt-debug dbt-build-seed e2e-test test-e2e test-sso qa-test warehouse-security bootstrap-all bootstrap_all k8s-dev-up k8s-dev-down k8s-aks-up k8s-aks-down
+.PHONY: install dev-install test lint format format-check run clean help schema-validate schema-drift-check dbt-debug dbt-build-seed e2e-test test-e2e test-sso qa-test warehouse-security bootstrap-all bootstrap_all k8s-dev-up k8s-dev-down k8s-aks-up k8s-aks-down
 
 # Default Python
 PYTHON := python3
@@ -27,6 +27,9 @@ lint:  ## Run linter
 
 format:  ## Format code
 	ruff format shared/ pipelines/ tests/
+
+format-check:  ## Check formatting without modifying files
+	ruff format --check shared/ pipelines/ tests/
 
 type-check:  ## Run type checker
 	mypy shared/ pipelines/

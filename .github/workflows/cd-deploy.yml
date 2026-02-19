@@ -1,0 +1,211 @@
+name: CD Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      namespace:
+        description: "Kubernetes namespace"
+        required: true
+        default: "open-data-platform"
+      airflow_image:
+        description: "Airflow image (full ref)"
+        required: true
+      frontend_image:
+        description: "Frontend image (full ref)"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-images:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    outputs:
+      airflow_image: ${{ steps.meta.outputs.airflow_image }}
+      frontend_image: ${{ steps.meta.outputs.frontend_image }}
+    env:
+      REGISTRY: ghcr.io/${{ github.repository_owner }}
+      REPO: ${{ github.event.repository.name }}
+      IMAGE_TAG: ${{ github.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Airflow image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: airflow/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.REPO }}-airflow:${{ env.IMAGE_TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push Frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          file: frontend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.REPO }}-frontend:${{ env.IMAGE_TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign images (keyless)
+        env:
+          COSIGN_EXPERIMENTAL: "true"
+        run: |
+          cosign sign --yes ${{ env.REGISTRY }}/${{ env.REPO }}-airflow:${{ env.IMAGE_TAG }}
+          cosign sign --yes ${{ env.REGISTRY }}/${{ env.REPO }}-frontend:${{ env.IMAGE_TAG }}
+
+      - name: Export image refs
+        id: meta
+        run: |
+          echo "airflow_image=${{ env.REGISTRY }}/${{ env.REPO }}-airflow:${{ env.IMAGE_TAG }}" >> "$GITHUB_OUTPUT"
+          echo "frontend_image=${{ env.REGISTRY }}/${{ env.REPO }}-frontend:${{ env.IMAGE_TAG }}" >> "$GITHUB_OUTPUT"
+
+  deploy-dev:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    needs: build-images
+    environment: dev
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      KUSTOMIZE_DIR: k8s/aks
+      K8S_NAMESPACE: open-data-platform
+      AIRFLOW_IMAGE: ${{ needs.build-images.outputs.airflow_image }}
+      FRONTEND_IMAGE: ${{ needs.build-images.outputs.frontend_image }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Set AKS context
+        uses: azure/aks-set-context@v4
+        with:
+          resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
+          cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Install kustomize
+        uses: imranismail/setup-kustomize@v2
+
+      - name: Deploy to dev
+        run: |
+          rm -rf /tmp/kustomize
+          cp -R "${KUSTOMIZE_DIR}" /tmp/kustomize
+          cd /tmp/kustomize
+          kustomize edit set namespace "${K8S_NAMESPACE}"
+          kustomize edit set image "__AIRFLOW_IMAGE__=${AIRFLOW_IMAGE}"
+          kustomize edit set image "__FRONTEND_IMAGE__=${FRONTEND_IMAGE}"
+          kubectl apply -k .
+          kubectl rollout status deployment/airflow-webserver -n "${K8S_NAMESPACE}"
+          kubectl rollout status deployment/airflow-scheduler -n "${K8S_NAMESPACE}"
+          kubectl rollout status deployment/frontend -n "${K8S_NAMESPACE}"
+
+      - name: Roll back on failure
+        if: failure()
+        run: |
+          kubectl rollout undo deployment/airflow-webserver -n "${K8S_NAMESPACE}"
+          kubectl rollout undo deployment/airflow-scheduler -n "${K8S_NAMESPACE}"
+          kubectl rollout undo deployment/frontend -n "${K8S_NAMESPACE}"
+
+  deploy-manual:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      KUSTOMIZE_DIR: k8s/aks
+      K8S_NAMESPACE: ${{ inputs.namespace }}
+      AIRFLOW_IMAGE: ${{ inputs.airflow_image }}
+      FRONTEND_IMAGE: ${{ inputs.frontend_image }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Set AKS context
+        uses: azure/aks-set-context@v4
+        with:
+          resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
+          cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Install kustomize
+        uses: imranismail/setup-kustomize@v2
+
+      - name: Deploy to ${{ inputs.environment }}
+        run: |
+          rm -rf /tmp/kustomize
+          cp -R "${KUSTOMIZE_DIR}" /tmp/kustomize
+          cd /tmp/kustomize
+          kustomize edit set namespace "${K8S_NAMESPACE}"
+          kustomize edit set image "__AIRFLOW_IMAGE__=${AIRFLOW_IMAGE}"
+          kustomize edit set image "__FRONTEND_IMAGE__=${FRONTEND_IMAGE}"
+          kubectl apply -k .
+          kubectl rollout status deployment/airflow-webserver -n "${K8S_NAMESPACE}"
+          kubectl rollout status deployment/airflow-scheduler -n "${K8S_NAMESPACE}"
+          kubectl rollout status deployment/frontend -n "${K8S_NAMESPACE}"
+
+      - name: Roll back on failure
+        if: failure()
+        run: |
+          kubectl rollout undo deployment/airflow-webserver -n "${K8S_NAMESPACE}"
+          kubectl rollout undo deployment/airflow-scheduler -n "${K8S_NAMESPACE}"
+          kubectl rollout undo deployment/frontend -n "${K8S_NAMESPACE}"

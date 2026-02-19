@@ -1,0 +1,10 @@
+title = "Open Data Platform Gitleaks Config"
+
+[allowlist]
+paths = [
+  '''frontend/node_modules''',
+  '''frontend/dist''',
+  '''.venv''',
+  '''logs''',
+  '''docs/architecture.mmd'''
+]
