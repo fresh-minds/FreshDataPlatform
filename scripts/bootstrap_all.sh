@@ -469,6 +469,9 @@ else
 fi
 
 if [[ "$SKIP_DBT" != "true" ]]; then
+  log "Ensuring job market source tables exist for dbt sources..."
+  "$PYTHON" "$ROOT_DIR/scripts/ensure_job_market_source_tables.py"
+
   if [[ -x "$ROOT_DIR/.venv/bin/dbt" ]]; then
     log "Running dbt parallel stack (seed/run/snapshot/test)..."
     "$ROOT_DIR/scripts/run_dbt_parallel.sh"

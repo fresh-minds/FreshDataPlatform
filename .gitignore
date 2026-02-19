@@ -89,6 +89,7 @@ frontend/npm-debug.log*
 frontend/yarn-debug.log*
 frontend/yarn-error.log*
 frontend/pnpm-debug.log*
+frontend/.npm-cache/
 
 # Type checking
 .mypy_cache/

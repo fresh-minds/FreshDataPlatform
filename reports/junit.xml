@@ -1,0 +1,2585 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="10" failures="2" skipped="1" tests="42" time="117.993" timestamp="2026-02-19T05:30:25.033541+01:00" hostname="Karels-MacBook-Pro.local"><testcase classname="tests.contracts.test_dataset_contracts" name="test_contract_required_columns_exist" time="0.042"><error message="failed on setup with &quot;Failed: Warehouse connection is required for QA tests but failed: Unable to connect to warehouse (host=localhost port=5433 dbname=freshminds_dw user=admin password=***): connection to server at &quot;localhost&quot; (::1), port 5433 failed: Connection refused&#10;&#09;Is the server running on that host and accepting TCP/IP connections?&#10;connection to server at &quot;localhost&quot; (127.0.0.1), port 5433 failed: Connection refused&#10;&#09;Is the server running on that host and accepting TCP/IP connections?&quot;">self = &lt;tests.helpers.connectors.SQLWarehouseConnector object at 0x109a1c460&gt;
+
+    def ping(self) -&gt; None:
+        try:
+&gt;           with self._connect() as conn:
+
+tests/helpers/connectors.py:51: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/helpers/connectors.py:41: in _connect
+    return psycopg2.connect(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+dsn = 'host=localhost port=5433 dbname=freshminds_dw user=admin password=admin'
+connection_factory = None, cursor_factory = None
+kwargs = {'dbname': 'freshminds_dw', 'host': 'localhost', 'password': 'admin', 'port': 5433, ...}
+kwasync = {}
+
+    def connect(dsn=None, connection_factory=None, cursor_factory=None, **kwargs):
+        """
+        Create a new database connection.
+    
+        The connection parameters can be specified as a string:
+    
+            conn = psycopg2.connect("dbname=test user=postgres password=secret")
+    
+        or using a set of keyword arguments:
+    
+            conn = psycopg2.connect(database="test", user="postgres", password="secret")
+    
+        Or as a mix of both. The basic connection parameters are:
+    
+        - *dbname*: the database name
+        - *database*: the database name (only as keyword argument)
+        - *user*: user name used to authenticate
+        - *password*: password used to authenticate
+        - *host*: database host address (defaults to UNIX socket if not provided)
+        - *port*: connection port number (defaults to 5432 if not provided)
+    
+        Using the *connection_factory* parameter a different class or connections
+        factory can be specified. It should be a callable object taking a dsn
+        argument.
+    
+        Using the *cursor_factory* parameter, a new default cursor factory will be
+        used by cursor().
+    
+        Using *async*=True an asynchronous connection will be created. *async_* is
+        a valid alias (for Python versions where ``async`` is a keyword).
+    
+        Any other keyword parameter will be passed to the underlying client
+        library: the list of supported parameters depends on the library version.
+    
+        """
+        kwasync = {}
+        if 'async' in kwargs:
+            kwasync['async'] = kwargs.pop('async')
+        if 'async_' in kwargs:
+            kwasync['async_'] = kwargs.pop('async_')
+    
+        dsn = _ext.make_dsn(dsn, **kwargs)
+&gt;       conn = _connect(dsn, connection_factory=connection_factory, **kwasync)
+E       psycopg2.OperationalError: connection to server at "localhost" (::1), port 5433 failed: Connection refused
+E       	Is the server running on that host and accepting TCP/IP connections?
+E       connection to server at "localhost" (127.0.0.1), port 5433 failed: Connection refused
+E       	Is the server running on that host and accepting TCP/IP connections?
+
+.venv/lib/python3.9/site-packages/psycopg2/__init__.py:122: OperationalError
+
+The above exception was the direct cause of the following exception:
+
+qa_environment = QAEnvironment(env_name='test', warehouse=WarehouseConfig(host='localhost', port=5433, dbname='freshminds_dw', user='ad.../results'), repo_root=PosixPath('/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial'))
+
+    @pytest.fixture(scope="session")
+    def warehouse(qa_environment: QAEnvironment) -&gt; Generator[SQLWarehouseConnector, None, None]:
+        connector = SQLWarehouseConnector(qa_environment.warehouse)
+        try:
+&gt;           connector.ping()
+
+tests/conftest.py:57: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;tests.helpers.connectors.SQLWarehouseConnector object at 0x109a1c460&gt;
+
+    def ping(self) -&gt; None:
+        try:
+            with self._connect() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+                    cur.fetchone()
+        except Exception as exc:  # noqa: BLE001
+&gt;           raise WarehouseQueryError(f"Unable to connect to warehouse ({self.cfg.dsn}): {exc}") from exc
+E           tests.helpers.connectors.WarehouseQueryError: Unable to connect to warehouse (host=localhost port=5433 dbname=freshminds_dw user=admin password=***): connection to server at "localhost" (::1), port 5433 failed: Connection refused
+E           	Is the server running on that host and accepting TCP/IP connections?
+E           connection to server at "localhost" (127.0.0.1), port 5433 failed: Connection refused
+E           	Is the server running on that host and accepting TCP/IP connections?
+
+tests/helpers/connectors.py:56: WarehouseQueryError
+
+During handling of the above exception, another exception occurred:
+
+qa_environment = QAEnvironment(env_name='test', warehouse=WarehouseConfig(host='localhost', port=5433, dbname='freshminds_dw', user='ad.../results'), repo_root=PosixPath('/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial'))
+
+    @pytest.fixture(scope="session")
+    def warehouse(qa_environment: QAEnvironment) -&gt; Generator[SQLWarehouseConnector, None, None]:
+        connector = SQLWarehouseConnector(qa_environment.warehouse)
+        try:
+            connector.ping()
+        except Exception as exc:  # noqa: BLE001
+            if qa_environment.require_services:
+&gt;               pytest.fail(
+                    "Warehouse connection is required for QA tests but failed: "
+                    f"{exc}"
+                )
+E               Failed: Warehouse connection is required for QA tests but failed: Unable to connect to warehouse (host=localhost port=5433 dbname=freshminds_dw user=admin password=***): connection to server at "localhost" (::1), port 5433 failed: Connection refused
+E               	Is the server running on that host and accepting TCP/IP connections?
+E               connection to server at "localhost" (127.0.0.1), port 5433 failed: Connection refused
+E               	Is the server running on that host and accepting TCP/IP connections?
+
+tests/conftest.py:60: Failed</error></testcase><testcase classname="tests.contracts.test_dataset_contracts" name="test_contract_primary_keys_present_and_unique" time="0.000"><error message="failed on setup with &quot;Failed: Warehouse connection is required for QA tests but failed: Unable to connect to warehouse (host=localhost port=5433 dbname=freshminds_dw user=admin password=***): connection to server at &quot;localhost&quot; (::1), port 5433 failed: Connection refused&#10;&#09;Is the server running on that host and accepting TCP/IP connections?&#10;connection to server at &quot;localhost&quot; (127.0.0.1), port 5433 failed: Connection refused&#10;&#09;Is the server running on that host and accepting TCP/IP connections?&quot;">self = &lt;tests.helpers.connectors.SQLWarehouseConnector object at 0x109a1c460&gt;
+
+    def ping(self) -&gt; None:
+        try:
+&gt;           with self._connect() as conn:
+
+tests/helpers/connectors.py:51: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/helpers/connectors.py:41: in _connect
+    return psycopg2.connect(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+dsn = 'host=localhost port=5433 dbname=freshminds_dw user=admin password=admin'
+connection_factory = None, cursor_factory = None
+kwargs = {'dbname': 'freshminds_dw', 'host': 'localhost', 'password': 'admin', 'port': 5433, ...}
+kwasync = {}
+
+    def connect(dsn=None, connection_factory=None, cursor_factory=None, **kwargs):
+        """
+        Create a new database connection.
+    
+        The connection parameters can be specified as a string:
+    
+            conn = psycopg2.connect("dbname=test user=postgres password=secret")
+    
+        or using a set of keyword arguments:
+    
+            conn = psycopg2.connect(database="test", user="postgres", password="secret")
+    
+        Or as a mix of both. The basic connection parameters are:
+    
+        - *dbname*: the database name
+        - *database*: the database name (only as keyword argument)
+        - *user*: user name used to authenticate
+        - *password*: password used to authenticate
+        - *host*: database host address (defaults to UNIX socket if not provided)
+        - *port*: connection port number (defaults to 5432 if not provided)
+    
+        Using the *connection_factory* parameter a different class or connections
+        factory can be specified. It should be a callable object taking a dsn
+        argument.
+    
+        Using the *cursor_factory* parameter, a new default cursor factory will be
+        used by cursor().
+    
+        Using *async*=True an asynchronous connection will be created. *async_* is
+        a valid alias (for Python versions where ``async`` is a keyword).
+    
+        Any other keyword parameter will be passed to the underlying client
+        library: the list of supported parameters depends on the library version.
+    
+        """
+        kwasync = {}
+        if 'async' in kwargs:
+            kwasync['async'] = kwargs.pop('async')
+        if 'async_' in kwargs:
+            kwasync['async_'] = kwargs.pop('async_')
+    
+        dsn = _ext.make_dsn(dsn, **kwargs)
+&gt;       conn = _connect(dsn, connection_factory=connection_factory, **kwasync)
+E       psycopg2.OperationalError: connection to server at "localhost" (::1), port 5433 failed: Connection refused
+E       	Is the server running on that host and accepting TCP/IP connections?
+E       connection to server at "localhost" (127.0.0.1), port 5433 failed: Connection refused
+E       	Is the server running on that host and accepting TCP/IP connections?
+
+.venv/lib/python3.9/site-packages/psycopg2/__init__.py:122: OperationalError
+
+The above exception was the direct cause of the following exception:
+
+qa_environment = QAEnvironment(env_name='test', warehouse=WarehouseConfig(host='localhost', port=5433, dbname='freshminds_dw', user='ad.../results'), repo_root=PosixPath('/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial'))
+
+    @pytest.fixture(scope="session")
+    def warehouse(qa_environment: QAEnvironment) -&gt; Generator[SQLWarehouseConnector, None, None]:
+        connector = SQLWarehouseConnector(qa_environment.warehouse)
+        try:
+&gt;           connector.ping()
+
+tests/conftest.py:57: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;tests.helpers.connectors.SQLWarehouseConnector object at 0x109a1c460&gt;
+
+    def ping(self) -&gt; None:
+        try:
+            with self._connect() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+                    cur.fetchone()
+        except Exception as exc:  # noqa: BLE001
+&gt;           raise WarehouseQueryError(f"Unable to connect to warehouse ({self.cfg.dsn}): {exc}") from exc
+E           tests.helpers.connectors.WarehouseQueryError: Unable to connect to warehouse (host=localhost port=5433 dbname=freshminds_dw user=admin password=***): connection to server at "localhost" (::1), port 5433 failed: Connection refused
+E           	Is the server running on that host and accepting TCP/IP connections?
+E           connection to server at "localhost" (127.0.0.1), port 5433 failed: Connection refused
+E           	Is the server running on that host and accepting TCP/IP connections?
+
+tests/helpers/connectors.py:56: WarehouseQueryError
+
+During handling of the above exception, another exception occurred:
+
+qa_environment = QAEnvironment(env_name='test', warehouse=WarehouseConfig(host='localhost', port=5433, dbname='freshminds_dw', user='ad.../results'), repo_root=PosixPath('/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial'))
+
+    @pytest.fixture(scope="session")
+    def warehouse(qa_environment: QAEnvironment) -&gt; Generator[SQLWarehouseConnector, None, None]:
+        connector = SQLWarehouseConnector(qa_environment.warehouse)
+        try:
+            connector.ping()
+        except Exception as exc:  # noqa: BLE001
+            if qa_environment.require_services:
+&gt;               pytest.fail(
+                    "Warehouse connection is required for QA tests but failed: "
+                    f"{exc}"
+                )
+E               Failed: Warehouse connection is required for QA tests but failed: Unable to connect to warehouse (host=localhost port=5433 dbname=freshminds_dw user=admin password=***): connection to server at "localhost" (::1), port 5433 failed: Connection refused
+E               	Is the server running on that host and accepting TCP/IP connections?
+E               connection to server at "localhost" (127.0.0.1), port 5433 failed: Connection refused
+E               	Is the server running on that host and accepting TCP/IP connections?
+
+tests/conftest.py:60: Failed</error></testcase><testcase classname="tests.contracts.test_dataset_contracts" name="test_contract_naming_conventions" time="0.000"><error message="failed on setup with &quot;Failed: Warehouse connection is required for QA tests but failed: Unable to connect to warehouse (host=localhost port=5433 dbname=freshminds_dw user=admin password=***): connection to server at &quot;localhost&quot; (::1), port 5433 failed: Connection refused&#10;&#09;Is the server running on that host and accepting TCP/IP connections?&#10;connection to server at &quot;localhost&quot; (127.0.0.1), port 5433 failed: Connection refused&#10;&#09;Is the server running on that host and accepting TCP/IP connections?&quot;">self = &lt;tests.helpers.connectors.SQLWarehouseConnector object at 0x109a1c460&gt;
+
+    def ping(self) -&gt; None:
+        try:
+&gt;           with self._connect() as conn:
+
+tests/helpers/connectors.py:51: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/helpers/connectors.py:41: in _connect
+    return psycopg2.connect(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+dsn = 'host=localhost port=5433 dbname=freshminds_dw user=admin password=admin'
+connection_factory = None, cursor_factory = None
+kwargs = {'dbname': 'freshminds_dw', 'host': 'localhost', 'password': 'admin', 'port': 5433, ...}
+kwasync = {}
+
+    def connect(dsn=None, connection_factory=None, cursor_factory=None, **kwargs):
+        """
+        Create a new database connection.
+    
+        The connection parameters can be specified as a string:
+    
+            conn = psycopg2.connect("dbname=test user=postgres password=secret")
+    
+        or using a set of keyword arguments:
+    
+            conn = psycopg2.connect(database="test", user="postgres", password="secret")
+    
+        Or as a mix of both. The basic connection parameters are:
+    
+        - *dbname*: the database name
+        - *database*: the database name (only as keyword argument)
+        - *user*: user name used to authenticate
+        - *password*: password used to authenticate
+        - *host*: database host address (defaults to UNIX socket if not provided)
+        - *port*: connection port number (defaults to 5432 if not provided)
+    
+        Using the *connection_factory* parameter a different class or connections
+        factory can be specified. It should be a callable object taking a dsn
+        argument.
+    
+        Using the *cursor_factory* parameter, a new default cursor factory will be
+        used by cursor().
+    
+        Using *async*=True an asynchronous connection will be created. *async_* is
+        a valid alias (for Python versions where ``async`` is a keyword).
+    
+        Any other keyword parameter will be passed to the underlying client
+        library: the list of supported parameters depends on the library version.
+    
+        """
+        kwasync = {}
+        if 'async' in kwargs:
+            kwasync['async'] = kwargs.pop('async')
+        if 'async_' in kwargs:
+            kwasync['async_'] = kwargs.pop('async_')
+    
+        dsn = _ext.make_dsn(dsn, **kwargs)
+&gt;       conn = _connect(dsn, connection_factory=connection_factory, **kwasync)
+E       psycopg2.OperationalError: connection to server at "localhost" (::1), port 5433 failed: Connection refused
+E       	Is the server running on that host and accepting TCP/IP connections?
+E       connection to server at "localhost" (127.0.0.1), port 5433 failed: Connection refused
+E       	Is the server running on that host and accepting TCP/IP connections?
+
+.venv/lib/python3.9/site-packages/psycopg2/__init__.py:122: OperationalError
+
+The above exception was the direct cause of the following exception:
+
+qa_environment = QAEnvironment(env_name='test', warehouse=WarehouseConfig(host='localhost', port=5433, dbname='freshminds_dw', user='ad.../results'), repo_root=PosixPath('/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial'))
+
+    @pytest.fixture(scope="session")
+    def warehouse(qa_environment: QAEnvironment) -&gt; Generator[SQLWarehouseConnector, None, None]:
+        connector = SQLWarehouseConnector(qa_environment.warehouse)
+        try:
+&gt;           connector.ping()
+
+tests/conftest.py:57: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;tests.helpers.connectors.SQLWarehouseConnector object at 0x109a1c460&gt;
+
+    def ping(self) -&gt; None:
+        try:
+            with self._connect() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+                    cur.fetchone()
+        except Exception as exc:  # noqa: BLE001
+&gt;           raise WarehouseQueryError(f"Unable to connect to warehouse ({self.cfg.dsn}): {exc}") from exc
+E           tests.helpers.connectors.WarehouseQueryError: Unable to connect to warehouse (host=localhost port=5433 dbname=freshminds_dw user=admin password=***): connection to server at "localhost" (::1), port 5433 failed: Connection refused
+E           	Is the server running on that host and accepting TCP/IP connections?
+E           connection to server at "localhost" (127.0.0.1), port 5433 failed: Connection refused
+E           	Is the server running on that host and accepting TCP/IP connections?
+
+tests/helpers/connectors.py:56: WarehouseQueryError
+
+During handling of the above exception, another exception occurred:
+
+qa_environment = QAEnvironment(env_name='test', warehouse=WarehouseConfig(host='localhost', port=5433, dbname='freshminds_dw', user='ad.../results'), repo_root=PosixPath('/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial'))
+
+    @pytest.fixture(scope="session")
+    def warehouse(qa_environment: QAEnvironment) -&gt; Generator[SQLWarehouseConnector, None, None]:
+        connector = SQLWarehouseConnector(qa_environment.warehouse)
+        try:
+            connector.ping()
+        except Exception as exc:  # noqa: BLE001
+            if qa_environment.require_services:
+&gt;               pytest.fail(
+                    "Warehouse connection is required for QA tests but failed: "
+                    f"{exc}"
+                )
+E               Failed: Warehouse connection is required for QA tests but failed: Unable to connect to warehouse (host=localhost port=5433 dbname=freshminds_dw user=admin password=***): connection to server at "localhost" (::1), port 5433 failed: Connection refused
+E               	Is the server running on that host and accepting TCP/IP connections?
+E               connection to server at "localhost" (127.0.0.1), port 5433 failed: Connection refused
+E               	Is the server running on that host and accepting TCP/IP connections?
+
+tests/conftest.py:60: Failed</error></testcase><testcase classname="tests.data_quality.test_data_quality_baseline" name="test_schema_required_columns_and_types" time="0.000"><error message="failed on setup with &quot;Failed: Warehouse connection is required for QA tests but failed: Unable to connect to warehouse (host=localhost port=5433 dbname=freshminds_dw user=admin password=***): connection to server at &quot;localhost&quot; (::1), port 5433 failed: Connection refused&#10;&#09;Is the server running on that host and accepting TCP/IP connections?&#10;connection to server at &quot;localhost&quot; (127.0.0.1), port 5433 failed: Connection refused&#10;&#09;Is the server running on that host and accepting TCP/IP connections?&quot;">self = &lt;tests.helpers.connectors.SQLWarehouseConnector object at 0x109a1c460&gt;
+
+    def ping(self) -&gt; None:
+        try:
+&gt;           with self._connect() as conn:
+
+tests/helpers/connectors.py:51: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/helpers/connectors.py:41: in _connect
+    return psycopg2.connect(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+dsn = 'host=localhost port=5433 dbname=freshminds_dw user=admin password=admin'
+connection_factory = None, cursor_factory = None
+kwargs = {'dbname': 'freshminds_dw', 'host': 'localhost', 'password': 'admin', 'port': 5433, ...}
+kwasync = {}
+
+    def connect(dsn=None, connection_factory=None, cursor_factory=None, **kwargs):
+        """
+        Create a new database connection.
+    
+        The connection parameters can be specified as a string:
+    
+            conn = psycopg2.connect("dbname=test user=postgres password=secret")
+    
+        or using a set of keyword arguments:
+    
+            conn = psycopg2.connect(database="test", user="postgres", password="secret")
+    
+        Or as a mix of both. The basic connection parameters are:
+    
+        - *dbname*: the database name
+        - *database*: the database name (only as keyword argument)
+        - *user*: user name used to authenticate
+        - *password*: password used to authenticate
+        - *host*: database host address (defaults to UNIX socket if not provided)
+        - *port*: connection port number (defaults to 5432 if not provided)
+    
+        Using the *connection_factory* parameter a different class or connections
+        factory can be specified. It should be a callable object taking a dsn
+        argument.
+    
+        Using the *cursor_factory* parameter, a new default cursor factory will be
+        used by cursor().
+    
+        Using *async*=True an asynchronous connection will be created. *async_* is
+        a valid alias (for Python versions where ``async`` is a keyword).
+    
+        Any other keyword parameter will be passed to the underlying client
+        library: the list of supported parameters depends on the library version.
+    
+        """
+        kwasync = {}
+        if 'async' in kwargs:
+            kwasync['async'] = kwargs.pop('async')
+        if 'async_' in kwargs:
+            kwasync['async_'] = kwargs.pop('async_')
+    
+        dsn = _ext.make_dsn(dsn, **kwargs)
+&gt;       conn = _connect(dsn, connection_factory=connection_factory, **kwasync)
+E       psycopg2.OperationalError: connection to server at "localhost" (::1), port 5433 failed: Connection refused
+E       	Is the server running on that host and accepting TCP/IP connections?
+E       connection to server at "localhost" (127.0.0.1), port 5433 failed: Connection refused
+E       	Is the server running on that host and accepting TCP/IP connections?
+
+.venv/lib/python3.9/site-packages/psycopg2/__init__.py:122: OperationalError
+
+The above exception was the direct cause of the following exception:
+
+qa_environment = QAEnvironment(env_name='test', warehouse=WarehouseConfig(host='localhost', port=5433, dbname='freshminds_dw', user='ad.../results'), repo_root=PosixPath('/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial'))
+
+    @pytest.fixture(scope="session")
+    def warehouse(qa_environment: QAEnvironment) -&gt; Generator[SQLWarehouseConnector, None, None]:
+        connector = SQLWarehouseConnector(qa_environment.warehouse)
+        try:
+&gt;           connector.ping()
+
+tests/conftest.py:57: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;tests.helpers.connectors.SQLWarehouseConnector object at 0x109a1c460&gt;
+
+    def ping(self) -&gt; None:
+        try:
+            with self._connect() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+                    cur.fetchone()
+        except Exception as exc:  # noqa: BLE001
+&gt;           raise WarehouseQueryError(f"Unable to connect to warehouse ({self.cfg.dsn}): {exc}") from exc
+E           tests.helpers.connectors.WarehouseQueryError: Unable to connect to warehouse (host=localhost port=5433 dbname=freshminds_dw user=admin password=***): connection to server at "localhost" (::1), port 5433 failed: Connection refused
+E           	Is the server running on that host and accepting TCP/IP connections?
+E           connection to server at "localhost" (127.0.0.1), port 5433 failed: Connection refused
+E           	Is the server running on that host and accepting TCP/IP connections?
+
+tests/helpers/connectors.py:56: WarehouseQueryError
+
+During handling of the above exception, another exception occurred:
+
+qa_environment = QAEnvironment(env_name='test', warehouse=WarehouseConfig(host='localhost', port=5433, dbname='freshminds_dw', user='ad.../results'), repo_root=PosixPath('/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial'))
+
+    @pytest.fixture(scope="session")
+    def warehouse(qa_environment: QAEnvironment) -&gt; Generator[SQLWarehouseConnector, None, None]:
+        connector = SQLWarehouseConnector(qa_environment.warehouse)
+        try:
+            connector.ping()
+        except Exception as exc:  # noqa: BLE001
+            if qa_environment.require_services:
+&gt;               pytest.fail(
+                    "Warehouse connection is required for QA tests but failed: "
+                    f"{exc}"
+                )
+E               Failed: Warehouse connection is required for QA tests but failed: Unable to connect to warehouse (host=localhost port=5433 dbname=freshminds_dw user=admin password=***): connection to server at "localhost" (::1), port 5433 failed: Connection refused
+E               	Is the server running on that host and accepting TCP/IP connections?
+E               connection to server at "localhost" (127.0.0.1), port 5433 failed: Connection refused
+E               	Is the server running on that host and accepting TCP/IP connections?
+
+tests/conftest.py:60: Failed</error></testcase><testcase classname="tests.data_quality.test_data_quality_baseline" name="test_not_null_and_unique_constraints" time="0.000"><error message="failed on setup with &quot;Failed: Warehouse connection is required for QA tests but failed: Unable to connect to warehouse (host=localhost port=5433 dbname=freshminds_dw user=admin password=***): connection to server at &quot;localhost&quot; (::1), port 5433 failed: Connection refused&#10;&#09;Is the server running on that host and accepting TCP/IP connections?&#10;connection to server at &quot;localhost&quot; (127.0.0.1), port 5433 failed: Connection refused&#10;&#09;Is the server running on that host and accepting TCP/IP connections?&quot;">self = &lt;tests.helpers.connectors.SQLWarehouseConnector object at 0x109a1c460&gt;
+
+    def ping(self) -&gt; None:
+        try:
+&gt;           with self._connect() as conn:
+
+tests/helpers/connectors.py:51: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/helpers/connectors.py:41: in _connect
+    return psycopg2.connect(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+dsn = 'host=localhost port=5433 dbname=freshminds_dw user=admin password=admin'
+connection_factory = None, cursor_factory = None
+kwargs = {'dbname': 'freshminds_dw', 'host': 'localhost', 'password': 'admin', 'port': 5433, ...}
+kwasync = {}
+
+    def connect(dsn=None, connection_factory=None, cursor_factory=None, **kwargs):
+        """
+        Create a new database connection.
+    
+        The connection parameters can be specified as a string:
+    
+            conn = psycopg2.connect("dbname=test user=postgres password=secret")
+    
+        or using a set of keyword arguments:
+    
+            conn = psycopg2.connect(database="test", user="postgres", password="secret")
+    
+        Or as a mix of both. The basic connection parameters are:
+    
+        - *dbname*: the database name
+        - *database*: the database name (only as keyword argument)
+        - *user*: user name used to authenticate
+        - *password*: password used to authenticate
+        - *host*: database host address (defaults to UNIX socket if not provided)
+        - *port*: connection port number (defaults to 5432 if not provided)
+    
+        Using the *connection_factory* parameter a different class or connections
+        factory can be specified. It should be a callable object taking a dsn
+        argument.
+    
+        Using the *cursor_factory* parameter, a new default cursor factory will be
+        used by cursor().
+    
+        Using *async*=True an asynchronous connection will be created. *async_* is
+        a valid alias (for Python versions where ``async`` is a keyword).
+    
+        Any other keyword parameter will be passed to the underlying client
+        library: the list of supported parameters depends on the library version.
+    
+        """
+        kwasync = {}
+        if 'async' in kwargs:
+            kwasync['async'] = kwargs.pop('async')
+        if 'async_' in kwargs:
+            kwasync['async_'] = kwargs.pop('async_')
+    
+        dsn = _ext.make_dsn(dsn, **kwargs)
+&gt;       conn = _connect(dsn, connection_factory=connection_factory, **kwasync)
+E       psycopg2.OperationalError: connection to server at "localhost" (::1), port 5433 failed: Connection refused
+E       	Is the server running on that host and accepting TCP/IP connections?
+E       connection to server at "localhost" (127.0.0.1), port 5433 failed: Connection refused
+E       	Is the server running on that host and accepting TCP/IP connections?
+
+.venv/lib/python3.9/site-packages/psycopg2/__init__.py:122: OperationalError
+
+The above exception was the direct cause of the following exception:
+
+qa_environment = QAEnvironment(env_name='test', warehouse=WarehouseConfig(host='localhost', port=5433, dbname='freshminds_dw', user='ad.../results'), repo_root=PosixPath('/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial'))
+
+    @pytest.fixture(scope="session")
+    def warehouse(qa_environment: QAEnvironment) -&gt; Generator[SQLWarehouseConnector, None, None]:
+        connector = SQLWarehouseConnector(qa_environment.warehouse)
+        try:
+&gt;           connector.ping()
+
+tests/conftest.py:57: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;tests.helpers.connectors.SQLWarehouseConnector object at 0x109a1c460&gt;
+
+    def ping(self) -&gt; None:
+        try:
+            with self._connect() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+                    cur.fetchone()
+        except Exception as exc:  # noqa: BLE001
+&gt;           raise WarehouseQueryError(f"Unable to connect to warehouse ({self.cfg.dsn}): {exc}") from exc
+E           tests.helpers.connectors.WarehouseQueryError: Unable to connect to warehouse (host=localhost port=5433 dbname=freshminds_dw user=admin password=***): connection to server at "localhost" (::1), port 5433 failed: Connection refused
+E           	Is the server running on that host and accepting TCP/IP connections?
+E           connection to server at "localhost" (127.0.0.1), port 5433 failed: Connection refused
+E           	Is the server running on that host and accepting TCP/IP connections?
+
+tests/helpers/connectors.py:56: WarehouseQueryError
+
+During handling of the above exception, another exception occurred:
+
+qa_environment = QAEnvironment(env_name='test', warehouse=WarehouseConfig(host='localhost', port=5433, dbname='freshminds_dw', user='ad.../results'), repo_root=PosixPath('/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial'))
+
+    @pytest.fixture(scope="session")
+    def warehouse(qa_environment: QAEnvironment) -&gt; Generator[SQLWarehouseConnector, None, None]:
+        connector = SQLWarehouseConnector(qa_environment.warehouse)
+        try:
+            connector.ping()
+        except Exception as exc:  # noqa: BLE001
+            if qa_environment.require_services:
+&gt;               pytest.fail(
+                    "Warehouse connection is required for QA tests but failed: "
+                    f"{exc}"
+                )
+E               Failed: Warehouse connection is required for QA tests but failed: Unable to connect to warehouse (host=localhost port=5433 dbname=freshminds_dw user=admin password=***): connection to server at "localhost" (::1), port 5433 failed: Connection refused
+E               	Is the server running on that host and accepting TCP/IP connections?
+E               connection to server at "localhost" (127.0.0.1), port 5433 failed: Connection refused
+E               	Is the server running on that host and accepting TCP/IP connections?
+
+tests/conftest.py:60: Failed</error></testcase><testcase classname="tests.data_quality.test_data_quality_baseline" name="test_accepted_values_and_numeric_ranges" time="0.000"><error message="failed on setup with &quot;Failed: Warehouse connection is required for QA tests but failed: Unable to connect to warehouse (host=localhost port=5433 dbname=freshminds_dw user=admin password=***): connection to server at &quot;localhost&quot; (::1), port 5433 failed: Connection refused&#10;&#09;Is the server running on that host and accepting TCP/IP connections?&#10;connection to server at &quot;localhost&quot; (127.0.0.1), port 5433 failed: Connection refused&#10;&#09;Is the server running on that host and accepting TCP/IP connections?&quot;">self = &lt;tests.helpers.connectors.SQLWarehouseConnector object at 0x109a1c460&gt;
+
+    def ping(self) -&gt; None:
+        try:
+&gt;           with self._connect() as conn:
+
+tests/helpers/connectors.py:51: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/helpers/connectors.py:41: in _connect
+    return psycopg2.connect(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+dsn = 'host=localhost port=5433 dbname=freshminds_dw user=admin password=admin'
+connection_factory = None, cursor_factory = None
+kwargs = {'dbname': 'freshminds_dw', 'host': 'localhost', 'password': 'admin', 'port': 5433, ...}
+kwasync = {}
+
+    def connect(dsn=None, connection_factory=None, cursor_factory=None, **kwargs):
+        """
+        Create a new database connection.
+    
+        The connection parameters can be specified as a string:
+    
+            conn = psycopg2.connect("dbname=test user=postgres password=secret")
+    
+        or using a set of keyword arguments:
+    
+            conn = psycopg2.connect(database="test", user="postgres", password="secret")
+    
+        Or as a mix of both. The basic connection parameters are:
+    
+        - *dbname*: the database name
+        - *database*: the database name (only as keyword argument)
+        - *user*: user name used to authenticate
+        - *password*: password used to authenticate
+        - *host*: database host address (defaults to UNIX socket if not provided)
+        - *port*: connection port number (defaults to 5432 if not provided)
+    
+        Using the *connection_factory* parameter a different class or connections
+        factory can be specified. It should be a callable object taking a dsn
+        argument.
+    
+        Using the *cursor_factory* parameter, a new default cursor factory will be
+        used by cursor().
+    
+        Using *async*=True an asynchronous connection will be created. *async_* is
+        a valid alias (for Python versions where ``async`` is a keyword).
+    
+        Any other keyword parameter will be passed to the underlying client
+        library: the list of supported parameters depends on the library version.
+    
+        """
+        kwasync = {}
+        if 'async' in kwargs:
+            kwasync['async'] = kwargs.pop('async')
+        if 'async_' in kwargs:
+            kwasync['async_'] = kwargs.pop('async_')
+    
+        dsn = _ext.make_dsn(dsn, **kwargs)
+&gt;       conn = _connect(dsn, connection_factory=connection_factory, **kwasync)
+E       psycopg2.OperationalError: connection to server at "localhost" (::1), port 5433 failed: Connection refused
+E       	Is the server running on that host and accepting TCP/IP connections?
+E       connection to server at "localhost" (127.0.0.1), port 5433 failed: Connection refused
+E       	Is the server running on that host and accepting TCP/IP connections?
+
+.venv/lib/python3.9/site-packages/psycopg2/__init__.py:122: OperationalError
+
+The above exception was the direct cause of the following exception:
+
+qa_environment = QAEnvironment(env_name='test', warehouse=WarehouseConfig(host='localhost', port=5433, dbname='freshminds_dw', user='ad.../results'), repo_root=PosixPath('/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial'))
+
+    @pytest.fixture(scope="session")
+    def warehouse(qa_environment: QAEnvironment) -&gt; Generator[SQLWarehouseConnector, None, None]:
+        connector = SQLWarehouseConnector(qa_environment.warehouse)
+        try:
+&gt;           connector.ping()
+
+tests/conftest.py:57: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;tests.helpers.connectors.SQLWarehouseConnector object at 0x109a1c460&gt;
+
+    def ping(self) -&gt; None:
+        try:
+            with self._connect() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+                    cur.fetchone()
+        except Exception as exc:  # noqa: BLE001
+&gt;           raise WarehouseQueryError(f"Unable to connect to warehouse ({self.cfg.dsn}): {exc}") from exc
+E           tests.helpers.connectors.WarehouseQueryError: Unable to connect to warehouse (host=localhost port=5433 dbname=freshminds_dw user=admin password=***): connection to server at "localhost" (::1), port 5433 failed: Connection refused
+E           	Is the server running on that host and accepting TCP/IP connections?
+E           connection to server at "localhost" (127.0.0.1), port 5433 failed: Connection refused
+E           	Is the server running on that host and accepting TCP/IP connections?
+
+tests/helpers/connectors.py:56: WarehouseQueryError
+
+During handling of the above exception, another exception occurred:
+
+qa_environment = QAEnvironment(env_name='test', warehouse=WarehouseConfig(host='localhost', port=5433, dbname='freshminds_dw', user='ad.../results'), repo_root=PosixPath('/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial'))
+
+    @pytest.fixture(scope="session")
+    def warehouse(qa_environment: QAEnvironment) -&gt; Generator[SQLWarehouseConnector, None, None]:
+        connector = SQLWarehouseConnector(qa_environment.warehouse)
+        try:
+            connector.ping()
+        except Exception as exc:  # noqa: BLE001
+            if qa_environment.require_services:
+&gt;               pytest.fail(
+                    "Warehouse connection is required for QA tests but failed: "
+                    f"{exc}"
+                )
+E               Failed: Warehouse connection is required for QA tests but failed: Unable to connect to warehouse (host=localhost port=5433 dbname=freshminds_dw user=admin password=***): connection to server at "localhost" (::1), port 5433 failed: Connection refused
+E               	Is the server running on that host and accepting TCP/IP connections?
+E               connection to server at "localhost" (127.0.0.1), port 5433 failed: Connection refused
+E               	Is the server running on that host and accepting TCP/IP connections?
+
+tests/conftest.py:60: Failed</error></testcase><testcase classname="tests.data_quality.test_data_quality_baseline" name="test_freshness_sla" time="0.000"><error message="failed on setup with &quot;Failed: Warehouse connection is required for QA tests but failed: Unable to connect to warehouse (host=localhost port=5433 dbname=freshminds_dw user=admin password=***): connection to server at &quot;localhost&quot; (::1), port 5433 failed: Connection refused&#10;&#09;Is the server running on that host and accepting TCP/IP connections?&#10;connection to server at &quot;localhost&quot; (127.0.0.1), port 5433 failed: Connection refused&#10;&#09;Is the server running on that host and accepting TCP/IP connections?&quot;">self = &lt;tests.helpers.connectors.SQLWarehouseConnector object at 0x109a1c460&gt;
+
+    def ping(self) -&gt; None:
+        try:
+&gt;           with self._connect() as conn:
+
+tests/helpers/connectors.py:51: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/helpers/connectors.py:41: in _connect
+    return psycopg2.connect(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+dsn = 'host=localhost port=5433 dbname=freshminds_dw user=admin password=admin'
+connection_factory = None, cursor_factory = None
+kwargs = {'dbname': 'freshminds_dw', 'host': 'localhost', 'password': 'admin', 'port': 5433, ...}
+kwasync = {}
+
+    def connect(dsn=None, connection_factory=None, cursor_factory=None, **kwargs):
+        """
+        Create a new database connection.
+    
+        The connection parameters can be specified as a string:
+    
+            conn = psycopg2.connect("dbname=test user=postgres password=secret")
+    
+        or using a set of keyword arguments:
+    
+            conn = psycopg2.connect(database="test", user="postgres", password="secret")
+    
+        Or as a mix of both. The basic connection parameters are:
+    
+        - *dbname*: the database name
+        - *database*: the database name (only as keyword argument)
+        - *user*: user name used to authenticate
+        - *password*: password used to authenticate
+        - *host*: database host address (defaults to UNIX socket if not provided)
+        - *port*: connection port number (defaults to 5432 if not provided)
+    
+        Using the *connection_factory* parameter a different class or connections
+        factory can be specified. It should be a callable object taking a dsn
+        argument.
+    
+        Using the *cursor_factory* parameter, a new default cursor factory will be
+        used by cursor().
+    
+        Using *async*=True an asynchronous connection will be created. *async_* is
+        a valid alias (for Python versions where ``async`` is a keyword).
+    
+        Any other keyword parameter will be passed to the underlying client
+        library: the list of supported parameters depends on the library version.
+    
+        """
+        kwasync = {}
+        if 'async' in kwargs:
+            kwasync['async'] = kwargs.pop('async')
+        if 'async_' in kwargs:
+            kwasync['async_'] = kwargs.pop('async_')
+    
+        dsn = _ext.make_dsn(dsn, **kwargs)
+&gt;       conn = _connect(dsn, connection_factory=connection_factory, **kwasync)
+E       psycopg2.OperationalError: connection to server at "localhost" (::1), port 5433 failed: Connection refused
+E       	Is the server running on that host and accepting TCP/IP connections?
+E       connection to server at "localhost" (127.0.0.1), port 5433 failed: Connection refused
+E       	Is the server running on that host and accepting TCP/IP connections?
+
+.venv/lib/python3.9/site-packages/psycopg2/__init__.py:122: OperationalError
+
+The above exception was the direct cause of the following exception:
+
+qa_environment = QAEnvironment(env_name='test', warehouse=WarehouseConfig(host='localhost', port=5433, dbname='freshminds_dw', user='ad.../results'), repo_root=PosixPath('/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial'))
+
+    @pytest.fixture(scope="session")
+    def warehouse(qa_environment: QAEnvironment) -&gt; Generator[SQLWarehouseConnector, None, None]:
+        connector = SQLWarehouseConnector(qa_environment.warehouse)
+        try:
+&gt;           connector.ping()
+
+tests/conftest.py:57: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;tests.helpers.connectors.SQLWarehouseConnector object at 0x109a1c460&gt;
+
+    def ping(self) -&gt; None:
+        try:
+            with self._connect() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+                    cur.fetchone()
+        except Exception as exc:  # noqa: BLE001
+&gt;           raise WarehouseQueryError(f"Unable to connect to warehouse ({self.cfg.dsn}): {exc}") from exc
+E           tests.helpers.connectors.WarehouseQueryError: Unable to connect to warehouse (host=localhost port=5433 dbname=freshminds_dw user=admin password=***): connection to server at "localhost" (::1), port 5433 failed: Connection refused
+E           	Is the server running on that host and accepting TCP/IP connections?
+E           connection to server at "localhost" (127.0.0.1), port 5433 failed: Connection refused
+E           	Is the server running on that host and accepting TCP/IP connections?
+
+tests/helpers/connectors.py:56: WarehouseQueryError
+
+During handling of the above exception, another exception occurred:
+
+qa_environment = QAEnvironment(env_name='test', warehouse=WarehouseConfig(host='localhost', port=5433, dbname='freshminds_dw', user='ad.../results'), repo_root=PosixPath('/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial'))
+
+    @pytest.fixture(scope="session")
+    def warehouse(qa_environment: QAEnvironment) -&gt; Generator[SQLWarehouseConnector, None, None]:
+        connector = SQLWarehouseConnector(qa_environment.warehouse)
+        try:
+            connector.ping()
+        except Exception as exc:  # noqa: BLE001
+            if qa_environment.require_services:
+&gt;               pytest.fail(
+                    "Warehouse connection is required for QA tests but failed: "
+                    f"{exc}"
+                )
+E               Failed: Warehouse connection is required for QA tests but failed: Unable to connect to warehouse (host=localhost port=5433 dbname=freshminds_dw user=admin password=***): connection to server at "localhost" (::1), port 5433 failed: Connection refused
+E               	Is the server running on that host and accepting TCP/IP connections?
+E               connection to server at "localhost" (127.0.0.1), port 5433 failed: Connection refused
+E               	Is the server running on that host and accepting TCP/IP connections?
+
+tests/conftest.py:60: Failed</error></testcase><testcase classname="tests.governance.test_governance_controls" name="test_metadata_completeness_and_policy_compliance" time="0.011" /><testcase classname="tests.governance.test_governance_controls" name="test_gold_datasets_have_lineage" time="0.000" /><testcase classname="tests.governance.test_governance_controls" name="test_pii_classification_and_export_leak_controls" time="0.000" /><testcase classname="tests.governance.test_governance_controls" name="test_restricted_datasets_rbac_controls" time="0.000"><error message="failed on setup with &quot;Failed: Warehouse connection is required for QA tests but failed: Unable to connect to warehouse (host=localhost port=5433 dbname=freshminds_dw user=admin password=***): connection to server at &quot;localhost&quot; (::1), port 5433 failed: Connection refused&#10;&#09;Is the server running on that host and accepting TCP/IP connections?&#10;connection to server at &quot;localhost&quot; (127.0.0.1), port 5433 failed: Connection refused&#10;&#09;Is the server running on that host and accepting TCP/IP connections?&quot;">self = &lt;tests.helpers.connectors.SQLWarehouseConnector object at 0x109a1c460&gt;
+
+    def ping(self) -&gt; None:
+        try:
+&gt;           with self._connect() as conn:
+
+tests/helpers/connectors.py:51: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/helpers/connectors.py:41: in _connect
+    return psycopg2.connect(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+dsn = 'host=localhost port=5433 dbname=freshminds_dw user=admin password=admin'
+connection_factory = None, cursor_factory = None
+kwargs = {'dbname': 'freshminds_dw', 'host': 'localhost', 'password': 'admin', 'port': 5433, ...}
+kwasync = {}
+
+    def connect(dsn=None, connection_factory=None, cursor_factory=None, **kwargs):
+        """
+        Create a new database connection.
+    
+        The connection parameters can be specified as a string:
+    
+            conn = psycopg2.connect("dbname=test user=postgres password=secret")
+    
+        or using a set of keyword arguments:
+    
+            conn = psycopg2.connect(database="test", user="postgres", password="secret")
+    
+        Or as a mix of both. The basic connection parameters are:
+    
+        - *dbname*: the database name
+        - *database*: the database name (only as keyword argument)
+        - *user*: user name used to authenticate
+        - *password*: password used to authenticate
+        - *host*: database host address (defaults to UNIX socket if not provided)
+        - *port*: connection port number (defaults to 5432 if not provided)
+    
+        Using the *connection_factory* parameter a different class or connections
+        factory can be specified. It should be a callable object taking a dsn
+        argument.
+    
+        Using the *cursor_factory* parameter, a new default cursor factory will be
+        used by cursor().
+    
+        Using *async*=True an asynchronous connection will be created. *async_* is
+        a valid alias (for Python versions where ``async`` is a keyword).
+    
+        Any other keyword parameter will be passed to the underlying client
+        library: the list of supported parameters depends on the library version.
+    
+        """
+        kwasync = {}
+        if 'async' in kwargs:
+            kwasync['async'] = kwargs.pop('async')
+        if 'async_' in kwargs:
+            kwasync['async_'] = kwargs.pop('async_')
+    
+        dsn = _ext.make_dsn(dsn, **kwargs)
+&gt;       conn = _connect(dsn, connection_factory=connection_factory, **kwasync)
+E       psycopg2.OperationalError: connection to server at "localhost" (::1), port 5433 failed: Connection refused
+E       	Is the server running on that host and accepting TCP/IP connections?
+E       connection to server at "localhost" (127.0.0.1), port 5433 failed: Connection refused
+E       	Is the server running on that host and accepting TCP/IP connections?
+
+.venv/lib/python3.9/site-packages/psycopg2/__init__.py:122: OperationalError
+
+The above exception was the direct cause of the following exception:
+
+qa_environment = QAEnvironment(env_name='test', warehouse=WarehouseConfig(host='localhost', port=5433, dbname='freshminds_dw', user='ad.../results'), repo_root=PosixPath('/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial'))
+
+    @pytest.fixture(scope="session")
+    def warehouse(qa_environment: QAEnvironment) -&gt; Generator[SQLWarehouseConnector, None, None]:
+        connector = SQLWarehouseConnector(qa_environment.warehouse)
+        try:
+&gt;           connector.ping()
+
+tests/conftest.py:57: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;tests.helpers.connectors.SQLWarehouseConnector object at 0x109a1c460&gt;
+
+    def ping(self) -&gt; None:
+        try:
+            with self._connect() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+                    cur.fetchone()
+        except Exception as exc:  # noqa: BLE001
+&gt;           raise WarehouseQueryError(f"Unable to connect to warehouse ({self.cfg.dsn}): {exc}") from exc
+E           tests.helpers.connectors.WarehouseQueryError: Unable to connect to warehouse (host=localhost port=5433 dbname=freshminds_dw user=admin password=***): connection to server at "localhost" (::1), port 5433 failed: Connection refused
+E           	Is the server running on that host and accepting TCP/IP connections?
+E           connection to server at "localhost" (127.0.0.1), port 5433 failed: Connection refused
+E           	Is the server running on that host and accepting TCP/IP connections?
+
+tests/helpers/connectors.py:56: WarehouseQueryError
+
+During handling of the above exception, another exception occurred:
+
+qa_environment = QAEnvironment(env_name='test', warehouse=WarehouseConfig(host='localhost', port=5433, dbname='freshminds_dw', user='ad.../results'), repo_root=PosixPath('/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial'))
+
+    @pytest.fixture(scope="session")
+    def warehouse(qa_environment: QAEnvironment) -&gt; Generator[SQLWarehouseConnector, None, None]:
+        connector = SQLWarehouseConnector(qa_environment.warehouse)
+        try:
+            connector.ping()
+        except Exception as exc:  # noqa: BLE001
+            if qa_environment.require_services:
+&gt;               pytest.fail(
+                    "Warehouse connection is required for QA tests but failed: "
+                    f"{exc}"
+                )
+E               Failed: Warehouse connection is required for QA tests but failed: Unable to connect to warehouse (host=localhost port=5433 dbname=freshminds_dw user=admin password=***): connection to server at "localhost" (::1), port 5433 failed: Connection refused
+E               	Is the server running on that host and accepting TCP/IP connections?
+E               connection to server at "localhost" (127.0.0.1), port 5433 failed: Connection refused
+E               	Is the server running on that host and accepting TCP/IP connections?
+
+tests/conftest.py:60: Failed</error></testcase><testcase classname="tests.governance.test_governance_controls" name="test_retention_window_enforced" time="0.000"><error message="failed on setup with &quot;Failed: Warehouse connection is required for QA tests but failed: Unable to connect to warehouse (host=localhost port=5433 dbname=freshminds_dw user=admin password=***): connection to server at &quot;localhost&quot; (::1), port 5433 failed: Connection refused&#10;&#09;Is the server running on that host and accepting TCP/IP connections?&#10;connection to server at &quot;localhost&quot; (127.0.0.1), port 5433 failed: Connection refused&#10;&#09;Is the server running on that host and accepting TCP/IP connections?&quot;">self = &lt;tests.helpers.connectors.SQLWarehouseConnector object at 0x109a1c460&gt;
+
+    def ping(self) -&gt; None:
+        try:
+&gt;           with self._connect() as conn:
+
+tests/helpers/connectors.py:51: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/helpers/connectors.py:41: in _connect
+    return psycopg2.connect(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+dsn = 'host=localhost port=5433 dbname=freshminds_dw user=admin password=admin'
+connection_factory = None, cursor_factory = None
+kwargs = {'dbname': 'freshminds_dw', 'host': 'localhost', 'password': 'admin', 'port': 5433, ...}
+kwasync = {}
+
+    def connect(dsn=None, connection_factory=None, cursor_factory=None, **kwargs):
+        """
+        Create a new database connection.
+    
+        The connection parameters can be specified as a string:
+    
+            conn = psycopg2.connect("dbname=test user=postgres password=secret")
+    
+        or using a set of keyword arguments:
+    
+            conn = psycopg2.connect(database="test", user="postgres", password="secret")
+    
+        Or as a mix of both. The basic connection parameters are:
+    
+        - *dbname*: the database name
+        - *database*: the database name (only as keyword argument)
+        - *user*: user name used to authenticate
+        - *password*: password used to authenticate
+        - *host*: database host address (defaults to UNIX socket if not provided)
+        - *port*: connection port number (defaults to 5432 if not provided)
+    
+        Using the *connection_factory* parameter a different class or connections
+        factory can be specified. It should be a callable object taking a dsn
+        argument.
+    
+        Using the *cursor_factory* parameter, a new default cursor factory will be
+        used by cursor().
+    
+        Using *async*=True an asynchronous connection will be created. *async_* is
+        a valid alias (for Python versions where ``async`` is a keyword).
+    
+        Any other keyword parameter will be passed to the underlying client
+        library: the list of supported parameters depends on the library version.
+    
+        """
+        kwasync = {}
+        if 'async' in kwargs:
+            kwasync['async'] = kwargs.pop('async')
+        if 'async_' in kwargs:
+            kwasync['async_'] = kwargs.pop('async_')
+    
+        dsn = _ext.make_dsn(dsn, **kwargs)
+&gt;       conn = _connect(dsn, connection_factory=connection_factory, **kwasync)
+E       psycopg2.OperationalError: connection to server at "localhost" (::1), port 5433 failed: Connection refused
+E       	Is the server running on that host and accepting TCP/IP connections?
+E       connection to server at "localhost" (127.0.0.1), port 5433 failed: Connection refused
+E       	Is the server running on that host and accepting TCP/IP connections?
+
+.venv/lib/python3.9/site-packages/psycopg2/__init__.py:122: OperationalError
+
+The above exception was the direct cause of the following exception:
+
+qa_environment = QAEnvironment(env_name='test', warehouse=WarehouseConfig(host='localhost', port=5433, dbname='freshminds_dw', user='ad.../results'), repo_root=PosixPath('/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial'))
+
+    @pytest.fixture(scope="session")
+    def warehouse(qa_environment: QAEnvironment) -&gt; Generator[SQLWarehouseConnector, None, None]:
+        connector = SQLWarehouseConnector(qa_environment.warehouse)
+        try:
+&gt;           connector.ping()
+
+tests/conftest.py:57: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;tests.helpers.connectors.SQLWarehouseConnector object at 0x109a1c460&gt;
+
+    def ping(self) -&gt; None:
+        try:
+            with self._connect() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+                    cur.fetchone()
+        except Exception as exc:  # noqa: BLE001
+&gt;           raise WarehouseQueryError(f"Unable to connect to warehouse ({self.cfg.dsn}): {exc}") from exc
+E           tests.helpers.connectors.WarehouseQueryError: Unable to connect to warehouse (host=localhost port=5433 dbname=freshminds_dw user=admin password=***): connection to server at "localhost" (::1), port 5433 failed: Connection refused
+E           	Is the server running on that host and accepting TCP/IP connections?
+E           connection to server at "localhost" (127.0.0.1), port 5433 failed: Connection refused
+E           	Is the server running on that host and accepting TCP/IP connections?
+
+tests/helpers/connectors.py:56: WarehouseQueryError
+
+During handling of the above exception, another exception occurred:
+
+qa_environment = QAEnvironment(env_name='test', warehouse=WarehouseConfig(host='localhost', port=5433, dbname='freshminds_dw', user='ad.../results'), repo_root=PosixPath('/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial'))
+
+    @pytest.fixture(scope="session")
+    def warehouse(qa_environment: QAEnvironment) -&gt; Generator[SQLWarehouseConnector, None, None]:
+        connector = SQLWarehouseConnector(qa_environment.warehouse)
+        try:
+            connector.ping()
+        except Exception as exc:  # noqa: BLE001
+            if qa_environment.require_services:
+&gt;               pytest.fail(
+                    "Warehouse connection is required for QA tests but failed: "
+                    f"{exc}"
+                )
+E               Failed: Warehouse connection is required for QA tests but failed: Unable to connect to warehouse (host=localhost port=5433 dbname=freshminds_dw user=admin password=***): connection to server at "localhost" (::1), port 5433 failed: Connection refused
+E               	Is the server running on that host and accepting TCP/IP connections?
+E               connection to server at "localhost" (127.0.0.1), port 5433 failed: Connection refused
+E               	Is the server running on that host and accepting TCP/IP connections?
+
+tests/conftest.py:60: Failed</error></testcase><testcase classname="tests.governance.test_governance_controls" name="test_pipeline_run_auditability_recorded" time="0.000"><error message="failed on setup with &quot;Failed: Warehouse connection is required for QA tests but failed: Unable to connect to warehouse (host=localhost port=5433 dbname=freshminds_dw user=admin password=***): connection to server at &quot;localhost&quot; (::1), port 5433 failed: Connection refused&#10;&#09;Is the server running on that host and accepting TCP/IP connections?&#10;connection to server at &quot;localhost&quot; (127.0.0.1), port 5433 failed: Connection refused&#10;&#09;Is the server running on that host and accepting TCP/IP connections?&quot;">self = &lt;tests.helpers.connectors.SQLWarehouseConnector object at 0x109a1c460&gt;
+
+    def ping(self) -&gt; None:
+        try:
+&gt;           with self._connect() as conn:
+
+tests/helpers/connectors.py:51: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/helpers/connectors.py:41: in _connect
+    return psycopg2.connect(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+dsn = 'host=localhost port=5433 dbname=freshminds_dw user=admin password=admin'
+connection_factory = None, cursor_factory = None
+kwargs = {'dbname': 'freshminds_dw', 'host': 'localhost', 'password': 'admin', 'port': 5433, ...}
+kwasync = {}
+
+    def connect(dsn=None, connection_factory=None, cursor_factory=None, **kwargs):
+        """
+        Create a new database connection.
+    
+        The connection parameters can be specified as a string:
+    
+            conn = psycopg2.connect("dbname=test user=postgres password=secret")
+    
+        or using a set of keyword arguments:
+    
+            conn = psycopg2.connect(database="test", user="postgres", password="secret")
+    
+        Or as a mix of both. The basic connection parameters are:
+    
+        - *dbname*: the database name
+        - *database*: the database name (only as keyword argument)
+        - *user*: user name used to authenticate
+        - *password*: password used to authenticate
+        - *host*: database host address (defaults to UNIX socket if not provided)
+        - *port*: connection port number (defaults to 5432 if not provided)
+    
+        Using the *connection_factory* parameter a different class or connections
+        factory can be specified. It should be a callable object taking a dsn
+        argument.
+    
+        Using the *cursor_factory* parameter, a new default cursor factory will be
+        used by cursor().
+    
+        Using *async*=True an asynchronous connection will be created. *async_* is
+        a valid alias (for Python versions where ``async`` is a keyword).
+    
+        Any other keyword parameter will be passed to the underlying client
+        library: the list of supported parameters depends on the library version.
+    
+        """
+        kwasync = {}
+        if 'async' in kwargs:
+            kwasync['async'] = kwargs.pop('async')
+        if 'async_' in kwargs:
+            kwasync['async_'] = kwargs.pop('async_')
+    
+        dsn = _ext.make_dsn(dsn, **kwargs)
+&gt;       conn = _connect(dsn, connection_factory=connection_factory, **kwasync)
+E       psycopg2.OperationalError: connection to server at "localhost" (::1), port 5433 failed: Connection refused
+E       	Is the server running on that host and accepting TCP/IP connections?
+E       connection to server at "localhost" (127.0.0.1), port 5433 failed: Connection refused
+E       	Is the server running on that host and accepting TCP/IP connections?
+
+.venv/lib/python3.9/site-packages/psycopg2/__init__.py:122: OperationalError
+
+The above exception was the direct cause of the following exception:
+
+qa_environment = QAEnvironment(env_name='test', warehouse=WarehouseConfig(host='localhost', port=5433, dbname='freshminds_dw', user='ad.../results'), repo_root=PosixPath('/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial'))
+
+    @pytest.fixture(scope="session")
+    def warehouse(qa_environment: QAEnvironment) -&gt; Generator[SQLWarehouseConnector, None, None]:
+        connector = SQLWarehouseConnector(qa_environment.warehouse)
+        try:
+&gt;           connector.ping()
+
+tests/conftest.py:57: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;tests.helpers.connectors.SQLWarehouseConnector object at 0x109a1c460&gt;
+
+    def ping(self) -&gt; None:
+        try:
+            with self._connect() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+                    cur.fetchone()
+        except Exception as exc:  # noqa: BLE001
+&gt;           raise WarehouseQueryError(f"Unable to connect to warehouse ({self.cfg.dsn}): {exc}") from exc
+E           tests.helpers.connectors.WarehouseQueryError: Unable to connect to warehouse (host=localhost port=5433 dbname=freshminds_dw user=admin password=***): connection to server at "localhost" (::1), port 5433 failed: Connection refused
+E           	Is the server running on that host and accepting TCP/IP connections?
+E           connection to server at "localhost" (127.0.0.1), port 5433 failed: Connection refused
+E           	Is the server running on that host and accepting TCP/IP connections?
+
+tests/helpers/connectors.py:56: WarehouseQueryError
+
+During handling of the above exception, another exception occurred:
+
+qa_environment = QAEnvironment(env_name='test', warehouse=WarehouseConfig(host='localhost', port=5433, dbname='freshminds_dw', user='ad.../results'), repo_root=PosixPath('/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial'))
+
+    @pytest.fixture(scope="session")
+    def warehouse(qa_environment: QAEnvironment) -&gt; Generator[SQLWarehouseConnector, None, None]:
+        connector = SQLWarehouseConnector(qa_environment.warehouse)
+        try:
+            connector.ping()
+        except Exception as exc:  # noqa: BLE001
+            if qa_environment.require_services:
+&gt;               pytest.fail(
+                    "Warehouse connection is required for QA tests but failed: "
+                    f"{exc}"
+                )
+E               Failed: Warehouse connection is required for QA tests but failed: Unable to connect to warehouse (host=localhost port=5433 dbname=freshminds_dw user=admin password=***): connection to server at "localhost" (::1), port 5433 failed: Connection refused
+E               	Is the server running on that host and accepting TCP/IP connections?
+E               connection to server at "localhost" (127.0.0.1), port 5433 failed: Connection refused
+E               	Is the server running on that host and accepting TCP/IP connections?
+
+tests/conftest.py:60: Failed</error></testcase><testcase classname="tests.integration.test_datahub_integration" name="test_datahub_health_check" time="0.005"><failure message="Failed: Failed to connect to DataHub GMS: HTTPConnectionPool(host='localhost', port=8081): Max retries exceeded with url: /health (Caused by NewConnectionError('&lt;urllib3.connection.HTTPConnection object at 0x10e237070&gt;: Failed to establish a new connection: [Errno 61] Connection refused'))">self = &lt;urllib3.connection.HTTPConnection object at 0x10e237070&gt;
+
+    def _new_conn(self):
+        """Establish a socket connection and set nodelay settings on it.
+    
+        :return: New socket connection.
+        """
+        extra_kw = {}
+        if self.source_address:
+            extra_kw["source_address"] = self.source_address
+    
+        if self.socket_options:
+            extra_kw["socket_options"] = self.socket_options
+    
+        try:
+&gt;           conn = connection.create_connection(
+                (self._dns_host, self.port), self.timeout, **extra_kw
+            )
+
+.venv/lib/python3.9/site-packages/urllib3/connection.py:174: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+.venv/lib/python3.9/site-packages/urllib3/util/connection.py:95: in create_connection
+    raise err
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+address = ('localhost', 8081), timeout = None, source_address = None
+socket_options = [(6, 1, 1)]
+
+    def create_connection(
+        address,
+        timeout=socket._GLOBAL_DEFAULT_TIMEOUT,
+        source_address=None,
+        socket_options=None,
+    ):
+        """Connect to *address* and return the socket object.
+    
+        Convenience function.  Connect to *address* (a 2-tuple ``(host,
+        port)``) and return the socket object.  Passing the optional
+        *timeout* parameter will set the timeout on the socket instance
+        before attempting to connect.  If no *timeout* is supplied, the
+        global default timeout setting returned by :func:`socket.getdefaulttimeout`
+        is used.  If *source_address* is set it must be a tuple of (host, port)
+        for the socket to bind as a source address before making the connection.
+        An host of '' or port 0 tells the OS to use the default.
+        """
+    
+        host, port = address
+        if host.startswith("["):
+            host = host.strip("[]")
+        err = None
+    
+        # Using the value from allowed_gai_family() in the context of getaddrinfo lets
+        # us select whether to work with IPv4 DNS records, IPv6 records, or both.
+        # The original create_connection function always returns all records.
+        family = allowed_gai_family()
+    
+        try:
+            host.encode("idna")
+        except UnicodeError:
+            return six.raise_from(
+                LocationParseError(u"'%s', label empty or too long" % host), None
+            )
+    
+        for res in socket.getaddrinfo(host, port, family, socket.SOCK_STREAM):
+            af, socktype, proto, canonname, sa = res
+            sock = None
+            try:
+                sock = socket.socket(af, socktype, proto)
+    
+                # If provided, set socket level options before connecting.
+                _set_socket_options(sock, socket_options)
+    
+                if timeout is not socket._GLOBAL_DEFAULT_TIMEOUT:
+                    sock.settimeout(timeout)
+                if source_address:
+                    sock.bind(source_address)
+&gt;               sock.connect(sa)
+E               ConnectionRefusedError: [Errno 61] Connection refused
+
+.venv/lib/python3.9/site-packages/urllib3/util/connection.py:85: ConnectionRefusedError
+
+During handling of the above exception, another exception occurred:
+
+self = &lt;urllib3.connectionpool.HTTPConnectionPool object at 0x10e302ee0&gt;
+method = 'GET', url = '/health', body = None
+headers = {'User-Agent': 'python-requests/2.32.5', 'Accept-Encoding': 'gzip, deflate', 'Accept': '*/*', 'Connection': 'keep-alive'}
+retries = Retry(total=0, connect=None, read=False, redirect=None, status=None)
+redirect = False, assert_same_host = False
+timeout = Timeout(connect=None, read=None, total=None), pool_timeout = None
+release_conn = False, chunked = False, body_pos = None
+response_kw = {'decode_content': False, 'preload_content': False}
+parsed_url = Url(scheme=None, auth=None, host=None, port=None, path='/health', query=None, fragment=None)
+destination_scheme = None, conn = None, release_this_conn = True
+http_tunnel_required = False, err = None, clean_exit = False
+
+    def urlopen(
+        self,
+        method,
+        url,
+        body=None,
+        headers=None,
+        retries=None,
+        redirect=True,
+        assert_same_host=True,
+        timeout=_Default,
+        pool_timeout=None,
+        release_conn=None,
+        chunked=False,
+        body_pos=None,
+        **response_kw
+    ):
+        """
+        Get a connection from the pool and perform an HTTP request. This is the
+        lowest level call for making a request, so you'll need to specify all
+        the raw details.
+    
+        .. note::
+    
+           More commonly, it's appropriate to use a convenience method provided
+           by :class:`.RequestMethods`, such as :meth:`request`.
+    
+        .. note::
+    
+           `release_conn` will only behave as expected if
+           `preload_content=False` because we want to make
+           `preload_content=False` the default behaviour someday soon without
+           breaking backwards compatibility.
+    
+        :param method:
+            HTTP request method (such as GET, POST, PUT, etc.)
+    
+        :param url:
+            The URL to perform the request on.
+    
+        :param body:
+            Data to send in the request body, either :class:`str`, :class:`bytes`,
+            an iterable of :class:`str`/:class:`bytes`, or a file-like object.
+    
+        :param headers:
+            Dictionary of custom headers to send, such as User-Agent,
+            If-None-Match, etc. If None, pool headers are used. If provided,
+            these headers completely replace any pool-specific headers.
+    
+        :param retries:
+            Configure the number of retries to allow before raising a
+            :class:`~urllib3.exceptions.MaxRetryError` exception.
+    
+            Pass ``None`` to retry until you receive a response. Pass a
+            :class:`~urllib3.util.retry.Retry` object for fine-grained control
+            over different types of retries.
+            Pass an integer number to retry connection errors that many times,
+            but no other types of errors. Pass zero to never retry.
+    
+            If ``False``, then retries are disabled and any exception is raised
+            immediately. Also, instead of raising a MaxRetryError on redirects,
+            the redirect response will be returned.
+    
+        :type retries: :class:`~urllib3.util.retry.Retry`, False, or an int.
+    
+        :param redirect:
+            If True, automatically handle redirects (status codes 301, 302,
+            303, 307, 308). Each redirect counts as a retry. Disabling retries
+            will disable redirect, too.
+    
+        :param assert_same_host:
+            If ``True``, will make sure that the host of the pool requests is
+            consistent else will raise HostChangedError. When ``False``, you can
+            use the pool on an HTTP proxy and request foreign hosts.
+    
+        :param timeout:
+            If specified, overrides the default timeout for this one
+            request. It may be a float (in seconds) or an instance of
+            :class:`urllib3.util.Timeout`.
+    
+        :param pool_timeout:
+            If set and the pool is set to block=True, then this method will
+            block for ``pool_timeout`` seconds and raise EmptyPoolError if no
+            connection is available within the time period.
+    
+        :param release_conn:
+            If False, then the urlopen call will not release the connection
+            back into the pool once a response is received (but will release if
+            you read the entire contents of the response such as when
+            `preload_content=True`). This is useful if you're not preloading
+            the response's content immediately. You will need to call
+            ``r.release_conn()`` on the response ``r`` to return the connection
+            back into the pool. If None, it takes the value of
+            ``response_kw.get('preload_content', True)``.
+    
+        :param chunked:
+            If True, urllib3 will send the body using chunked transfer
+            encoding. Otherwise, urllib3 will send the body using the standard
+            content-length form. Defaults to False.
+    
+        :param int body_pos:
+            Position to seek to in file-like body in the event of a retry or
+            redirect. Typically this won't need to be set because urllib3 will
+            auto-populate the value when needed.
+    
+        :param \\**response_kw:
+            Additional parameters are passed to
+            :meth:`urllib3.response.HTTPResponse.from_httplib`
+        """
+    
+        parsed_url = parse_url(url)
+        destination_scheme = parsed_url.scheme
+    
+        if headers is None:
+            headers = self.headers
+    
+        if not isinstance(retries, Retry):
+            retries = Retry.from_int(retries, redirect=redirect, default=self.retries)
+    
+        if release_conn is None:
+            release_conn = response_kw.get("preload_content", True)
+    
+        # Check host
+        if assert_same_host and not self.is_same_host(url):
+            raise HostChangedError(self, url, retries)
+    
+        # Ensure that the URL we're connecting to is properly encoded
+        if url.startswith("/"):
+            url = six.ensure_str(_encode_target(url))
+        else:
+            url = six.ensure_str(parsed_url.url)
+    
+        conn = None
+    
+        # Track whether `conn` needs to be released before
+        # returning/raising/recursing. Update this variable if necessary, and
+        # leave `release_conn` constant throughout the function. That way, if
+        # the function recurses, the original value of `release_conn` will be
+        # passed down into the recursive call, and its value will be respected.
+        #
+        # See issue #651 [1] for details.
+        #
+        # [1] &lt;https://github.com/urllib3/urllib3/issues/651&gt;
+        release_this_conn = release_conn
+    
+        http_tunnel_required = connection_requires_http_tunnel(
+            self.proxy, self.proxy_config, destination_scheme
+        )
+    
+        # Merge the proxy headers. Only done when not using HTTP CONNECT. We
+        # have to copy the headers dict so we can safely change it without those
+        # changes being reflected in anyone else's copy.
+        if not http_tunnel_required:
+            headers = headers.copy()
+            headers.update(self.proxy_headers)
+    
+        # Must keep the exception bound to a separate variable or else Python 3
+        # complains about UnboundLocalError.
+        err = None
+    
+        # Keep track of whether we cleanly exited the except block. This
+        # ensures we do proper cleanup in finally.
+        clean_exit = False
+    
+        # Rewind body position, if needed. Record current position
+        # for future rewinds in the event of a redirect/retry.
+        body_pos = set_file_position(body, body_pos)
+    
+        try:
+            # Request a connection from the queue.
+            timeout_obj = self._get_timeout(timeout)
+            conn = self._get_conn(timeout=pool_timeout)
+    
+            conn.timeout = timeout_obj.connect_timeout
+    
+            is_new_proxy_conn = self.proxy is not None and not getattr(
+                conn, "sock", None
+            )
+            if is_new_proxy_conn and http_tunnel_required:
+                self._prepare_proxy(conn)
+    
+            # Make the request on the httplib connection object.
+&gt;           httplib_response = self._make_request(
+                conn,
+                method,
+                url,
+                timeout=timeout_obj,
+                body=body,
+                headers=headers,
+                chunked=chunked,
+            )
+
+.venv/lib/python3.9/site-packages/urllib3/connectionpool.py:716: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+.venv/lib/python3.9/site-packages/urllib3/connectionpool.py:416: in _make_request
+    conn.request(method, url, **httplib_request_kw)
+.venv/lib/python3.9/site-packages/urllib3/connection.py:244: in request
+    super(HTTPConnection, self).request(method, url, body=body, headers=headers)
+/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/http/client.py:1257: in request
+    self._send_request(method, url, body, headers, encode_chunked)
+/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/http/client.py:1303: in _send_request
+    self.endheaders(body, encode_chunked=encode_chunked)
+/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/http/client.py:1252: in endheaders
+    self._send_output(message_body, encode_chunked=encode_chunked)
+/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/http/client.py:1012: in _send_output
+    self.send(msg)
+/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/http/client.py:952: in send
+    self.connect()
+.venv/lib/python3.9/site-packages/urllib3/connection.py:205: in connect
+    conn = self._new_conn()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;urllib3.connection.HTTPConnection object at 0x10e237070&gt;
+
+    def _new_conn(self):
+        """Establish a socket connection and set nodelay settings on it.
+    
+        :return: New socket connection.
+        """
+        extra_kw = {}
+        if self.source_address:
+            extra_kw["source_address"] = self.source_address
+    
+        if self.socket_options:
+            extra_kw["socket_options"] = self.socket_options
+    
+        try:
+            conn = connection.create_connection(
+                (self._dns_host, self.port), self.timeout, **extra_kw
+            )
+    
+        except SocketTimeout:
+            raise ConnectTimeoutError(
+                self,
+                "Connection to %s timed out. (connect timeout=%s)"
+                % (self.host, self.timeout),
+            )
+    
+        except SocketError as e:
+&gt;           raise NewConnectionError(
+                self, "Failed to establish a new connection: %s" % e
+            )
+E           urllib3.exceptions.NewConnectionError: &lt;urllib3.connection.HTTPConnection object at 0x10e237070&gt;: Failed to establish a new connection: [Errno 61] Connection refused
+
+.venv/lib/python3.9/site-packages/urllib3/connection.py:186: NewConnectionError
+
+During handling of the above exception, another exception occurred:
+
+self = &lt;requests.adapters.HTTPAdapter object at 0x10e2fbc40&gt;
+request = &lt;PreparedRequest [GET]&gt;, stream = False
+timeout = Timeout(connect=None, read=None, total=None), verify = True
+cert = None, proxies = OrderedDict()
+
+    def send(
+        self, request, stream=False, timeout=None, verify=True, cert=None, proxies=None
+    ):
+        """Sends PreparedRequest object. Returns Response object.
+    
+        :param request: The :class:`PreparedRequest &lt;PreparedRequest&gt;` being sent.
+        :param stream: (optional) Whether to stream the request content.
+        :param timeout: (optional) How long to wait for the server to send
+            data before giving up, as a float, or a :ref:`(connect timeout,
+            read timeout) &lt;timeouts&gt;` tuple.
+        :type timeout: float or tuple or urllib3 Timeout object
+        :param verify: (optional) Either a boolean, in which case it controls whether
+            we verify the server's TLS certificate, or a string, in which case it
+            must be a path to a CA bundle to use
+        :param cert: (optional) Any user-provided SSL certificate to be trusted.
+        :param proxies: (optional) The proxies dictionary to apply to the request.
+        :rtype: requests.Response
+        """
+    
+        try:
+            conn = self.get_connection_with_tls_context(
+                request, verify, proxies=proxies, cert=cert
+            )
+        except LocationValueError as e:
+            raise InvalidURL(e, request=request)
+    
+        self.cert_verify(conn, request.url, verify, cert)
+        url = self.request_url(request, proxies)
+        self.add_headers(
+            request,
+            stream=stream,
+            timeout=timeout,
+            verify=verify,
+            cert=cert,
+            proxies=proxies,
+        )
+    
+        chunked = not (request.body is None or "Content-Length" in request.headers)
+    
+        if isinstance(timeout, tuple):
+            try:
+                connect, read = timeout
+                timeout = TimeoutSauce(connect=connect, read=read)
+            except ValueError:
+                raise ValueError(
+                    f"Invalid timeout {timeout}. Pass a (connect, read) timeout tuple, "
+                    f"or a single float to set both timeouts to the same value."
+                )
+        elif isinstance(timeout, TimeoutSauce):
+            pass
+        else:
+            timeout = TimeoutSauce(connect=timeout, read=timeout)
+    
+        try:
+&gt;           resp = conn.urlopen(
+                method=request.method,
+                url=url,
+                body=request.body,
+                headers=request.headers,
+                redirect=False,
+                assert_same_host=False,
+                preload_content=False,
+                decode_content=False,
+                retries=self.max_retries,
+                timeout=timeout,
+                chunked=chunked,
+            )
+
+.venv/lib/python3.9/site-packages/requests/adapters.py:644: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+.venv/lib/python3.9/site-packages/urllib3/connectionpool.py:802: in urlopen
+    retries = retries.increment(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = Retry(total=0, connect=None, read=False, redirect=None, status=None)
+method = 'GET', url = '/health', response = None
+error = NewConnectionError('&lt;urllib3.connection.HTTPConnection object at 0x10e237070&gt;: Failed to establish a new connection: [Errno 61] Connection refused')
+_pool = &lt;urllib3.connectionpool.HTTPConnectionPool object at 0x10e302ee0&gt;
+_stacktrace = &lt;traceback object at 0x10e217a00&gt;
+
+    def increment(
+        self,
+        method=None,
+        url=None,
+        response=None,
+        error=None,
+        _pool=None,
+        _stacktrace=None,
+    ):
+        """Return a new Retry object with incremented retry counters.
+    
+        :param response: A response object, or None, if the server did not
+            return a response.
+        :type response: :class:`~urllib3.response.HTTPResponse`
+        :param Exception error: An error encountered during the request, or
+            None if the response was received successfully.
+    
+        :return: A new ``Retry`` object.
+        """
+        if self.total is False and error:
+            # Disabled, indicate to re-raise the error.
+            raise six.reraise(type(error), error, _stacktrace)
+    
+        total = self.total
+        if total is not None:
+            total -= 1
+    
+        connect = self.connect
+        read = self.read
+        redirect = self.redirect
+        status_count = self.status
+        other = self.other
+        cause = "unknown"
+        status = None
+        redirect_location = None
+    
+        if error and self._is_connection_error(error):
+            # Connect retry?
+            if connect is False:
+                raise six.reraise(type(error), error, _stacktrace)
+            elif connect is not None:
+                connect -= 1
+    
+        elif error and self._is_read_error(error):
+            # Read retry?
+            if read is False or not self._is_method_retryable(method):
+                raise six.reraise(type(error), error, _stacktrace)
+            elif read is not None:
+                read -= 1
+    
+        elif error:
+            # Other retry?
+            if other is not None:
+                other -= 1
+    
+        elif response and response.get_redirect_location():
+            # Redirect retry?
+            if redirect is not None:
+                redirect -= 1
+            cause = "too many redirects"
+            redirect_location = response.get_redirect_location()
+            status = response.status
+    
+        else:
+            # Incrementing because of a server error like a 500 in
+            # status_forcelist and the given method is in the allowed_methods
+            cause = ResponseError.GENERIC_ERROR
+            if response and response.status:
+                if status_count is not None:
+                    status_count -= 1
+                cause = ResponseError.SPECIFIC_ERROR.format(status_code=response.status)
+                status = response.status
+    
+        history = self.history + (
+            RequestHistory(method, url, error, status, redirect_location),
+        )
+    
+        new_retry = self.new(
+            total=total,
+            connect=connect,
+            read=read,
+            redirect=redirect,
+            status=status_count,
+            other=other,
+            history=history,
+        )
+    
+        if new_retry.is_exhausted():
+&gt;           raise MaxRetryError(_pool, url, error or ResponseError(cause))
+E           urllib3.exceptions.MaxRetryError: HTTPConnectionPool(host='localhost', port=8081): Max retries exceeded with url: /health (Caused by NewConnectionError('&lt;urllib3.connection.HTTPConnection object at 0x10e237070&gt;: Failed to establish a new connection: [Errno 61] Connection refused'))
+
+.venv/lib/python3.9/site-packages/urllib3/util/retry.py:594: MaxRetryError
+
+During handling of the above exception, another exception occurred:
+
+    def test_datahub_health_check():
+        """Verify that DataHub GMS is reachable."""
+        try:
+&gt;           response = requests.get(f"{DATAHUB_URL}/health")
+
+tests/integration/test_datahub_integration.py:19: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+.venv/lib/python3.9/site-packages/requests/api.py:73: in get
+    return request("get", url, params=params, **kwargs)
+.venv/lib/python3.9/site-packages/requests/api.py:59: in request
+    return session.request(method=method, url=url, **kwargs)
+.venv/lib/python3.9/site-packages/requests/sessions.py:589: in request
+    resp = self.send(prep, **send_kwargs)
+.venv/lib/python3.9/site-packages/requests/sessions.py:703: in send
+    r = adapter.send(request, **kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;requests.adapters.HTTPAdapter object at 0x10e2fbc40&gt;
+request = &lt;PreparedRequest [GET]&gt;, stream = False
+timeout = Timeout(connect=None, read=None, total=None), verify = True
+cert = None, proxies = OrderedDict()
+
+    def send(
+        self, request, stream=False, timeout=None, verify=True, cert=None, proxies=None
+    ):
+        """Sends PreparedRequest object. Returns Response object.
+    
+        :param request: The :class:`PreparedRequest &lt;PreparedRequest&gt;` being sent.
+        :param stream: (optional) Whether to stream the request content.
+        :param timeout: (optional) How long to wait for the server to send
+            data before giving up, as a float, or a :ref:`(connect timeout,
+            read timeout) &lt;timeouts&gt;` tuple.
+        :type timeout: float or tuple or urllib3 Timeout object
+        :param verify: (optional) Either a boolean, in which case it controls whether
+            we verify the server's TLS certificate, or a string, in which case it
+            must be a path to a CA bundle to use
+        :param cert: (optional) Any user-provided SSL certificate to be trusted.
+        :param proxies: (optional) The proxies dictionary to apply to the request.
+        :rtype: requests.Response
+        """
+    
+        try:
+            conn = self.get_connection_with_tls_context(
+                request, verify, proxies=proxies, cert=cert
+            )
+        except LocationValueError as e:
+            raise InvalidURL(e, request=request)
+    
+        self.cert_verify(conn, request.url, verify, cert)
+        url = self.request_url(request, proxies)
+        self.add_headers(
+            request,
+            stream=stream,
+            timeout=timeout,
+            verify=verify,
+            cert=cert,
+            proxies=proxies,
+        )
+    
+        chunked = not (request.body is None or "Content-Length" in request.headers)
+    
+        if isinstance(timeout, tuple):
+            try:
+                connect, read = timeout
+                timeout = TimeoutSauce(connect=connect, read=read)
+            except ValueError:
+                raise ValueError(
+                    f"Invalid timeout {timeout}. Pass a (connect, read) timeout tuple, "
+                    f"or a single float to set both timeouts to the same value."
+                )
+        elif isinstance(timeout, TimeoutSauce):
+            pass
+        else:
+            timeout = TimeoutSauce(connect=timeout, read=timeout)
+    
+        try:
+            resp = conn.urlopen(
+                method=request.method,
+                url=url,
+                body=request.body,
+                headers=request.headers,
+                redirect=False,
+                assert_same_host=False,
+                preload_content=False,
+                decode_content=False,
+                retries=self.max_retries,
+                timeout=timeout,
+                chunked=chunked,
+            )
+    
+        except (ProtocolError, OSError) as err:
+            raise ConnectionError(err, request=request)
+    
+        except MaxRetryError as e:
+            if isinstance(e.reason, ConnectTimeoutError):
+                # TODO: Remove this in 3.0.0: see #2811
+                if not isinstance(e.reason, NewConnectionError):
+                    raise ConnectTimeout(e, request=request)
+    
+            if isinstance(e.reason, ResponseError):
+                raise RetryError(e, request=request)
+    
+            if isinstance(e.reason, _ProxyError):
+                raise ProxyError(e, request=request)
+    
+            if isinstance(e.reason, _SSLError):
+                # This branch is for urllib3 v1.22 and later.
+                raise SSLError(e, request=request)
+    
+&gt;           raise ConnectionError(e, request=request)
+E           requests.exceptions.ConnectionError: HTTPConnectionPool(host='localhost', port=8081): Max retries exceeded with url: /health (Caused by NewConnectionError('&lt;urllib3.connection.HTTPConnection object at 0x10e237070&gt;: Failed to establish a new connection: [Errno 61] Connection refused'))
+
+.venv/lib/python3.9/site-packages/requests/adapters.py:677: ConnectionError
+
+During handling of the above exception, another exception occurred:
+
+    def test_datahub_health_check():
+        """Verify that DataHub GMS is reachable."""
+        try:
+            response = requests.get(f"{DATAHUB_URL}/health")
+            assert response.status_code == 200, f"DataHub GMS returned {response.status_code}"
+        except Exception as e:
+&gt;           pytest.fail(f"Failed to connect to DataHub GMS: {e}")
+E           Failed: Failed to connect to DataHub GMS: HTTPConnectionPool(host='localhost', port=8081): Max retries exceeded with url: /health (Caused by NewConnectionError('&lt;urllib3.connection.HTTPConnection object at 0x10e237070&gt;: Failed to establish a new connection: [Errno 61] Connection refused'))
+
+tests/integration/test_datahub_integration.py:22: Failed</failure></testcase><testcase classname="tests.integration.test_datahub_integration" name="test_datahub_emitter_connection" time="56.063"><skipped type="pytest.skip" message="DataHub GMS not ready for emitter: HTTPConnectionPool(host='localhost', port=8081): Max retries exceeded with url: /config (Caused by NewConnectionError('&lt;urllib3.connection.HTTPConnection object at 0x10e328be0&gt;: Failed to establish a new connection: [Errno 61] Connection refused'))">/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial/tests/integration/test_datahub_integration.py:31: DataHub GMS not ready for emitter: HTTPConnectionPool(host='localhost', port=8081): Max retries exceeded with url: /config (Caused by NewConnectionError('&lt;urllib3.connection.HTTPConnection object at 0x10e328be0&gt;: Failed to establish a new connection: [Errno 61] Connection refused'))</skipped></testcase><testcase classname="tests.integration.test_datahub_integration" name="test_datahub_emit_metadata" time="56.045"><failure message="Failed: Failed to emit metadata to DataHub: ('Unable to emit metadata to DataHub GMS', {'message': &quot;HTTPConnectionPool(host='localhost', port=8081): Max retries exceeded with url: /aspects?action=ingestProposal (Caused by NewConnectionError('&lt;urllib3.connection.HTTPConnection object at 0x10e5152b0&gt;: Failed to establish a new connection: [Errno 61] Connection refused'))&quot;})">self = &lt;urllib3.connection.HTTPConnection object at 0x10e5152b0&gt;
+
+    def _new_conn(self):
+        """Establish a socket connection and set nodelay settings on it.
+    
+        :return: New socket connection.
+        """
+        extra_kw = {}
+        if self.source_address:
+            extra_kw["source_address"] = self.source_address
+    
+        if self.socket_options:
+            extra_kw["socket_options"] = self.socket_options
+    
+        try:
+&gt;           conn = connection.create_connection(
+                (self._dns_host, self.port), self.timeout, **extra_kw
+            )
+
+.venv/lib/python3.9/site-packages/urllib3/connection.py:174: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+.venv/lib/python3.9/site-packages/urllib3/util/connection.py:95: in create_connection
+    raise err
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+address = ('localhost', 8081), timeout = 30.0, source_address = None
+socket_options = [(6, 1, 1)]
+
+    def create_connection(
+        address,
+        timeout=socket._GLOBAL_DEFAULT_TIMEOUT,
+        source_address=None,
+        socket_options=None,
+    ):
+        """Connect to *address* and return the socket object.
+    
+        Convenience function.  Connect to *address* (a 2-tuple ``(host,
+        port)``) and return the socket object.  Passing the optional
+        *timeout* parameter will set the timeout on the socket instance
+        before attempting to connect.  If no *timeout* is supplied, the
+        global default timeout setting returned by :func:`socket.getdefaulttimeout`
+        is used.  If *source_address* is set it must be a tuple of (host, port)
+        for the socket to bind as a source address before making the connection.
+        An host of '' or port 0 tells the OS to use the default.
+        """
+    
+        host, port = address
+        if host.startswith("["):
+            host = host.strip("[]")
+        err = None
+    
+        # Using the value from allowed_gai_family() in the context of getaddrinfo lets
+        # us select whether to work with IPv4 DNS records, IPv6 records, or both.
+        # The original create_connection function always returns all records.
+        family = allowed_gai_family()
+    
+        try:
+            host.encode("idna")
+        except UnicodeError:
+            return six.raise_from(
+                LocationParseError(u"'%s', label empty or too long" % host), None
+            )
+    
+        for res in socket.getaddrinfo(host, port, family, socket.SOCK_STREAM):
+            af, socktype, proto, canonname, sa = res
+            sock = None
+            try:
+                sock = socket.socket(af, socktype, proto)
+    
+                # If provided, set socket level options before connecting.
+                _set_socket_options(sock, socket_options)
+    
+                if timeout is not socket._GLOBAL_DEFAULT_TIMEOUT:
+                    sock.settimeout(timeout)
+                if source_address:
+                    sock.bind(source_address)
+&gt;               sock.connect(sa)
+E               ConnectionRefusedError: [Errno 61] Connection refused
+
+.venv/lib/python3.9/site-packages/urllib3/util/connection.py:85: ConnectionRefusedError
+
+During handling of the above exception, another exception occurred:
+
+self = &lt;urllib3.connectionpool.HTTPConnectionPool object at 0x10e649c40&gt;
+method = 'POST', url = '/aspects?action=ingestProposal'
+body = '{"proposal": {"entityType": "dataset", "entityUrn": "urn:li:dataset:(urn:li:dataPlatform:postgres,test_table,PROD)", ...d": "no-run-id-provided", "properties": {"clientId": "acryl-datahub", "clientVersion": "1.3.1.7"}}}, "async": "false"}'
+headers = {'User-Agent': 'DataHub-Client/1.0 (sdk; datahub; 1.3.1.7) python-requests/2.32.5', 'Accept-Encoding': 'gzip, deflate'...Version': '1.3.1.7', 'X-RestLi-Protocol-Version': '2.0.0', 'Content-Type': 'application/json', 'Content-Length': '551'}
+retries = _WeightedRetry(total=0, connect=None, read=None, redirect=None, status=None)
+redirect = False, assert_same_host = False
+timeout = Timeout(connect=30.0, read=30.0, total=None), pool_timeout = None
+release_conn = False, chunked = False, body_pos = None
+response_kw = {'decode_content': False, 'preload_content': False}
+parsed_url = Url(scheme=None, auth=None, host=None, port=None, path='/aspects', query='action=ingestProposal', fragment=None)
+destination_scheme = None, conn = None, release_this_conn = True
+http_tunnel_required = False, err = None, clean_exit = False
+
+    def urlopen(
+        self,
+        method,
+        url,
+        body=None,
+        headers=None,
+        retries=None,
+        redirect=True,
+        assert_same_host=True,
+        timeout=_Default,
+        pool_timeout=None,
+        release_conn=None,
+        chunked=False,
+        body_pos=None,
+        **response_kw
+    ):
+        """
+        Get a connection from the pool and perform an HTTP request. This is the
+        lowest level call for making a request, so you'll need to specify all
+        the raw details.
+    
+        .. note::
+    
+           More commonly, it's appropriate to use a convenience method provided
+           by :class:`.RequestMethods`, such as :meth:`request`.
+    
+        .. note::
+    
+           `release_conn` will only behave as expected if
+           `preload_content=False` because we want to make
+           `preload_content=False` the default behaviour someday soon without
+           breaking backwards compatibility.
+    
+        :param method:
+            HTTP request method (such as GET, POST, PUT, etc.)
+    
+        :param url:
+            The URL to perform the request on.
+    
+        :param body:
+            Data to send in the request body, either :class:`str`, :class:`bytes`,
+            an iterable of :class:`str`/:class:`bytes`, or a file-like object.
+    
+        :param headers:
+            Dictionary of custom headers to send, such as User-Agent,
+            If-None-Match, etc. If None, pool headers are used. If provided,
+            these headers completely replace any pool-specific headers.
+    
+        :param retries:
+            Configure the number of retries to allow before raising a
+            :class:`~urllib3.exceptions.MaxRetryError` exception.
+    
+            Pass ``None`` to retry until you receive a response. Pass a
+            :class:`~urllib3.util.retry.Retry` object for fine-grained control
+            over different types of retries.
+            Pass an integer number to retry connection errors that many times,
+            but no other types of errors. Pass zero to never retry.
+    
+            If ``False``, then retries are disabled and any exception is raised
+            immediately. Also, instead of raising a MaxRetryError on redirects,
+            the redirect response will be returned.
+    
+        :type retries: :class:`~urllib3.util.retry.Retry`, False, or an int.
+    
+        :param redirect:
+            If True, automatically handle redirects (status codes 301, 302,
+            303, 307, 308). Each redirect counts as a retry. Disabling retries
+            will disable redirect, too.
+    
+        :param assert_same_host:
+            If ``True``, will make sure that the host of the pool requests is
+            consistent else will raise HostChangedError. When ``False``, you can
+            use the pool on an HTTP proxy and request foreign hosts.
+    
+        :param timeout:
+            If specified, overrides the default timeout for this one
+            request. It may be a float (in seconds) or an instance of
+            :class:`urllib3.util.Timeout`.
+    
+        :param pool_timeout:
+            If set and the pool is set to block=True, then this method will
+            block for ``pool_timeout`` seconds and raise EmptyPoolError if no
+            connection is available within the time period.
+    
+        :param release_conn:
+            If False, then the urlopen call will not release the connection
+            back into the pool once a response is received (but will release if
+            you read the entire contents of the response such as when
+            `preload_content=True`). This is useful if you're not preloading
+            the response's content immediately. You will need to call
+            ``r.release_conn()`` on the response ``r`` to return the connection
+            back into the pool. If None, it takes the value of
+            ``response_kw.get('preload_content', True)``.
+    
+        :param chunked:
+            If True, urllib3 will send the body using chunked transfer
+            encoding. Otherwise, urllib3 will send the body using the standard
+            content-length form. Defaults to False.
+    
+        :param int body_pos:
+            Position to seek to in file-like body in the event of a retry or
+            redirect. Typically this won't need to be set because urllib3 will
+            auto-populate the value when needed.
+    
+        :param \\**response_kw:
+            Additional parameters are passed to
+            :meth:`urllib3.response.HTTPResponse.from_httplib`
+        """
+    
+        parsed_url = parse_url(url)
+        destination_scheme = parsed_url.scheme
+    
+        if headers is None:
+            headers = self.headers
+    
+        if not isinstance(retries, Retry):
+            retries = Retry.from_int(retries, redirect=redirect, default=self.retries)
+    
+        if release_conn is None:
+            release_conn = response_kw.get("preload_content", True)
+    
+        # Check host
+        if assert_same_host and not self.is_same_host(url):
+            raise HostChangedError(self, url, retries)
+    
+        # Ensure that the URL we're connecting to is properly encoded
+        if url.startswith("/"):
+            url = six.ensure_str(_encode_target(url))
+        else:
+            url = six.ensure_str(parsed_url.url)
+    
+        conn = None
+    
+        # Track whether `conn` needs to be released before
+        # returning/raising/recursing. Update this variable if necessary, and
+        # leave `release_conn` constant throughout the function. That way, if
+        # the function recurses, the original value of `release_conn` will be
+        # passed down into the recursive call, and its value will be respected.
+        #
+        # See issue #651 [1] for details.
+        #
+        # [1] &lt;https://github.com/urllib3/urllib3/issues/651&gt;
+        release_this_conn = release_conn
+    
+        http_tunnel_required = connection_requires_http_tunnel(
+            self.proxy, self.proxy_config, destination_scheme
+        )
+    
+        # Merge the proxy headers. Only done when not using HTTP CONNECT. We
+        # have to copy the headers dict so we can safely change it without those
+        # changes being reflected in anyone else's copy.
+        if not http_tunnel_required:
+            headers = headers.copy()
+            headers.update(self.proxy_headers)
+    
+        # Must keep the exception bound to a separate variable or else Python 3
+        # complains about UnboundLocalError.
+        err = None
+    
+        # Keep track of whether we cleanly exited the except block. This
+        # ensures we do proper cleanup in finally.
+        clean_exit = False
+    
+        # Rewind body position, if needed. Record current position
+        # for future rewinds in the event of a redirect/retry.
+        body_pos = set_file_position(body, body_pos)
+    
+        try:
+            # Request a connection from the queue.
+            timeout_obj = self._get_timeout(timeout)
+            conn = self._get_conn(timeout=pool_timeout)
+    
+            conn.timeout = timeout_obj.connect_timeout
+    
+            is_new_proxy_conn = self.proxy is not None and not getattr(
+                conn, "sock", None
+            )
+            if is_new_proxy_conn and http_tunnel_required:
+                self._prepare_proxy(conn)
+    
+            # Make the request on the httplib connection object.
+&gt;           httplib_response = self._make_request(
+                conn,
+                method,
+                url,
+                timeout=timeout_obj,
+                body=body,
+                headers=headers,
+                chunked=chunked,
+            )
+
+.venv/lib/python3.9/site-packages/urllib3/connectionpool.py:716: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+.venv/lib/python3.9/site-packages/urllib3/connectionpool.py:416: in _make_request
+    conn.request(method, url, **httplib_request_kw)
+.venv/lib/python3.9/site-packages/urllib3/connection.py:244: in request
+    super(HTTPConnection, self).request(method, url, body=body, headers=headers)
+/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/http/client.py:1257: in request
+    self._send_request(method, url, body, headers, encode_chunked)
+/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/http/client.py:1303: in _send_request
+    self.endheaders(body, encode_chunked=encode_chunked)
+/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/http/client.py:1252: in endheaders
+    self._send_output(message_body, encode_chunked=encode_chunked)
+/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/http/client.py:1012: in _send_output
+    self.send(msg)
+/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/http/client.py:952: in send
+    self.connect()
+.venv/lib/python3.9/site-packages/urllib3/connection.py:205: in connect
+    conn = self._new_conn()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;urllib3.connection.HTTPConnection object at 0x10e5152b0&gt;
+
+    def _new_conn(self):
+        """Establish a socket connection and set nodelay settings on it.
+    
+        :return: New socket connection.
+        """
+        extra_kw = {}
+        if self.source_address:
+            extra_kw["source_address"] = self.source_address
+    
+        if self.socket_options:
+            extra_kw["socket_options"] = self.socket_options
+    
+        try:
+            conn = connection.create_connection(
+                (self._dns_host, self.port), self.timeout, **extra_kw
+            )
+    
+        except SocketTimeout:
+            raise ConnectTimeoutError(
+                self,
+                "Connection to %s timed out. (connect timeout=%s)"
+                % (self.host, self.timeout),
+            )
+    
+        except SocketError as e:
+&gt;           raise NewConnectionError(
+                self, "Failed to establish a new connection: %s" % e
+            )
+E           urllib3.exceptions.NewConnectionError: &lt;urllib3.connection.HTTPConnection object at 0x10e5152b0&gt;: Failed to establish a new connection: [Errno 61] Connection refused
+
+.venv/lib/python3.9/site-packages/urllib3/connection.py:186: NewConnectionError
+
+During handling of the above exception, another exception occurred:
+
+self = &lt;requests.adapters.HTTPAdapter object at 0x10e6490d0&gt;
+request = &lt;PreparedRequest [POST]&gt;, stream = False
+timeout = Timeout(connect=30.0, read=30.0, total=None), verify = True
+cert = None, proxies = OrderedDict()
+
+    def send(
+        self, request, stream=False, timeout=None, verify=True, cert=None, proxies=None
+    ):
+        """Sends PreparedRequest object. Returns Response object.
+    
+        :param request: The :class:`PreparedRequest &lt;PreparedRequest&gt;` being sent.
+        :param stream: (optional) Whether to stream the request content.
+        :param timeout: (optional) How long to wait for the server to send
+            data before giving up, as a float, or a :ref:`(connect timeout,
+            read timeout) &lt;timeouts&gt;` tuple.
+        :type timeout: float or tuple or urllib3 Timeout object
+        :param verify: (optional) Either a boolean, in which case it controls whether
+            we verify the server's TLS certificate, or a string, in which case it
+            must be a path to a CA bundle to use
+        :param cert: (optional) Any user-provided SSL certificate to be trusted.
+        :param proxies: (optional) The proxies dictionary to apply to the request.
+        :rtype: requests.Response
+        """
+    
+        try:
+            conn = self.get_connection_with_tls_context(
+                request, verify, proxies=proxies, cert=cert
+            )
+        except LocationValueError as e:
+            raise InvalidURL(e, request=request)
+    
+        self.cert_verify(conn, request.url, verify, cert)
+        url = self.request_url(request, proxies)
+        self.add_headers(
+            request,
+            stream=stream,
+            timeout=timeout,
+            verify=verify,
+            cert=cert,
+            proxies=proxies,
+        )
+    
+        chunked = not (request.body is None or "Content-Length" in request.headers)
+    
+        if isinstance(timeout, tuple):
+            try:
+                connect, read = timeout
+                timeout = TimeoutSauce(connect=connect, read=read)
+            except ValueError:
+                raise ValueError(
+                    f"Invalid timeout {timeout}. Pass a (connect, read) timeout tuple, "
+                    f"or a single float to set both timeouts to the same value."
+                )
+        elif isinstance(timeout, TimeoutSauce):
+            pass
+        else:
+            timeout = TimeoutSauce(connect=timeout, read=timeout)
+    
+        try:
+&gt;           resp = conn.urlopen(
+                method=request.method,
+                url=url,
+                body=request.body,
+                headers=request.headers,
+                redirect=False,
+                assert_same_host=False,
+                preload_content=False,
+                decode_content=False,
+                retries=self.max_retries,
+                timeout=timeout,
+                chunked=chunked,
+            )
+
+.venv/lib/python3.9/site-packages/requests/adapters.py:644: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+.venv/lib/python3.9/site-packages/urllib3/connectionpool.py:830: in urlopen
+    return self.urlopen(
+.venv/lib/python3.9/site-packages/urllib3/connectionpool.py:830: in urlopen
+    return self.urlopen(
+.venv/lib/python3.9/site-packages/urllib3/connectionpool.py:830: in urlopen
+    return self.urlopen(
+.venv/lib/python3.9/site-packages/urllib3/connectionpool.py:830: in urlopen
+    return self.urlopen(
+.venv/lib/python3.9/site-packages/urllib3/connectionpool.py:802: in urlopen
+    retries = retries.increment(
+.venv/lib/python3.9/site-packages/datahub/emitter/rest_emitter.py:152: in increment
+    super().increment(method, url, response, error, _pool, _stacktrace),
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = _WeightedRetry(total=0, connect=None, read=None, redirect=None, status=None)
+method = 'POST', url = '/aspects?action=ingestProposal', response = None
+error = NewConnectionError('&lt;urllib3.connection.HTTPConnection object at 0x10e5152b0&gt;: Failed to establish a new connection: [Errno 61] Connection refused')
+_pool = &lt;urllib3.connectionpool.HTTPConnectionPool object at 0x10e649c40&gt;
+_stacktrace = &lt;traceback object at 0x10e3b5b80&gt;
+
+    def increment(
+        self,
+        method=None,
+        url=None,
+        response=None,
+        error=None,
+        _pool=None,
+        _stacktrace=None,
+    ):
+        """Return a new Retry object with incremented retry counters.
+    
+        :param response: A response object, or None, if the server did not
+            return a response.
+        :type response: :class:`~urllib3.response.HTTPResponse`
+        :param Exception error: An error encountered during the request, or
+            None if the response was received successfully.
+    
+        :return: A new ``Retry`` object.
+        """
+        if self.total is False and error:
+            # Disabled, indicate to re-raise the error.
+            raise six.reraise(type(error), error, _stacktrace)
+    
+        total = self.total
+        if total is not None:
+            total -= 1
+    
+        connect = self.connect
+        read = self.read
+        redirect = self.redirect
+        status_count = self.status
+        other = self.other
+        cause = "unknown"
+        status = None
+        redirect_location = None
+    
+        if error and self._is_connection_error(error):
+            # Connect retry?
+            if connect is False:
+                raise six.reraise(type(error), error, _stacktrace)
+            elif connect is not None:
+                connect -= 1
+    
+        elif error and self._is_read_error(error):
+            # Read retry?
+            if read is False or not self._is_method_retryable(method):
+                raise six.reraise(type(error), error, _stacktrace)
+            elif read is not None:
+                read -= 1
+    
+        elif error:
+            # Other retry?
+            if other is not None:
+                other -= 1
+    
+        elif response and response.get_redirect_location():
+            # Redirect retry?
+            if redirect is not None:
+                redirect -= 1
+            cause = "too many redirects"
+            redirect_location = response.get_redirect_location()
+            status = response.status
+    
+        else:
+            # Incrementing because of a server error like a 500 in
+            # status_forcelist and the given method is in the allowed_methods
+            cause = ResponseError.GENERIC_ERROR
+            if response and response.status:
+                if status_count is not None:
+                    status_count -= 1
+                cause = ResponseError.SPECIFIC_ERROR.format(status_code=response.status)
+                status = response.status
+    
+        history = self.history + (
+            RequestHistory(method, url, error, status, redirect_location),
+        )
+    
+        new_retry = self.new(
+            total=total,
+            connect=connect,
+            read=read,
+            redirect=redirect,
+            status=status_count,
+            other=other,
+            history=history,
+        )
+    
+        if new_retry.is_exhausted():
+&gt;           raise MaxRetryError(_pool, url, error or ResponseError(cause))
+E           urllib3.exceptions.MaxRetryError: HTTPConnectionPool(host='localhost', port=8081): Max retries exceeded with url: /aspects?action=ingestProposal (Caused by NewConnectionError('&lt;urllib3.connection.HTTPConnection object at 0x10e5152b0&gt;: Failed to establish a new connection: [Errno 61] Connection refused'))
+
+.venv/lib/python3.9/site-packages/urllib3/util/retry.py:594: MaxRetryError
+
+During handling of the above exception, another exception occurred:
+
+self = DataHubRestEmitter: configured to talk to http://localhost:8081
+url = 'http://localhost:8081/aspects?action=ingestProposal'
+payload = '{"proposal": {"entityType": "dataset", "entityUrn": "urn:li:dataset:(urn:li:dataPlatform:postgres,test_table,PROD)", ...d": "no-run-id-provided", "properties": {"clientId": "acryl-datahub", "clientVersion": "1.3.1.7"}}}, "async": "false"}'
+method = 'POST'
+
+    def _emit_generic(
+        self, url: str, payload: Union[str, Any], method: str = "POST"
+    ) -&gt; requests.Response:
+        if not isinstance(payload, str):
+            payload = json.dumps(payload)
+    
+        curl_command = make_curl_command(self._session, method, url, payload)
+        payload_size = len(payload)
+        if payload_size &gt; INGEST_MAX_PAYLOAD_BYTES:
+            # since we know total payload size here, we could simply avoid sending such payload at all and report a warning, with current approach we are going to cause whole ingestion to fail
+            logger.warning(
+                f"Apparent payload size exceeded {INGEST_MAX_PAYLOAD_BYTES}, might fail with an exception due to the size"
+            )
+        logger.debug(
+            "Attempting to emit aspect (size: %s) to DataHub GMS; using curl equivalent to:\n%s",
+            payload_size,
+            curl_command,
+        )
+        try:
+            method_func = getattr(self._session, method.lower())
+&gt;           response = method_func(url, data=payload) if payload else method_func(url)
+
+.venv/lib/python3.9/site-packages/datahub/emitter/rest_emitter.py:903: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+.venv/lib/python3.9/site-packages/requests/sessions.py:637: in post
+    return self.request("POST", url, data=data, json=json, **kwargs)
+.venv/lib/python3.9/site-packages/requests/sessions.py:589: in request
+    resp = self.send(prep, **send_kwargs)
+.venv/lib/python3.9/site-packages/requests/sessions.py:703: in send
+    r = adapter.send(request, **kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;requests.adapters.HTTPAdapter object at 0x10e6490d0&gt;
+request = &lt;PreparedRequest [POST]&gt;, stream = False
+timeout = Timeout(connect=30.0, read=30.0, total=None), verify = True
+cert = None, proxies = OrderedDict()
+
+    def send(
+        self, request, stream=False, timeout=None, verify=True, cert=None, proxies=None
+    ):
+        """Sends PreparedRequest object. Returns Response object.
+    
+        :param request: The :class:`PreparedRequest &lt;PreparedRequest&gt;` being sent.
+        :param stream: (optional) Whether to stream the request content.
+        :param timeout: (optional) How long to wait for the server to send
+            data before giving up, as a float, or a :ref:`(connect timeout,
+            read timeout) &lt;timeouts&gt;` tuple.
+        :type timeout: float or tuple or urllib3 Timeout object
+        :param verify: (optional) Either a boolean, in which case it controls whether
+            we verify the server's TLS certificate, or a string, in which case it
+            must be a path to a CA bundle to use
+        :param cert: (optional) Any user-provided SSL certificate to be trusted.
+        :param proxies: (optional) The proxies dictionary to apply to the request.
+        :rtype: requests.Response
+        """
+    
+        try:
+            conn = self.get_connection_with_tls_context(
+                request, verify, proxies=proxies, cert=cert
+            )
+        except LocationValueError as e:
+            raise InvalidURL(e, request=request)
+    
+        self.cert_verify(conn, request.url, verify, cert)
+        url = self.request_url(request, proxies)
+        self.add_headers(
+            request,
+            stream=stream,
+            timeout=timeout,
+            verify=verify,
+            cert=cert,
+            proxies=proxies,
+        )
+    
+        chunked = not (request.body is None or "Content-Length" in request.headers)
+    
+        if isinstance(timeout, tuple):
+            try:
+                connect, read = timeout
+                timeout = TimeoutSauce(connect=connect, read=read)
+            except ValueError:
+                raise ValueError(
+                    f"Invalid timeout {timeout}. Pass a (connect, read) timeout tuple, "
+                    f"or a single float to set both timeouts to the same value."
+                )
+        elif isinstance(timeout, TimeoutSauce):
+            pass
+        else:
+            timeout = TimeoutSauce(connect=timeout, read=timeout)
+    
+        try:
+            resp = conn.urlopen(
+                method=request.method,
+                url=url,
+                body=request.body,
+                headers=request.headers,
+                redirect=False,
+                assert_same_host=False,
+                preload_content=False,
+                decode_content=False,
+                retries=self.max_retries,
+                timeout=timeout,
+                chunked=chunked,
+            )
+    
+        except (ProtocolError, OSError) as err:
+            raise ConnectionError(err, request=request)
+    
+        except MaxRetryError as e:
+            if isinstance(e.reason, ConnectTimeoutError):
+                # TODO: Remove this in 3.0.0: see #2811
+                if not isinstance(e.reason, NewConnectionError):
+                    raise ConnectTimeout(e, request=request)
+    
+            if isinstance(e.reason, ResponseError):
+                raise RetryError(e, request=request)
+    
+            if isinstance(e.reason, _ProxyError):
+                raise ProxyError(e, request=request)
+    
+            if isinstance(e.reason, _SSLError):
+                # This branch is for urllib3 v1.22 and later.
+                raise SSLError(e, request=request)
+    
+&gt;           raise ConnectionError(e, request=request)
+E           requests.exceptions.ConnectionError: HTTPConnectionPool(host='localhost', port=8081): Max retries exceeded with url: /aspects?action=ingestProposal (Caused by NewConnectionError('&lt;urllib3.connection.HTTPConnection object at 0x10e5152b0&gt;: Failed to establish a new connection: [Errno 61] Connection refused'))
+
+.venv/lib/python3.9/site-packages/requests/adapters.py:677: ConnectionError
+
+The above exception was the direct cause of the following exception:
+
+datahub_service = &lt;scripts.datahub_client.DataHubService object at 0x10e6496a0&gt;
+
+    def test_datahub_emit_metadata(datahub_service):
+        """Verify metadata emission (dry-run if possible, or actual emit)."""
+        dataset_urn = "urn:li:dataset:(urn:li:dataPlatform:postgres,test_table,PROD)"
+        properties = {"test_key": "test_value"}
+    
+        try:
+&gt;           datahub_service.emit_dataset_properties(dataset_urn, properties, description="Test description")
+
+tests/integration/test_datahub_integration.py:39: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+scripts/datahub_client.py:61: in emit_dataset_properties
+    raise e
+scripts/datahub_client.py:57: in emit_dataset_properties
+    self.emitter.emit(mcp)
+.venv/lib/python3.9/site-packages/datahub/emitter/rest_emitter.py:611: in emit
+    self.emit_mcp(item, emit_mode=emit_mode)
+.venv/lib/python3.9/site-packages/datahub/emitter/rest_emitter.py:714: in emit_mcp
+    response = self._emit_generic(url, payload)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = DataHubRestEmitter: configured to talk to http://localhost:8081
+url = 'http://localhost:8081/aspects?action=ingestProposal'
+payload = '{"proposal": {"entityType": "dataset", "entityUrn": "urn:li:dataset:(urn:li:dataPlatform:postgres,test_table,PROD)", ...d": "no-run-id-provided", "properties": {"clientId": "acryl-datahub", "clientVersion": "1.3.1.7"}}}, "async": "false"}'
+method = 'POST'
+
+    def _emit_generic(
+        self, url: str, payload: Union[str, Any], method: str = "POST"
+    ) -&gt; requests.Response:
+        if not isinstance(payload, str):
+            payload = json.dumps(payload)
+    
+        curl_command = make_curl_command(self._session, method, url, payload)
+        payload_size = len(payload)
+        if payload_size &gt; INGEST_MAX_PAYLOAD_BYTES:
+            # since we know total payload size here, we could simply avoid sending such payload at all and report a warning, with current approach we are going to cause whole ingestion to fail
+            logger.warning(
+                f"Apparent payload size exceeded {INGEST_MAX_PAYLOAD_BYTES}, might fail with an exception due to the size"
+            )
+        logger.debug(
+            "Attempting to emit aspect (size: %s) to DataHub GMS; using curl equivalent to:\n%s",
+            payload_size,
+            curl_command,
+        )
+        try:
+            method_func = getattr(self._session, method.lower())
+            response = method_func(url, data=payload) if payload else method_func(url)
+            response.raise_for_status()
+            return response
+        except HTTPError as e:
+            try:
+                info: Dict = response.json()
+    
+                if info.get("stackTrace"):
+                    logger.debug(
+                        "Full stack trace from DataHub:\n%s", info.get("stackTrace")
+                    )
+                    info.pop("stackTrace", None)
+    
+                hint = ""
+                if "unrecognized field found but not allowed" in (
+                    info.get("message") or ""
+                ):
+                    hint = ", likely because the server version is too old relative to the client"
+    
+                raise OperationalError(
+                    f"Unable to emit metadata to DataHub GMS{hint}: {info.get('message')}",
+                    info,
+                ) from e
+            except JSONDecodeError:
+                # If we can't parse the JSON, just raise the original error.
+                raise OperationalError(
+                    "Unable to emit metadata to DataHub GMS", {"message": str(e)}
+                ) from e
+        except RequestException as e:
+&gt;           raise OperationalError(
+                "Unable to emit metadata to DataHub GMS", {"message": str(e)}
+            ) from e
+E           datahub.configuration.common.OperationalError: ('Unable to emit metadata to DataHub GMS', {'message': "HTTPConnectionPool(host='localhost', port=8081): Max retries exceeded with url: /aspects?action=ingestProposal (Caused by NewConnectionError('&lt;urllib3.connection.HTTPConnection object at 0x10e5152b0&gt;: Failed to establish a new connection: [Errno 61] Connection refused'))"})
+
+.venv/lib/python3.9/site-packages/datahub/emitter/rest_emitter.py:932: OperationalError
+
+During handling of the above exception, another exception occurred:
+
+datahub_service = &lt;scripts.datahub_client.DataHubService object at 0x10e6496a0&gt;
+
+    def test_datahub_emit_metadata(datahub_service):
+        """Verify metadata emission (dry-run if possible, or actual emit)."""
+        dataset_urn = "urn:li:dataset:(urn:li:dataPlatform:postgres,test_table,PROD)"
+        properties = {"test_key": "test_value"}
+    
+        try:
+            datahub_service.emit_dataset_properties(dataset_urn, properties, description="Test description")
+        except Exception as e:
+&gt;           pytest.fail(f"Failed to emit metadata to DataHub: {e}")
+E           Failed: Failed to emit metadata to DataHub: ('Unable to emit metadata to DataHub GMS', {'message': "HTTPConnectionPool(host='localhost', port=8081): Max retries exceeded with url: /aspects?action=ingestProposal (Caused by NewConnectionError('&lt;urllib3.connection.HTTPConnection object at 0x10e5152b0&gt;: Failed to establish a new connection: [Errno 61] Connection refused'))"})
+
+tests/integration/test_datahub_integration.py:41: Failed</failure></testcase><testcase classname="tests.integration.test_job_connectors_runner" name="test_runner_executes_multiple_connectors_against_fixtures_only" time="0.010" /><testcase classname="tests.unit.test_airflow_webserver_compose" name="test_airflow_webserver_sets_gunicorn_header_limit" time="0.005" /><testcase classname="tests.unit.test_airflow_webserver_compose" name="test_airflow_webserver_oauth_urls_split_browser_and_internal" time="0.001" /><testcase classname="tests.unit.test_bootstrap_entrypoints" name="test_makefile_exposes_bootstrap_all_alias" time="0.001" /><testcase classname="tests.unit.test_bootstrap_entrypoints" name="test_bootstrap_script_verifies_keycloak_resources" time="0.001" /><testcase classname="tests.unit.test_job_connectors_rss" name="test_rss_connector_parses_and_normalizes_snippet_with_pii_redaction" time="0.001" /><testcase classname="tests.unit.test_job_connectors_rss" name="test_rss_connector_falls_back_when_robots_disallows_detail_fetch" time="0.003" /><testcase classname="tests.unit.test_job_connectors_sitemap" name="test_sitemap_connector_discovers_urls_from_index_and_normalizes_jsonld" time="0.002" /><testcase classname="tests.unit.test_job_market_utils" name="test_extract_skills_from_text" time="0.001" /><testcase classname="tests.unit.test_job_market_utils" name="test_normalize_salary_to_year_hourly" time="0.000" /><testcase classname="tests.unit.test_spark_helpers.TestCleanDfForSpark" name="test_empty_dataframe" time="0.004" /><testcase classname="tests.unit.test_spark_helpers.TestCleanDfForSpark" name="test_single_type_columns" time="0.001" /><testcase classname="tests.unit.test_spark_helpers.TestCleanDfForSpark" name="test_mixed_string_and_number" time="0.001" /><testcase classname="tests.unit.test_spark_helpers.TestCleanDfForSpark" name="test_mixed_int_and_float" time="0.000" /><testcase classname="tests.unit.test_spark_helpers.TestCleanDfForSpark" name="test_all_null_column" time="0.000" /><testcase classname="tests.unit.test_spark_helpers.TestCleanDfForSpark" name="test_nested_dict_column" time="0.000" /><testcase classname="tests.unit.test_spark_helpers.TestDropColumnsIfExist" name="test_drop_existing_columns" time="0.001" /><testcase classname="tests.unit.test_spark_helpers.TestDropColumnsIfExist" name="test_drop_nonexistent_columns" time="0.000" /><testcase classname="tests.unit.test_spark_helpers.TestDropColumnsIfExist" name="test_drop_mixed" time="0.001" /><testcase classname="tests.unit.test_spark_helpers.TestSafeColumnRename" name="test_rename_existing_columns" time="0.000" /><testcase classname="tests.unit.test_spark_helpers.TestSafeColumnRename" name="test_rename_nonexistent_columns" time="0.000" /><testcase classname="tests.unit.test_verify_keycloak_resources" name="test_resolve_keycloak_base_and_realm_prefers_browser_reachable_host" time="0.001" /><testcase classname="tests.unit.test_verify_keycloak_resources" name="test_build_client_configs_requires_secrets" time="0.001" /><testcase classname="tests.unit.test_verify_keycloak_resources" name="test_verify_airflow_redirect_accepts_expected_location" time="0.001" /><testcase classname="tests.unit.test_verify_keycloak_resources" name="test_verify_clients_checks_token_claims" time="0.000" /><testcase classname="tests.unit.test_verify_keycloak_resources" name="test_verify_with_retries_retries_until_success" time="0.001" /></testsuite></testsuites>
