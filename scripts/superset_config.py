@@ -44,6 +44,8 @@ AUTH_TYPE = AUTH_OAUTH
 AUTH_USER_REGISTRATION = True
 AUTH_USER_REGISTRATION_ROLE = os.getenv("SUPERSET_OAUTH_DEFAULT_ROLE", "Admin")
 AUTH_ROLES_SYNC_AT_LOGIN = True
+ENABLE_PROXY_FIX = os.getenv("SUPERSET_ENABLE_PROXY_FIX", "true").lower() == "true"
+PREFERRED_URL_SCHEME = os.getenv("SUPERSET_PREFERRED_URL_SCHEME", "http")
 
 
 class KeycloakSecurityManager(SupersetSecurityManager):

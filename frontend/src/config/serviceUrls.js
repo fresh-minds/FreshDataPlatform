@@ -42,14 +42,14 @@ export const isLocalEnvironment = getIsLocalEnvironment();
 
 const cloudDefaults = {
     airflow: buildSubdomainUrl('airflow'),
-    datahub: '',
-    superset: '',
-    jupyter: '',
-    grafana: '',
+    datahub: buildSubdomainUrl('datahub'),
+    superset: buildSubdomainUrl('superset'),
+    jupyter: buildSubdomainUrl('jupyter'),
+    grafana: buildSubdomainUrl('grafana'),
     minioSsoBridge: '',
     minioConsole: buildSubdomainUrl('minio'),
     minioApi: buildSubdomainUrl('minio-api'),
-    prometheus: ''
+    prometheus: buildSubdomainUrl('prometheus')
 };
 
 const fallbackDefaults = isLocalEnvironment ? LOCAL_DEFAULTS : cloudDefaults;

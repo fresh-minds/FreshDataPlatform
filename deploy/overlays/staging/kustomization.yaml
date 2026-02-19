@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: odp-staging
+resources:
+  - namespace.yaml
+  - ../../base
+patches:
+  - path: patch-configmap.yaml
+  - path: patch-replicas.yaml
+  - path: patch-ingress.yaml
+  - path: patch-hpa.yaml

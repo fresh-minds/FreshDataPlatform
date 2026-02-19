@@ -286,6 +286,7 @@ def index() -> str:
 
 
 @app.get("/start")
+@app.get("/start/")
 def start_sso() -> RedirectResponse:
     state = secrets.token_urlsafe(24)
     nonce = secrets.token_urlsafe(24)
@@ -318,7 +319,15 @@ def start_sso() -> RedirectResponse:
     return response
 
 
+@app.get("/login")
+@app.get("/login/")
+def login() -> RedirectResponse:
+    # Allow direct /login routing without ingress rewrites.
+    return start_sso()
+
+
 @app.get("/callback")
+@app.get("/callback/")
 def callback(request: Request) -> RedirectResponse:
     params = request.query_params
     if params.get("error"):

@@ -1,5 +1,5 @@
 # Open Data Platform - Development Commands
-.PHONY: install dev-install test lint format format-check run clean help schema-validate schema-drift-check dbt-debug dbt-build-seed e2e-test test-e2e test-sso qa-test warehouse-security bootstrap-all bootstrap_all k8s-dev-up k8s-dev-down k8s-aks-up k8s-aks-down
+.PHONY: install dev-install test lint format format-check run clean help schema-validate schema-drift-check dbt-debug dbt-build-seed e2e-test test-e2e test-sso qa-test warehouse-security bootstrap-all bootstrap_all k8s-dev-up k8s-dev-up-full k8s-dev-down k8s-sso-gateway-up k8s-sso-gateway-forward k8s-sso-gateway-forward-stop k8s-aks-up k8s-aks-down
 
 # Default Python
 PYTHON := python3
@@ -99,8 +99,20 @@ bootstrap_all: bootstrap-all  ## Alias for bootstrap-all
 k8s-dev-up:  ## Start dev-like Kubernetes Phase A stack on a local kind cluster
 	./scripts/k8s_dev_up.sh
 
+k8s-dev-up-full:  ## Start full docker-compose parity stack on a local kind cluster
+	./scripts/k8s_dev_up_full.sh
+
 k8s-dev-down:  ## Tear down dev-like Kubernetes kind cluster
 	./scripts/k8s_dev_down.sh
+
+k8s-sso-gateway-up:  ## Enable ingress + oauth2-proxy shared SSO gateway for local kind
+	./scripts/k8s_enable_sso_gateway.sh
+
+k8s-sso-gateway-forward:  ## Start ingress-nginx port-forward for SSO gateway on localhost:8085
+	./scripts/k8s_port_forward_ingress.sh start
+
+k8s-sso-gateway-forward-stop:  ## Stop ingress-nginx port-forward for SSO gateway
+	./scripts/k8s_port_forward_ingress.sh stop
 
 k8s-aks-up:  ## Provision AKS + deploy dev-like Kubernetes Phase A stack
 	./scripts/aks_up.sh

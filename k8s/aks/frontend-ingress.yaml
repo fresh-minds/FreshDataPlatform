@@ -5,6 +5,7 @@ metadata:
   namespace: __NAMESPACE__
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
 spec:
   ingressClassName: nginx
@@ -16,6 +17,11 @@ spec:
         - minio.__FRONTEND_DOMAIN__
         - minio-api.__FRONTEND_DOMAIN__
         - keycloak.__FRONTEND_DOMAIN__
+        - datahub.__FRONTEND_DOMAIN__
+        - superset.__FRONTEND_DOMAIN__
+        - grafana.__FRONTEND_DOMAIN__
+        - jupyter.__FRONTEND_DOMAIN__
+        - prometheus.__FRONTEND_DOMAIN__
       secretName: frontend-tls
   rules:
     - host: __FRONTEND_DOMAIN__
@@ -41,6 +47,20 @@ spec:
     - host: minio.__FRONTEND_DOMAIN__
       http:
         paths:
+          - path: /start
+            pathType: Prefix
+            backend:
+              service:
+                name: minio-sso-bridge
+                port:
+                  number: 9011
+          - path: /callback
+            pathType: Prefix
+            backend:
+              service:
+                name: minio-sso-bridge
+                port:
+                  number: 9011
           - path: /
             pathType: Prefix
             backend:
@@ -68,6 +88,56 @@ spec:
                 name: keycloak
                 port:
                   number: 8090
+    - host: datahub.__FRONTEND_DOMAIN__
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: datahub-frontend
+                port:
+                  number: 9002
+    - host: superset.__FRONTEND_DOMAIN__
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: superset
+                port:
+                  number: 8088
+    - host: grafana.__FRONTEND_DOMAIN__
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: grafana
+                port:
+                  number: 3000
+    - host: jupyter.__FRONTEND_DOMAIN__
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: jupyter
+                port:
+                  number: 8888
+    - host: prometheus.__FRONTEND_DOMAIN__
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: prometheus
+                port:
+                  number: 9090
     - host: www.__FRONTEND_DOMAIN__
       http:
         paths:

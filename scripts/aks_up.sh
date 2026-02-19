@@ -83,6 +83,27 @@ require_cmd docker
 require_cmd curl
 require_cmd openssl
 
+AKS_SKIP_OPENAPI_VALIDATE="${AKS_SKIP_OPENAPI_VALIDATE:-false}"
+
+kubectl_ctx_apply() {
+  if [[ "$AKS_SKIP_OPENAPI_VALIDATE" == "true" ]]; then
+    kubectl_ctx apply --validate=false -f "$@"
+  else
+    kubectl_ctx apply -f "$@"
+  fi
+}
+
+check_kube_api() {
+  if kubectl_ctx get --raw='/readyz' >/dev/null 2>&1; then
+    return 0
+  fi
+
+  echo "[aks-up] ERROR: Kubernetes API endpoint is unreachable from this machine." >&2
+  echo "[aks-up] If this is a private AKS cluster, connect to the VNet (VPN/bastion) or ensure private DNS resolves the API server." >&2
+  echo "[aks-up] You can set AKS_SKIP_OPENAPI_VALIDATE=true to skip client-side OpenAPI validation once connectivity is fixed." >&2
+  return 1
+}
+
 if [[ ! -f "$ROOT_DIR/.env" ]]; then
   echo "Missing $ROOT_DIR/.env. Create it first (for example: cp .env.template .env)." >&2
   exit 1
@@ -186,7 +207,8 @@ INGRESS_PIP_IP="$(az network public-ip show --resource-group "$NODE_RESOURCE_GRO
 log "Ingress Public IP: $INGRESS_PIP_IP"
 
 log "Installing/upgrading ingress-nginx ($INGRESS_NGINX_VERSION)..."
-kubectl_ctx apply -f "https://raw.githubusercontent.com/kubernetes/ingress-nginx/${INGRESS_NGINX_VERSION}/deploy/static/provider/cloud/deploy.yaml"
+check_kube_api
+kubectl_ctx_apply "https://raw.githubusercontent.com/kubernetes/ingress-nginx/${INGRESS_NGINX_VERSION}/deploy/static/provider/cloud/deploy.yaml"
 
 log "Configuring ingress-nginx service to use Public IP '$INGRESS_PIP_NAME'..."
 for _ in {1..60}; do
@@ -250,7 +272,7 @@ if [[ -n "$existing_a_ips" ]]; then
 fi
 az network dns record-set a add-record --resource-group "$DNS_RESOURCE_GROUP" --zone-name "$FRONTEND_DOMAIN" --record-set-name "@" --ipv4-address "$INGRESS_PIP_IP" -o none || true
 
-for cname in www airflow minio minio-api keycloak; do
+for cname in www airflow minio minio-api keycloak datahub superset grafana jupyter prometheus; do
   az network dns record-set cname create --resource-group "$DNS_RESOURCE_GROUP" --zone-name "$FRONTEND_DOMAIN" --name "$cname" --ttl 300 -o none || true
   az network dns record-set cname set-record --resource-group "$DNS_RESOURCE_GROUP" --zone-name "$FRONTEND_DOMAIN" --record-set-name "$cname" --cname "$FRONTEND_DOMAIN" -o none
 done
@@ -290,6 +312,11 @@ kubectl_ctx -n "$NAMESPACE" create secret generic odp-env \
   --from-env-file="$ROOT_DIR/.env" \
   --dry-run=client -o yaml | kubectl_ctx apply -f -
 
+log "Creating/updating Airflow webserver config ConfigMap..."
+kubectl_ctx -n "$NAMESPACE" create configmap airflow-webserver-config \
+  --from-file=webserver_config.py="$ROOT_DIR/airflow/webserver_config.py" \
+  --dry-run=client -o yaml | kubectl_ctx apply -f -
+
 log "Applying core services (postgres, warehouse, minio)..."
 render_and_apply "$ROOT_DIR/k8s/aks/postgres-airflow.yaml"
 render_and_apply "$ROOT_DIR/k8s/aks/warehouse.yaml"
@@ -323,6 +350,7 @@ render_and_apply "$ROOT_DIR/k8s/aks/cert-issuer-letsencrypt-prod.yaml"
 render_and_apply "$ROOT_DIR/k8s/aks/frontend.yaml"
 kubectl_ctx -n "$NAMESPACE" rollout status deployment/frontend --timeout="$WAIT_TIMEOUT"
 render_and_apply "$ROOT_DIR/k8s/aks/frontend-ingress.yaml"
+render_and_apply "$ROOT_DIR/k8s/aks/minio-sso-login-ingress.yaml"
 
 log "Waiting for TLS certificate to be Ready..."
 kubectl_ctx -n "$NAMESPACE" wait --for=condition=Ready certificate/frontend-tls --timeout=600s

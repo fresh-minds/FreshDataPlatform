@@ -145,6 +145,7 @@ services:
       - KEYCLOAK_DATAHUB_CLIENT_SECRET=${KEYCLOAK_DATAHUB_CLIENT_SECRET:?Set KEYCLOAK_DATAHUB_CLIENT_SECRET}
       - KEYCLOAK_MINIO_CLIENT_SECRET=${KEYCLOAK_MINIO_CLIENT_SECRET:?Set KEYCLOAK_MINIO_CLIENT_SECRET}
       - KEYCLOAK_SUPERSET_CLIENT_SECRET=${KEYCLOAK_SUPERSET_CLIENT_SECRET:-change_me_keycloak_superset_secret}
+      - KEYCLOAK_GRAFANA_CLIENT_SECRET=${KEYCLOAK_GRAFANA_CLIENT_SECRET:-change_me_keycloak_grafana_secret}
       - KEYCLOAK_DEFAULT_USER_PASSWORD=${KEYCLOAK_DEFAULT_USER_PASSWORD:?Set KEYCLOAK_DEFAULT_USER_PASSWORD}
     command: start-dev --http-port=8090 --import-realm
     ports:
@@ -580,6 +581,21 @@ services:
     environment:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD}
+      - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-http://localhost:3001}
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+      - GF_AUTH_GENERIC_OAUTH_ENABLED=true
+      - GF_AUTH_GENERIC_OAUTH_NAME=Keycloak
+      - GF_AUTH_GENERIC_OAUTH_AUTO_LOGIN=true
+      - GF_AUTH_GENERIC_OAUTH_ALLOW_SIGN_UP=true
+      - GF_AUTH_GENERIC_OAUTH_CLIENT_ID=${KEYCLOAK_GRAFANA_CLIENT_ID:-grafana}
+      - GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET=${KEYCLOAK_GRAFANA_CLIENT_SECRET:-change_me_keycloak_grafana_secret}
+      - GF_AUTH_GENERIC_OAUTH_SCOPES=openid profile email
+      - GF_AUTH_GENERIC_OAUTH_AUTH_URL=${KEYCLOAK_OIDC_BROWSER_AUTHORIZE_URL:-http://localhost:8090/realms/odp/protocol/openid-connect/auth}
+      - GF_AUTH_GENERIC_OAUTH_TOKEN_URL=${KEYCLOAK_OIDC_TOKEN_URL:-http://keycloak:8090/realms/odp/protocol/openid-connect/token}
+      - GF_AUTH_GENERIC_OAUTH_API_URL=${KEYCLOAK_OIDC_USERINFO_URL:-http://keycloak:8090/realms/odp/protocol/openid-connect/userinfo}
+      - GF_AUTH_GENERIC_OAUTH_LOGIN_ATTRIBUTE_PATH=preferred_username
+      - GF_AUTH_GENERIC_OAUTH_NAME_ATTRIBUTE_PATH=name
+      - GF_AUTH_GENERIC_OAUTH_EMAIL_ATTRIBUTE_PATH=email
     volumes:
       - grafana-data:/var/lib/grafana
       - ./ops/observability/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml

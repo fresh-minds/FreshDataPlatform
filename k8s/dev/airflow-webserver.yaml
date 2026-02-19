@@ -30,10 +30,10 @@ spec:
               value: LocalExecutor
             - name: AIRFLOW__CORE__LOAD_EXAMPLES
               value: "False"
-            - name: AIRFLOW__CORE__AUTH_MANAGER
-              value: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
             - name: AIRFLOW__FAB__CONFIG_FILE
-              value: /opt/airflow/webserver_config.py
+              value: /opt/airflow/project/airflow/webserver_config.py
+            - name: GUNICORN_CMD_ARGS
+              value: --limit-request-field_size 32768
             - name: AIRFLOW_OAUTH_CLIENT_ID
               valueFrom:
                 secretKeyRef:
@@ -50,12 +50,6 @@ spec:
                 secretKeyRef:
                   name: odp-env
                   key: KEYCLOAK_OIDC_BASE_URL
-                  optional: true
-            - name: AIRFLOW_OAUTH_AUTHORIZE_URL
-              valueFrom:
-                secretKeyRef:
-                  name: odp-env
-                  key: KEYCLOAK_OIDC_AUTHORIZE_URL
                   optional: true
             - name: AIRFLOW_OAUTH_TOKEN_URL
               valueFrom:
@@ -106,6 +100,7 @@ spec:
               export AIRFLOW__CORE__SQL_ALCHEMY_CONN="postgresql+psycopg2://${AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD}@postgres/${AIRFLOW_DB_NAME:-airflow}"
               export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="$AIRFLOW__CORE__SQL_ALCHEMY_CONN"
               export AIRFLOW__CORE__FERNET_KEY="${AIRFLOW_FERNET_KEY}"
+              export AIRFLOW_OAUTH_AUTHORIZE_URL="${KEYCLOAK_OIDC_BROWSER_AUTHORIZE_URL:-${KEYCLOAK_OIDC_AUTHORIZE_URL:-http://localhost:8090/realms/odp/protocol/openid-connect/auth}}"
               exec airflow webserver
           readinessProbe:
             httpGet:

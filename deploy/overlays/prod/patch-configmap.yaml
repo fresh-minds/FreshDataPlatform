@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: odp-runtime
+data:
+  ENVIRONMENT: prod
+  OTEL_SERVICE_NAMESPACE: open-data-platform-prod
+  AIRFLOW_WEBSERVER_BASE_URL: https://airflow.example.com

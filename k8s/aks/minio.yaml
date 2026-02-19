@@ -42,18 +42,12 @@ spec:
               value: minio
             - name: MINIO_IDENTITY_OPENID_ENABLE
               value: "on"
+            - name: MINIO_IDENTITY_OPENID_DISPLAY_NAME
+              value: Keycloak
             - name: MINIO_IDENTITY_OPENID_CONFIG_URL
-              valueFrom:
-                secretKeyRef:
-                  name: odp-env
-                  key: KEYCLOAK_OIDC_DISCOVERY_URL
-                  optional: true
+              value: https://keycloak.__FRONTEND_DOMAIN__/realms/odp/.well-known/openid-configuration
             - name: MINIO_IDENTITY_OPENID_CLIENT_ID
-              valueFrom:
-                secretKeyRef:
-                  name: odp-env
-                  key: KEYCLOAK_MINIO_CLIENT_ID
-                  optional: true
+              value: minio
             - name: MINIO_IDENTITY_OPENID_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
@@ -64,23 +58,11 @@ spec:
             - name: MINIO_IDENTITY_OPENID_CLAIM_NAME
               value: policy
             - name: MINIO_IDENTITY_OPENID_REDIRECT_URI
-              valueFrom:
-                secretKeyRef:
-                  name: odp-env
-                  key: MINIO_OIDC_REDIRECT_URI
-                  optional: true
+              value: https://minio.__FRONTEND_DOMAIN__/oauth_callback
             - name: MINIO_BROWSER_REDIRECT_URL
-              valueFrom:
-                secretKeyRef:
-                  name: odp-env
-                  key: MINIO_BROWSER_REDIRECT_URL
-                  optional: true
+              value: https://minio.__FRONTEND_DOMAIN__
             - name: MINIO_SERVER_URL
-              valueFrom:
-                secretKeyRef:
-                  name: odp-env
-                  key: MINIO_SERVER_URL
-                  optional: true
+              value: https://minio-api.__FRONTEND_DOMAIN__
           readinessProbe:
             httpGet:
               path: /minio/health/live

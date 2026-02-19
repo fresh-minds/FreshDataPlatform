@@ -101,14 +101,16 @@ kubectl -n "$NAMESPACE" create secret generic odp-env \
   --from-env-file="$ROOT_DIR/.env" \
   --dry-run=client -o yaml | kubectl apply -f -
 
-log "Applying core services (postgres, warehouse, minio)..."
+log "Applying core services (postgres, warehouse, keycloak, minio)..."
 kubectl apply -f "$ROOT_DIR/k8s/dev/postgres-airflow.yaml"
 kubectl apply -f "$ROOT_DIR/k8s/dev/warehouse.yaml"
+kubectl apply -f "$ROOT_DIR/k8s/dev/keycloak.yaml"
 kubectl apply -f "$ROOT_DIR/k8s/dev/minio.yaml"
 
 log "Waiting for core deployments..."
 kubectl -n "$NAMESPACE" rollout status deployment/postgres --timeout=300s
 kubectl -n "$NAMESPACE" rollout status deployment/warehouse --timeout=300s
+kubectl -n "$NAMESPACE" rollout status deployment/keycloak --timeout=300s
 kubectl -n "$NAMESPACE" rollout status deployment/minio --timeout=300s
 
 log "Running MinIO bucket init job..."
@@ -135,6 +137,7 @@ Dev-like Kubernetes stack is up.
 
 Access services with port-forward:
   kubectl -n $NAMESPACE port-forward svc/airflow-webserver 8080:8080
+  kubectl -n $NAMESPACE port-forward svc/keycloak 8090:8090
   kubectl -n $NAMESPACE port-forward svc/minio 9000:9000 9001:9001
   kubectl -n $NAMESPACE port-forward svc/warehouse 5433:5432
 
