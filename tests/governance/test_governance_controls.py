@@ -149,7 +149,7 @@ def test_pipeline_run_auditability_recorded(warehouse) -> None:
     table_exists = warehouse.table_exists("platform_audit.pipeline_runs")
     assert table_exists, (
         "Auditability check failed: expected table platform_audit.pipeline_runs to exist. "
-        "Run scripts/run_e2e_tests.sh to register pipeline run metadata."
+        "Run scripts/testing/run_e2e_tests.sh to register pipeline run metadata."
     )
 
     rows = warehouse.query_rows(

@@ -15,7 +15,7 @@ on:
       - ".env.template"
       - "tests/sso/**"
       - "scripts/sso/**"
-      - "scripts/run_sso_tests.sh"
+      - "scripts/testing/run_sso_tests.sh"
       - "Makefile"
       - ".github/workflows/sso-e2e.yml"
 

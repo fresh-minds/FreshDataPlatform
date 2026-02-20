@@ -267,10 +267,10 @@ services:
         SERVER_PID=$$! &&
         echo \"[Superset] Waiting for /health...\" &&
         for i in $$(seq 1 60); do curl -sSf http://localhost:8088/health >/dev/null && break || sleep 2; done &&
-        python /app/scripts/superset_bootstrap_job_market.py || true &&
+        python /app/scripts/superset/superset_bootstrap_job_market.py || true &&
         wait $$SERVER_PID"
     volumes:
-      - ./scripts/superset_config.py:/app/pythonpath/superset_config.py
+      - ./scripts/superset/superset_config.py:/app/pythonpath/superset_config.py
       - ./scripts:/app/scripts
       - ./schema:/app/schema:ro
 

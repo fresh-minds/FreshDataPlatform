@@ -1,0 +1,27 @@
+version: 2
+
+models:
+  - name: int_job_market_nl__sector_vacancy_enriched
+    description: >
+      Enriched snapshot combining CBS vacancy data with aggregated regional
+      coverage and skills diversity metrics. Used as input for mart models.
+    columns:
+      - name: period_key
+        description: "Period identifier. Business key."
+        tests:
+          - not_null
+          - unique
+      - name: sector_name
+        tests:
+          - not_null
+      - name: job_ads_count
+        tests:
+          - not_null
+      - name: regions_with_ads
+        description: "Number of provinces with at least one job ad."
+        tests:
+          - not_null
+      - name: distinct_skills_count
+        description: "Number of distinct skills extracted from job ads."
+        tests:
+          - not_null

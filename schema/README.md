@@ -77,6 +77,6 @@ python scripts/sync_dbml_to_datahub.py
 To regenerate DBML from the current PostgreSQL warehouse:
 
 ```bash
-python scripts/introspect_warehouse.py \
+python scripts/warehouse/introspect_warehouse.py \
   --schemas job_market_nl,job_market_nl_dbt,snapshots,public
 ```

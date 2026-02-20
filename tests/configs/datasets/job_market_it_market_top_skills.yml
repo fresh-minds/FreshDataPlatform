@@ -1,0 +1,37 @@
+dataset: job_market_nl.it_market_top_skills
+owner: data-platform@example.com
+description: "Top skills extracted from IT job advertisements."
+domain: job_market_nl
+layer: gold
+classification: internal
+sensitivity: normal
+product_tag: labor-market
+pii_columns: []
+pii_classifications: {}
+retention_days: 365
+timestamp_column: loaded_at
+primary_key:
+  - skill
+upstreams:
+  - job_market_nl_dbt.job_market_top_skills
+tests:
+  schema:
+    required_columns:
+      - skill
+      - count
+      - loaded_at
+  constraints:
+    not_null:
+      - skill
+      - count
+      - loaded_at
+    unique:
+      - skill
+  freshness:
+    column: loaded_at
+    max_age_hours: 8760
+    format: timestamp
+governance:
+  require_rbac: false
+  allowed_roles_read: []
+  non_authorized_export_queries: []

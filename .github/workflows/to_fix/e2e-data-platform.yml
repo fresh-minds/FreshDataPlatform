@@ -11,7 +11,7 @@ on:
       - "tests/helpers/**"
       - "tests/configs/**"
       - "tests/fixtures/**"
-      - "scripts/run_e2e_tests.sh"
+      - "scripts/testing/run_e2e_tests.sh"
       - "dbt_parallel/**"
       - "dags/**"
       - "pipelines/**"
@@ -101,7 +101,7 @@ jobs:
           exit 1
 
       - name: Run E2E suite
-        run: ./scripts/run_e2e_tests.sh
+        run: ./scripts/testing/run_e2e_tests.sh
 
       - name: Upload evidence pack
         if: always()

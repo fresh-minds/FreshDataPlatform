@@ -19,7 +19,7 @@ docker compose up -d
 This sets up/validates env, starts services, and bootstraps MinIO/Superset/DataHub/warehouse assets.
 
 ```bash
-./scripts/bootstrap_all.sh --auto-fill-env
+./scripts/platform/bootstrap_all.sh --auto-fill-env
 ```
 
 ### Key local endpoints

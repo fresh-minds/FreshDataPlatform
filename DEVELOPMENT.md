@@ -73,7 +73,7 @@ Service links are resolved via:
 
 ## Adding a New Pipeline
 1. Implement ingestion/transform logic in `pipelines/<domain>/`.
-2. Register callable in `scripts/run_local.py` if it should be runnable from the generic local runner.
+2. Register callable in `scripts/pipeline/run_local.py` if it should be runnable from the generic local runner.
 3. Add/extend DAG wiring in `dags/` if orchestration is needed.
 4. Define validation rules in:
    - `schema/data_quality_rules.yaml`
@@ -94,8 +94,8 @@ Service links are resolved via:
   - `make schema-validate`
   - `make governance-validate`
 - Publish metadata with:
-  - `python scripts/sync_dbml_to_datahub.py`
-  - `python scripts/register_datahub_catalog.py`
+  - `python scripts/catalog/sync_dbml_to_datahub.py`
+  - `python scripts/catalog/register_datahub_catalog.py`
 
 ## Troubleshooting
 - Services not healthy:

@@ -95,7 +95,7 @@ Additional notes:
 - `/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial/docker-compose.yml`
 - `/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial/.env.template`
 - `/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial/airflow/webserver_config.py`
-- `/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial/scripts/superset_config.py`
+- `/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial/scripts/superset/superset_config.py`
 - `/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial/k8s/dev/keycloak.yaml`
 - `/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial/k8s/aks/keycloak.yaml`
 - `/Users/karelgoense/Documents/programming/FreshMinds_Programming/production/ai_trial/k8s/aks/frontend-ingress.yaml`

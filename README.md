@@ -121,7 +121,7 @@ make dev-install
 ### 2) Start the local platform stack
 Option A (recommended, full bootstrap including seed/setup):
 ```bash
-./scripts/bootstrap_all.sh --auto-fill-env
+./scripts/platform/bootstrap_all.sh --auto-fill-env
 ```
 
 Option B (just services):

@@ -1,0 +1,74 @@
+version: 2
+
+models:
+  - name: stg_job_market_nl__it_market_snapshot
+    description: "Staged IT market snapshot with explicit types and null-filtered period keys."
+    columns:
+      - name: period_key
+        description: "Period identifier (e.g. 2024Q1). Primary business key."
+        tests:
+          - not_null
+          - unique
+      - name: period_label
+        tests:
+          - not_null
+      - name: sector_name
+        tests:
+          - not_null
+      - name: vacancies
+        description: "Number of vacancies. May be null if CBS data is unavailable."
+      - name: vacancy_rate
+        description: "Vacancy rate percentage. May be null if CBS data is unavailable."
+      - name: job_ads_count
+        tests:
+          - not_null
+
+  - name: stg_job_market_nl__it_market_top_skills
+    description: "Staged top skills with trimmed names and renamed count column."
+    columns:
+      - name: skill
+        description: "Trimmed, non-empty skill name."
+        tests:
+          - not_null
+          - unique
+      - name: mention_count
+        description: "Number of job ads mentioning this skill (renamed from `count`)."
+        tests:
+          - not_null
+
+  - name: stg_job_market_nl__it_market_region_distribution
+    description: "Staged region distribution with validated geo coordinates."
+    columns:
+      - name: region
+        tests:
+          - not_null
+          - unique
+      - name: job_ads_count
+        tests:
+          - not_null
+      - name: share_pct
+        tests:
+          - not_null
+      - name: latitude
+        tests:
+          - not_null
+      - name: longitude
+        tests:
+          - not_null
+
+  - name: stg_job_market_nl__it_market_job_ads_geo
+    description: "Staged geo-coded job ads with trimmed labels."
+    columns:
+      - name: job_id
+        tests:
+          - not_null
+          - unique
+      - name: region
+        tests:
+          - not_null
+      - name: latitude
+        tests:
+          - not_null
+      - name: longitude
+        tests:
+          - not_null

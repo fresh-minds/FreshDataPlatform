@@ -113,7 +113,7 @@ services:
         superset init &&
         /usr/bin/run-server.sh"
     volumes:
-      - ./scripts/superset_config.py:/app/pythonpath/superset_config.py
+      - ./scripts/superset/superset_config.py:/app/pythonpath/superset_config.py
 
   superset-db:
     image: postgres:15

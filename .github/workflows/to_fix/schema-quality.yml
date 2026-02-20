@@ -4,8 +4,8 @@ on:
   pull_request:
     paths:
       - "schema/**"
-      - "scripts/validate_dbml.py"
-      - "scripts/validate_governance_metadata.py"
+      - "scripts/quality/validate_dbml.py"
+      - "scripts/quality/validate_governance_metadata.py"
       - "Makefile"
       - ".github/workflows/schema-quality.yml"
 

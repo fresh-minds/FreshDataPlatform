@@ -237,7 +237,7 @@ jobs:
         run: docker compose up -d
 
       - name: Wait for core endpoints
-        run: bash scripts/ci_wait_for_services.sh
+        run: bash scripts/testing/ci_wait_for_services.sh
 
       - name: Dump service status on failure
         if: failure()
