@@ -141,14 +141,14 @@ Use generated strong values for secrets before any shared environment deployment
 
 ## CI/CD Workflows
 GitHub Actions currently include:
-- `.github/workflows/ci.yml`
+<!-- - `.github/workflows/ci.yml` -->
 - `.github/workflows/security.yml`
-- `.github/workflows/release.yml`
-- `.github/workflows/cd-deploy.yml`
-- `.github/workflows/build-images.yml`
+<!-- - `.github/workflows/release.yml` -->
+<!-- - `.github/workflows/cd-deploy.yml` -->
+<!-- - `.github/workflows/build-images.yml` -->
 - `.github/workflows/dbt-ci.yml`
-- `.github/workflows/e2e-data-platform.yml`
-- `.github/workflows/sso-e2e.yml`
+<!-- - `.github/workflows/e2e-data-platform.yml` -->
+<!-- - `.github/workflows/sso-e2e.yml` -->
 - `.github/workflows/schema-quality.yml`
 
 These validate:
