@@ -129,7 +129,8 @@ Option A (recommended, full bootstrap including seed/setup):
 ```bash
 ./scripts/platform/bootstrap_all.sh --auto-fill-env
 ```
-`bootstrap_all.sh` will create `.venv` if missing and recreate it when the interpreter link is broken.
+`bootstrap_all.sh` will create `.venv` if missing, recreate it when the interpreter link is broken,
+and install bootstrap dependencies via `pip install -e ".[dev,pipeline]"`.
 Use `--skip-dev-install` only if you want to manage dependencies yourself.
 
 Option B (just services):

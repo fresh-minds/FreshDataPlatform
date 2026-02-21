@@ -23,7 +23,7 @@ This sets up/validates env, starts services, and bootstraps MinIO/Superset/DataH
 ```bash
 ./scripts/platform/bootstrap_all.sh --auto-fill-env
 ```
-The script auto-creates `.venv` for dev dependencies and recreates it if the Python interpreter path is stale.
+The script auto-creates `.venv` for bootstrap dependencies (`.[dev,pipeline]`) and recreates it if the Python interpreter path is stale.
 Pass `--skip-dev-install` if you already manage a separate environment.
 
 ### Key local endpoints

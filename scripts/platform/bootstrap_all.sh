@@ -24,7 +24,7 @@ Bootstraps the local Docker stack and (re)populates:
 
 Options:
   --reset           docker compose down -v before starting
-  --skip-dev-install  skip creating .venv + installing dev deps
+  --skip-dev-install  skip creating .venv + installing bootstrap deps
   --auto-fill-env     auto-generate missing/placeholder secrets in .env
   --skip-dbt        skip dbt seed/run/snapshot/test (warehouse will be less complete)
   --skip-minio      skip uploading fixtures to MinIO
@@ -102,8 +102,8 @@ ensure_python_env() {
     venv_python="$ROOT_DIR/.venv/bin/python"
   fi
 
-  log "Installing dev dependencies (pip install -e .[dev])..."
-  (cd "$ROOT_DIR" && "$venv_python" -m pip install -e ".[dev]")
+  log "Installing bootstrap dependencies (pip install -e .[dev,pipeline])..."
+  (cd "$ROOT_DIR" && "$venv_python" -m pip install -e ".[dev,pipeline]")
 }
 
 generate_secret() {

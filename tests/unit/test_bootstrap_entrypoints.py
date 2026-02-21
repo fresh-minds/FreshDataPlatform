@@ -20,3 +20,8 @@ def test_bootstrap_script_ensures_job_market_sources_before_dbt() -> None:
     assert ensure_idx != -1
     assert dbt_idx != -1
     assert ensure_idx < dbt_idx
+
+
+def test_bootstrap_script_installs_pipeline_dependencies() -> None:
+    script = (Path(__file__).resolve().parents[2] / "scripts" / "platform" / "bootstrap_all.sh").read_text()
+    assert 'pip install -e ".[dev,pipeline]"' in script
