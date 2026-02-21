@@ -15,7 +15,7 @@ from urllib.parse import urlencode
 
 import requests
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import PlainTextResponse, RedirectResponse
 
 
 def _env(name: str, default: str | None = None, *, required: bool = False) -> str:
@@ -256,33 +256,10 @@ def healthz() -> str:
     return "ok"
 
 
-@app.get("/", response_class=HTMLResponse)
-def index() -> str:
-    return f"""
-<!doctype html>
-<html>
-  <head>
-    <meta charset=\"utf-8\" />
-    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
-    <title>MinIO SSO Bridge</title>
-    <style>
-      body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 2rem; }}
-      .box {{ max-width: 460px; border: 1px solid #ddd; border-radius: 10px; padding: 1.2rem; }}
-      .btn {{ display:inline-block; padding:0.7rem 1rem; background:#111827; color:#fff; text-decoration:none; border-radius:8px; }}
-      .muted {{ color:#4b5563; margin-top:0.7rem; }}
-      code {{ background:#f3f4f6; padding:0.1rem 0.3rem; border-radius:4px; }}
-    </style>
-  </head>
-  <body>
-    <div class=\"box\">
-      <h2>MinIO + Keycloak Sign In</h2>
-      <p>Use this bridge to authenticate with Keycloak and create a MinIO Console session.</p>
-      <p><a class=\"btn\" href=\"/start\">Sign in with Keycloak</a></p>
-      <p class=\"muted\">After success you will be redirected to <code>{SETTINGS.minio_console_public_url.rstrip('/')}</code>.</p>
-    </div>
-  </body>
-</html>
-"""
+@app.get("/")
+def index() -> RedirectResponse:
+    """Auto-redirect to /start to begin Keycloak SSO immediately."""
+    return RedirectResponse(url="/start", status_code=302)
 
 
 @app.get("/start")

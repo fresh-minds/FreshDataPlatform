@@ -2,7 +2,10 @@ import os
 from base64 import urlsafe_b64decode
 from json import loads as json_loads
 
+from flask import redirect, request
+from flask_appbuilder import expose
 from flask_appbuilder.security.manager import AUTH_OAUTH
+from flask_appbuilder.security.views import AuthOAuthView
 from superset.security import SupersetSecurityManager
 
 ROW_LIMIT = 5000
@@ -48,7 +51,20 @@ ENABLE_PROXY_FIX = os.getenv("SUPERSET_ENABLE_PROXY_FIX", "true").lower() == "tr
 PREFERRED_URL_SCHEME = os.getenv("SUPERSET_PREFERRED_URL_SCHEME", "http")
 
 
+class AutoRedirectOAuthView(AuthOAuthView):
+    """Skip the login page and redirect straight to the Keycloak provider."""
+
+    @expose("/login/")
+    @expose("/login/<provider>")
+    @expose("/login/<provider>/<register>")
+    def login(self, provider=None, register=None):
+        if provider is not None:
+            return super().login(provider=provider)
+        return redirect(request.url_root.rstrip("/") + "/login/keycloak")
+
+
 class KeycloakSecurityManager(SupersetSecurityManager):
+    authoauthview = AutoRedirectOAuthView
     @staticmethod
     def _decode_access_token_claims(access_token: str) -> dict:
         try:

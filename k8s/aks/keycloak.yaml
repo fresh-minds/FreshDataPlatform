@@ -9,6 +9,7 @@ data:
         "realm": "odp",
         "displayName": "Open Data Platform",
         "enabled": true,
+        "registrationAllowed": true,
         "clients": [
             {
                 "clientId": "airflow",
@@ -197,8 +198,46 @@ data:
                         }
                     }
                 ]
+            },
+            {
+                "clientId": "portal",
+                "name": "Platform Portal",
+                "enabled": true,
+                "protocol": "openid-connect",
+                "publicClient": true,
+                "standardFlowEnabled": true,
+                "directAccessGrantsEnabled": false,
+                "redirectUris": [
+                    "https://__FRONTEND_DOMAIN__/*",
+                    "https://www.__FRONTEND_DOMAIN__/*"
+                ],
+                "webOrigins": [
+                    "https://__FRONTEND_DOMAIN__",
+                    "https://www.__FRONTEND_DOMAIN__"
+                ],
+                "protocolMappers": [
+                    {
+                        "name": "portal-audience",
+                        "protocol": "openid-connect",
+                        "protocolMapper": "oidc-audience-mapper",
+                        "config": {
+                            "included.client.audience": "portal",
+                            "access.token.claim": "true",
+                            "id.token.claim": "false",
+                            "userinfo.token.claim": "false"
+                        }
+                    }
+                ]
             }
         ],
+        "roles": {
+            "realm": [
+                {
+                    "name": "admin",
+                    "description": "Platform administrator"
+                }
+            ]
+        },
         "users": [
             {
                 "username": "odp-admin",
@@ -207,6 +246,7 @@ data:
                 "emailVerified": true,
                 "firstName": "ODP",
                 "lastName": "Admin",
+                "realmRoles": ["admin"],
                 "credentials": [
                     {
                         "type": "password",

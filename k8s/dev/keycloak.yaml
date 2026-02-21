@@ -9,6 +9,7 @@ data:
         "realm": "odp",
         "displayName": "Open Data Platform",
         "enabled": true,
+        "registrationAllowed": true,
         "clients": [
             {
                 "clientId": "airflow",
@@ -199,8 +200,48 @@ data:
                         }
                     }
                 ]
+            },
+            {
+                "clientId": "portal",
+                "name": "Platform Portal",
+                "enabled": true,
+                "protocol": "openid-connect",
+                "publicClient": true,
+                "standardFlowEnabled": true,
+                "directAccessGrantsEnabled": false,
+                "redirectUris": [
+                    "http://portal.localtest.me:8085/*",
+                    "http://portal.localtest.me/*",
+                    "http://localhost:3000/*"
+                ],
+                "webOrigins": [
+                    "http://portal.localtest.me:8085",
+                    "http://portal.localtest.me",
+                    "http://localhost:3000"
+                ],
+                "protocolMappers": [
+                    {
+                        "name": "portal-audience",
+                        "protocol": "openid-connect",
+                        "protocolMapper": "oidc-audience-mapper",
+                        "config": {
+                            "included.client.audience": "portal",
+                            "access.token.claim": "true",
+                            "id.token.claim": "false",
+                            "userinfo.token.claim": "false"
+                        }
+                    }
+                ]
             }
         ],
+        "roles": {
+            "realm": [
+                {
+                    "name": "admin",
+                    "description": "Platform administrator"
+                }
+            ]
+        },
         "users": [
             {
                 "username": "odp-admin",
@@ -209,6 +250,7 @@ data:
                 "emailVerified": true,
                 "firstName": "ODP",
                 "lastName": "Admin",
+                "realmRoles": ["admin"],
                 "credentials": [
                     {
                         "type": "password",
