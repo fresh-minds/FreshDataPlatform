@@ -36,6 +36,55 @@ Pass `--skip-dev-install` if you already manage a separate environment.
 - Grafana: `http://localhost:3001`
 - Prometheus: `http://localhost:9090`
 
+### Verify observability ingestion (Docker Compose)
+
+Run the built-in end-to-end verification:
+
+```bash
+make observability-verify
+```
+
+What it verifies:
+- Grafana, Loki, and Prometheus health endpoints
+- Grafana datasource connectivity for Prometheus and Loki
+- Prometheus scrape status for core observability targets
+- Presence of `airflow_*` metrics in Prometheus
+- OTLP trace ingestion path (synthetic trace -> OTEL Collector -> Tempo trace query API)
+- Presence of Airflow file logs (`job="airflow"`) in Loki
+- Presence of Docker stdout logs (`job="docker"`) in Loki
+
+Optional lookback window (seconds, default `900`):
+
+```bash
+OBS_LOOKBACK_SECONDS=1800 make observability-verify
+```
+
+Optional strict trace-volume mode (minimum spans over a time window):
+
+```bash
+OBS_REQUIRE_TRACE_VOLUME=true \
+OBS_TRACE_VOLUME_WINDOW_SECONDS=30 \
+OBS_TRACE_VOLUME_MIN_SPANS=10 \
+make observability-verify
+```
+
+Notes:
+- Strict mode uses Tempo counters directly.
+- The verifier emits synthetic OTLP traces during the strict window and validates observed span increase meets the threshold.
+
+Optional ambient trace-volume mode (no synthetic trace probes):
+
+```bash
+OBS_REQUIRE_TRACE_VOLUME=true \
+OBS_TRACE_VOLUME_MODE=ambient \
+OBS_TRACE_VOLUME_WINDOW_SECONDS=60 \
+OBS_TRACE_VOLUME_MIN_SPANS=5 \
+make observability-verify
+```
+
+Ambient mode validates naturally occurring trace activity from the platform during the window.
+In ambient mode, the verifier does not inject synthetic traces.
+
 ## 2) Kubernetes on kind (Dev-like)
 ### Prerequisites
 - `kind`, `kubectl`, Docker
@@ -68,6 +117,31 @@ make k8s-dev-up-full
 
 This includes the core stack plus Superset, DataHub, observability components, portal, notebooks, and exporters.
 On `arm64` kind clusters, `prometheus-msteams` is skipped automatically because its image is `amd64`-only.
+
+### Deployment script observability logs
+`make k8s-dev-up-full` now emits operation-level events from the shared Kompose pipeline.
+
+Use plain text logs (default):
+
+```bash
+make k8s-dev-up-full
+```
+
+Use machine-parseable JSON logs for ingestion in log pipelines:
+
+```bash
+K8S_SCRIPT_LOG_FORMAT=json make k8s-dev-up-full
+```
+
+Correlate one run end-to-end with a custom run ID:
+
+```bash
+K8S_SCRIPT_LOG_FORMAT=both K8S_SCRIPT_RUN_ID=dev-rollout-001 make k8s-dev-up-full
+```
+
+Verification:
+- Confirm JSON events exist: `K8S_SCRIPT_LOG_FORMAT=json make k8s-dev-up-full | head -n 20`
+- Confirm event names appear: `K8S_SCRIPT_LOG_FORMAT=json make k8s-dev-up-full | grep 'kompose_generate\|kompose_fix_deployments'`
 
 ### Shared SSO Gateway on kind
 To front multiple UIs with one Keycloak-backed login session:

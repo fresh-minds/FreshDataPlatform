@@ -47,6 +47,30 @@ This command:
 
 Note: on `arm64` kind nodes, `prometheus-msteams` is skipped because the upstream image is `amd64`-only.
 
+### Structured deployment logs
+
+The full-parity script supports structured observability events for each Kompose stage.
+
+Environment flags:
+- `K8S_SCRIPT_LOG_FORMAT`: `text` (default), `json`, or `both`
+- `K8S_SCRIPT_RUN_ID`: optional correlation ID for one deployment run
+
+Examples:
+
+```bash
+K8S_SCRIPT_LOG_FORMAT=json make k8s-dev-up-full
+```
+
+```bash
+K8S_SCRIPT_LOG_FORMAT=both K8S_SCRIPT_RUN_ID=kind-full-deploy-20260221 make k8s-dev-up-full
+```
+
+Quick validation:
+
+```bash
+K8S_SCRIPT_LOG_FORMAT=json make k8s-dev-up-full | grep '"event":"kompose_'
+```
+
 ## Access (kind)
 
 Use port-forward in separate terminals:

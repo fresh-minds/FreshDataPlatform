@@ -1,5 +1,5 @@
 # Open Data Platform - Development Commands
-.PHONY: install dev-install test lint format format-check run clean help schema-validate schema-drift-check dbt-debug dbt-build-seed e2e-test test-e2e test-sso qa-test warehouse-security bootstrap-all bootstrap_all k8s-dev-up k8s-dev-up-full k8s-dev-down k8s-sso-gateway-up k8s-sso-gateway-forward k8s-sso-gateway-forward-stop k8s-aks-up k8s-aks-down
+.PHONY: install dev-install test lint format format-check run clean help schema-validate schema-drift-check dbt-debug dbt-build-seed e2e-test test-e2e test-sso qa-test warehouse-security observability-verify bootstrap-all bootstrap_all k8s-dev-up k8s-dev-up-full k8s-dev-down k8s-sso-gateway-up k8s-sso-gateway-forward k8s-sso-gateway-forward-stop k8s-aks-up k8s-aks-down
 
 # Default Python
 PYTHON := python3
@@ -93,6 +93,9 @@ qa-test:  ## Run config-driven QA suites (requires warehouse + dbt artifacts)
 
 warehouse-security:  ## Apply warehouse RBAC/RLS/masking baseline
 	$(PYTHON) scripts/warehouse/apply_warehouse_security.py
+
+observability-verify:  ## Verify Docker Compose observability ingestion end-to-end
+	./scripts/testing/verify_compose_observability.sh
 
 bootstrap-all:  ## Start docker stack + seed MinIO/Superset/DataHub/warehouse in one go
 	./scripts/platform/bootstrap_all.sh
