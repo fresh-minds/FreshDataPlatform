@@ -1,9 +1,5 @@
 // Open Data Platform Warehouse Schema
 // Only tables actively managed by dbt and Airflow pipelines.
-//
-// Other domain tables (Requests, Accounting, HR, Exact Online) exist in the
-// warehouse but are not yet covered by dbt/Airflow orchestration.
-// They should be added here once pipelines are built for those domains.
 
 Project open_data_platform_dw {
   database_type: 'PostgreSQL'

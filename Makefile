@@ -10,8 +10,11 @@ help:  ## Show this help
 install:  ## Install production dependencies
 	$(PYTHON) -m pip install -e .
 
-dev-install:  ## Install development dependencies
+dev-install:  ## Install development dependencies (lint, typecheck, test tools)
 	$(PYTHON) -m pip install -e ".[dev]"
+
+pipeline-install:  ## Install pipeline runtime dependencies (Airflow, Spark, dbt, DataHub)
+	$(PYTHON) -m pip install -e ".[dev,pipeline]"
 
 test:  ## Run all tests
 	pytest tests/ -v
@@ -44,7 +47,7 @@ run-job-connectors:  ## Run job aggregator connectors (RSS + sitemap)
 	$(PYTHON) scripts/pipeline/run_job_connectors.py
 
 schema-validate:  ## Validate DBML schema definitions
-	$(PYTHON) scripts/quality/validate_dbml.py
+	$(PYTHON) scripts/quality/validate_dbml.py --include-warehouse-structure
 
 schema-drift-check:  ## Detect drift between warehouse DB and schema/warehouse.dbml
 	$(PYTHON) scripts/quality/validate_dbml.py --check-warehouse-drift

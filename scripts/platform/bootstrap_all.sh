@@ -88,13 +88,22 @@ ensure_python_env() {
     return 0
   fi
 
-  if [[ ! -d "$ROOT_DIR/.venv" ]]; then
+  require_cmd python3
+
+  local venv_python="$ROOT_DIR/.venv/bin/python"
+
+  if [[ ! -x "$venv_python" ]]; then
+    if [[ -e "$ROOT_DIR/.venv" ]]; then
+      log "Existing .venv has no usable python interpreter; recreating..."
+      rm -rf "$ROOT_DIR/.venv"
+    fi
     log "Creating .venv..."
     python3 -m venv "$ROOT_DIR/.venv"
+    venv_python="$ROOT_DIR/.venv/bin/python"
   fi
 
   log "Installing dev dependencies (pip install -e .[dev])..."
-  (cd "$ROOT_DIR" && "$ROOT_DIR/.venv/bin/python" -m pip install -e ".[dev]")
+  (cd "$ROOT_DIR" && "$venv_python" -m pip install -e ".[dev]")
 }
 
 generate_secret() {
