@@ -33,6 +33,11 @@ services:
       - OTEL_METRICS_EXPORT_INTERVAL=${OTEL_METRICS_EXPORT_INTERVAL:-60000}
       - OTEL_SERVICE_NAMESPACE=${OTEL_SERVICE_NAMESPACE:-open-data-platform}
       - ENVIRONMENT=${ENVIRONMENT:-local}
+      - PLAYWRIGHT_BROWSERS_PATH=/opt/airflow/playwright
+      # Source SP1 portal credentials for ad hoc/task debug runs
+      - SP1_USERNAME=${SP1_USERNAME:-}
+      - SP1_PASSWORD=${SP1_PASSWORD:-}
+      - SP1_BASE_URL=${SP1_BASE_URL:-}
       - PYTHONPATH=/opt/airflow/project
     volumes:
       - ./dags:/opt/airflow/dags
@@ -81,6 +86,7 @@ services:
       - OTEL_METRICS_EXPORT_INTERVAL=${OTEL_METRICS_EXPORT_INTERVAL:-60000}
       - OTEL_SERVICE_NAMESPACE=${OTEL_SERVICE_NAMESPACE:-open-data-platform}
       - ENVIRONMENT=${ENVIRONMENT:-local}
+      - PLAYWRIGHT_BROWSERS_PATH=/opt/airflow/playwright
       # Credentials for scripts running in pod
       - MINIO_ENDPOINT=http://minio:9000
       - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:?Set MINIO_ROOT_USER}
@@ -90,6 +96,9 @@ services:
       - WAREHOUSE_DB=${WAREHOUSE_DB:-open_data_platform_dw}
       - WAREHOUSE_USER=${WAREHOUSE_USER:?Set WAREHOUSE_USER}
       - WAREHOUSE_PASSWORD=${WAREHOUSE_PASSWORD:?Set WAREHOUSE_PASSWORD}
+      - SP1_USERNAME=${SP1_USERNAME:-}
+      - SP1_PASSWORD=${SP1_PASSWORD:-}
+      - SP1_BASE_URL=${SP1_BASE_URL:-}
     volumes:
       - ./dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
@@ -497,11 +506,39 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: open-data-platform-portal
+    environment:
+      - VITE_KEYCLOAK_URL=${KEYCLOAK_BROWSER_BASE_URL:-http://localhost:8090}
+      - VITE_KEYCLOAK_REALM=odp
+      - VITE_KEYCLOAK_CLIENT_ID=portal
+      - VITE_PORTAL_API_URL=${PORTAL_API_PUBLIC_URL:-http://localhost:8070}
     ports:
       - "3000:3000"
     volumes:
       - ./frontend:/app
       - /app/node_modules
+    depends_on:
+      keycloak:
+        condition: service_started
+
+  portal-api:
+    build:
+      context: .
+      dockerfile: ops/portal-api/Dockerfile
+    container_name: open-data-platform-portal-api
+    environment:
+      - KEYCLOAK_INTERNAL_BASE_URL=${KEYCLOAK_INTERNAL_BASE_URL:-http://keycloak:8090}
+      - KEYCLOAK_REALM=odp
+      - KEYCLOAK_ADMIN_USER=${KEYCLOAK_ADMIN_USER:?Set KEYCLOAK_ADMIN_USER}
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:?Set KEYCLOAK_ADMIN_PASSWORD}
+      - KEYCLOAK_ADMIN_REALM=${KEYCLOAK_ADMIN_REALM:-master}
+      - PORTAL_CLIENT_ID=portal
+      - PORTAL_CORS_ORIGINS=${PORTAL_CORS_ORIGINS:-http://localhost:3000}
+      - LOG_LEVEL=${PORTAL_API_LOG_LEVEL:-INFO}
+    ports:
+      - "8070:8070"
+    depends_on:
+      keycloak:
+        condition: service_started
 
   jupyter:
     build:

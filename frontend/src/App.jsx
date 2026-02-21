@@ -2,6 +2,7 @@ import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
+import Directory from './pages/Directory';
 import ServiceMap from './pages/ServiceMap';
 import Documentation from './pages/Documentation';
 import MinimalOverview from './pages/MinimalOverview';
@@ -12,6 +13,7 @@ function App() {
         <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/platform" element={<Dashboard />} />
+            <Route path="/directory" element={<Directory />} />
             <Route path="/service-map" element={<ServiceMap />} />
             <Route path="/overview" element={<MinimalOverview />} />
             <Route path="/architecture" element={<Architecture />} />
