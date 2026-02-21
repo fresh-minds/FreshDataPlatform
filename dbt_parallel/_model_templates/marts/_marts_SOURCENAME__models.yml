@@ -1,0 +1,49 @@
+# TEMPLATE — copy and rename to:
+#   dbt_parallel/models/marts/<source_name>/_marts_<source_name>__models.yml
+# See docs/INGESTION_GUIDE.md § Step 4c for details.
+
+version: 2
+
+models:
+  # ── Dimensions ──────────────────────────────────────────────────────────
+
+  # - name: dim_example
+  #   description: "Dimension: distinct examples from DATASET."
+  #   columns:
+  #     - name: example_sk
+  #       description: "Surrogate key (hashed)."
+  #       tests:
+  #         - not_null
+  #         - unique
+  #     - name: example_name
+  #       tests:
+  #         - not_null
+
+  # ── Fact ────────────────────────────────────────────────────────────────
+
+  - name: fct_DATASET
+    description: "Fact table: DATASET records with dimensional foreign keys."
+    columns:
+      - name: entity_id
+        description: "Degenerate dimension / natural key."
+        tests:
+          - not_null
+          - unique
+      # - name: example_sk
+      #   tests:
+      #     - not_null
+      #     - relationships:
+      #         to: ref('dim_example')
+      #         field: example_sk
+
+# ── Exposures (optional) ──────────────────────────────────────────────────
+#
+# exposures:
+#   - name: SOURCENAME_dashboard
+#     type: dashboard
+#     owner:
+#       name: "Data Engineering"
+#       email: "data-engineering@example.com"
+#     depends_on:
+#       - ref('fct_DATASET')
+#       - ref('dim_example')
