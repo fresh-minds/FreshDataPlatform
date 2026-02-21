@@ -53,6 +53,7 @@ env/
 .tox/
 .coverage
 .coverage.*
+reports/
 htmlcov/
 .hypothesis/
 tests/e2e/evidence/**

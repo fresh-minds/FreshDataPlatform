@@ -20,7 +20,7 @@
   - `frontend/Dockerfile.k8s`
   - `notebooks/Dockerfile`
   - `ops/minio-sso-bridge/Dockerfile`
-- Compose: `docker-compose.yml`, `docker-compose.backup.yml`
+- Compose: `docker-compose.yml`
 
 ## Infrastructure-as-Code
 - Kubernetes manifests + Kustomize:
