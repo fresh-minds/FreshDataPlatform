@@ -1,0 +1,158 @@
+version: 2
+
+models:
+  # ── Dimensions ────────────────────────────────────────────────────
+
+  - name: dim_client
+    description: "Client companies posting vacancies on the Source SP1 portal."
+    config:
+      materialized: table
+      tags: ['source_sp1', 'dimension']
+    columns:
+      - name: client_sk
+        description: "Surrogate key (MD5 hash of client_name)."
+        tests:
+          - not_null
+          - unique
+      - name: client_name
+        description: "Client company name."
+        tests:
+          - not_null
+          - unique
+
+  - name: dim_location
+    description: "Vacancy locations from the Source SP1 portal."
+    config:
+      materialized: table
+      tags: ['source_sp1', 'dimension']
+    columns:
+      - name: location_sk
+        description: "Surrogate key (MD5 hash of location_name)."
+        tests:
+          - not_null
+          - unique
+      - name: location_name
+        description: "Location name."
+        tests:
+          - not_null
+          - unique
+
+  - name: dim_category
+    description: "Job categories from the Source SP1 portal."
+    config:
+      materialized: table
+      tags: ['source_sp1', 'dimension']
+    columns:
+      - name: category_sk
+        description: "Surrogate key (MD5 hash of category_name)."
+        tests:
+          - not_null
+          - unique
+      - name: category_name
+        description: "Job category name."
+        tests:
+          - not_null
+          - unique
+
+  - name: dim_vacancy_status
+    description: "Vacancy statuses from the Source SP1 portal."
+    config:
+      materialized: table
+      tags: ['source_sp1', 'dimension']
+    columns:
+      - name: status_sk
+        description: "Surrogate key (MD5 hash of status_name)."
+        tests:
+          - not_null
+          - unique
+      - name: status_name
+        description: "Status label."
+        tests:
+          - not_null
+          - unique
+      - name: is_active
+        description: "Whether this status represents an active vacancy."
+
+  # ── Facts ─────────────────────────────────────────────────────────
+
+  - name: fct_vacatures
+    description: >
+      Star-schema fact table: one row per Source SP1 portal vacancy
+      with surrogate key references to client, location, category, and
+      status dimensions.
+    config:
+      materialized: table
+      tags: ['source_sp1', 'fact']
+    columns:
+      - name: vacature_sk
+        description: "Surrogate key (MD5 hash of vacature_id)."
+        tests:
+          - not_null
+          - unique
+      - name: client_sk
+        description: "FK to dim_client."
+        tests:
+          - relationships:
+              to: ref('dim_client')
+              field: client_sk
+      - name: location_sk
+        description: "FK to dim_location."
+        tests:
+          - relationships:
+              to: ref('dim_location')
+              field: location_sk
+      - name: category_sk
+        description: "FK to dim_category."
+        tests:
+          - relationships:
+              to: ref('dim_category')
+              field: category_sk
+      - name: status_sk
+        description: "FK to dim_vacancy_status."
+        tests:
+          - relationships:
+              to: ref('dim_vacancy_status')
+              field: status_sk
+      - name: vacature_id
+        description: "Degenerate dimension: natural key from the portal."
+        tests:
+          - not_null
+          - unique
+      - name: title
+        description: "Vacancy title."
+      - name: hours
+        description: "Weekly hours (numeric measure)."
+      - name: days_open
+        description: "Days between publish and closing date."
+      - name: is_active
+        description: "Whether the vacancy is currently active."
+      - name: is_expired
+        description: "Whether the closing date has passed."
+      - name: publish_date
+        description: "Date the vacancy was published."
+      - name: closing_date
+        description: "Date the vacancy closes."
+      - name: ingested_at
+        description: "Timestamp of last ingestion."
+        tests:
+          - not_null
+
+# ── Exposures ─────────────────────────────────────────────────────
+
+exposures:
+  - name: superset_sp1_vacatures_dashboard
+    type: dashboard
+    description: >
+      Source SP1 portal vacatures dashboard in Superset showing
+      active vacancies by client, location, category, and status.
+    maturity: low
+    url: "http://localhost:8088/superset/dashboard/sp1-vacatures/"
+    depends_on:
+      - ref('fct_vacatures')
+      - ref('dim_client')
+      - ref('dim_location')
+      - ref('dim_category')
+      - ref('dim_vacancy_status')
+    owner:
+      name: "Data Platform Team"
+      email: "data-platform@example.com"

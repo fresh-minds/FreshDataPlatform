@@ -1,0 +1,24 @@
+data_product:
+  name: "Job Market NL"
+  domain: "job_market_nl"
+  owner: "job-market.owner@example.com"
+  steward: "job-market.steward@example.com"
+  criticality: "medium"
+  description: >
+    Dutch IT job market data product providing vacancy rates (CBS) and
+    job-ad analytics (Adzuna). Refreshed daily by the job_market_nl_pipeline DAG.
+
+governance:
+  classification:
+    confidentiality: "public"
+
+service_levels:
+  freshness_sla_hours: 24
+  availability_sla_percent: 99.0
+
+interfaces:
+  output_datasets:
+    - "job_market_nl.it_market_snapshot"
+    - "job_market_nl.it_market_top_skills"
+    - "job_market_nl.it_market_region_distribution"
+    - "job_market_nl.it_market_job_ads_geo"
