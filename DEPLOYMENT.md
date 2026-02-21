@@ -9,6 +9,8 @@
 ### Prerequisites
 - Docker Engine + Compose plugin
 - `.env` configured from `.env.template`
+- For `source_sp1_vacatures_ingestion`: set
+  `SP1_USERNAME` and `SP1_PASSWORD` in `.env`
 
 ### Bring up stack
 ```bash
@@ -21,6 +23,8 @@ This sets up/validates env, starts services, and bootstraps MinIO/Superset/DataH
 ```bash
 ./scripts/platform/bootstrap_all.sh --auto-fill-env
 ```
+The script auto-creates `.venv` for dev dependencies and recreates it if the Python interpreter path is stale.
+Pass `--skip-dev-install` if you already manage a separate environment.
 
 ### Key local endpoints
 - Airflow: `http://localhost:8080`
