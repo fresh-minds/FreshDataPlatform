@@ -74,6 +74,8 @@ Service links are resolved via:
 - Fallback localhost endpoints in `frontend/src/config/serviceUrls.js`
 
 Platform dashboard note:
+- `/platform` keeps "Overview" at the top, followed by ordered destinations (Orchestration, Storage, Analytics + Notebook workspace row, Catalog & lineage).
+- The "People" section is shown in a separate box and only visible to admins.
 - `/platform` includes a dedicated "Logging, monitoring and tracing" section with links to Grafana, Prometheus, and Alertmanager.
 - Optional frontend overrides: `VITE_GRAFANA_URL`, `VITE_PROMETHEUS_URL`, `VITE_ALERTMANAGER_URL`.
 - `/architecture` and `/services` expose the same observability links for consistent navigation.

@@ -12,10 +12,6 @@ import {
 import { hasServiceUrl, isLocalEnvironment, serviceUrls } from '../config/serviceUrls';
 import useAuth from '../auth/useAuth';
 
-const QUICK_ACTIONS = [
-    { label: 'Open analytics', href: serviceUrls.superset }
-].filter((link) => hasServiceUrl(link.href));
-
 const OBSERVABILITY_LINKS = [
     { label: 'Grafana', href: serviceUrls.grafana },
     { label: 'Prometheus', href: serviceUrls.prometheus },
@@ -25,87 +21,59 @@ const OBSERVABILITY_LINKS = [
 const OVERVIEW_ACTION = { label: 'One-screen overview', href: '/overview', icon: Eye };
 const DIRECTORY_ACTION = { label: 'User directory', href: '/directory', icon: Users };
 
-const PRIMARY_ENDPOINTS = [
-    { label: 'Airflow UI', href: serviceUrls.airflow, icon: Network },
-    { label: 'DataHub', href: serviceUrls.datahub, icon: Database },
-    { label: 'MinIO Console', href: serviceUrls.minioUi, icon: Database },
-    { label: 'JupyterLab', href: serviceUrls.jupyter, icon: Terminal }
-].filter((link) => hasServiceUrl(link.href));
-
-const STATUS_SUBJECTS = {
-    'Airflow UI': {
+const DESTINATIONS = [
+    {
         subject: 'Orchestration',
-        detail: 'Airflow + DAG scheduling'
+        detail: 'Airflow + DAG scheduling',
+        label: 'Airflow UI',
+        href: serviceUrls.airflow,
+        icon: Network
     },
-    DataHub: {
-        subject: 'Catalog & lineage',
-        detail: 'DataHub services'
+    {
+        subject: 'Storage',
+        detail: 'MinIO',
+        label: 'MinIO Console',
+        href: serviceUrls.minioUi,
+        icon: Database
     },
-    'MinIO Console': {
-        subject: 'Storage (S3)',
-        detail: 'MinIO'
-    },
-    JupyterLab: {
-        subject: 'Notebook workspace',
-        detail: 'Ad hoc analysis with platform data'
-    }
-};
-
-const STATUS_ITEMS = PRIMARY_ENDPOINTS.map((link) => {
-    const mapping = STATUS_SUBJECTS[link.label];
-
-    if (mapping) {
-        return { ...mapping, href: link.href, label: link.label, icon: link.icon ?? Terminal };
-    }
-
-    return {
-        subject: link.label,
-        detail: `Open ${link.label}`,
-        href: link.href,
-        label: link.label,
-        icon: link.icon ?? Terminal
-    };
-});
-
-const QUICK_ACTION_SUBJECTS = {
-    'One-screen overview': {
-        subject: 'Overview',
-        detail: 'Single-page platform view'
-    },
-    'User directory': {
-        subject: 'People',
-        detail: 'Platform users',
-        icon: Users
-    },
-    'Open analytics': {
+    {
         subject: 'Analytics',
         detail: 'Superset workspaces',
+        label: 'Open analytics',
+        href: serviceUrls.superset,
         icon: BarChart3
-    }
+    },
+    {
+        subject: 'Notebook workspace',
+        detail: 'Ad hoc analysis with platform data',
+        label: 'JupyterLab',
+        href: serviceUrls.jupyter,
+        icon: Terminal
+    },
+    {
+        subject: 'Catalog & lineage',
+        detail: 'DataHub services',
+        label: 'DataHub',
+        href: serviceUrls.datahub,
+        icon: Database
+    },
+].filter((item) => hasServiceUrl(item.href));
+
+const OVERVIEW_ITEM = {
+    subject: 'Overview',
+    detail: 'Single-page platform view',
+    href: OVERVIEW_ACTION.href,
+    label: OVERVIEW_ACTION.label,
+    icon: OVERVIEW_ACTION.icon
 };
 
-const ALL_QUICK_ACTIONS = [OVERVIEW_ACTION, DIRECTORY_ACTION, ...QUICK_ACTIONS];
-
-const QUICK_ACTION_ITEMS = ALL_QUICK_ACTIONS.map((action) => {
-    const mapping = QUICK_ACTION_SUBJECTS[action.label];
-
-    if (mapping) {
-        return {
-            ...mapping,
-            href: action.href,
-            label: action.label,
-            icon: mapping.icon ?? action.icon
-        };
-    }
-
-    return {
-        subject: action.label,
-        detail: `Open ${action.label}`,
-        href: action.href,
-        label: action.label,
-        icon: action.icon ?? Terminal
-    };
-});
+const PEOPLE_ITEM = {
+    subject: 'People',
+    detail: 'Platform users',
+    href: DIRECTORY_ACTION.href,
+    label: DIRECTORY_ACTION.label,
+    icon: Users
+};
 
 const getLinkProps = (href) => (
     href.startsWith('/')
@@ -130,14 +98,6 @@ const LaunchpadListItem = ({ item, title }) => {
 function Dashboard() {
     const { user, logout } = useAuth();
     const isAdmin = user?.roles?.includes('admin') ?? false;
-    const visibleQuickActions = isAdmin
-        ? QUICK_ACTION_ITEMS
-        : QUICK_ACTION_ITEMS.filter((item) => item.label !== 'User directory');
-    const overviewItem = visibleQuickActions.find((item) => item.label === 'One-screen overview');
-    const secondaryItems = [
-        ...visibleQuickActions.filter((item) => item.label !== 'One-screen overview'),
-        ...STATUS_ITEMS
-    ];
 
     return (
         <div className="docs-page docs-dashboard">
@@ -166,15 +126,15 @@ function Dashboard() {
                             <div className="launchpad-shell">
                                 <div className="launchpad-section">
                                     <p className="launchpad-section-title">Primary</p>
-                                    {overviewItem ? (
+                                    {OVERVIEW_ITEM ? (
                                         <a
-                                            href={overviewItem.href}
+                                            href={OVERVIEW_ITEM.href}
                                             className="launchpad-primary"
-                                            {...getLinkProps(overviewItem.href)}
+                                            {...getLinkProps(OVERVIEW_ITEM.href)}
                                         >
                                             <div className="launchpad-primary-text">
-                                                <span>{overviewItem.subject}</span>
-                                                <strong>{overviewItem.detail}</strong>
+                                                <span>{OVERVIEW_ITEM.subject}</span>
+                                                <strong>{OVERVIEW_ITEM.detail}</strong>
                                             </div>
                                             <span className="launchpad-primary-meta">Opens overview</span>
                                         </a>
@@ -184,6 +144,28 @@ function Dashboard() {
                                         </div>
                                     )}
                                 </div>
+                                <div className="launchpad-section">
+                                    <p className="launchpad-section-title">Destinations</p>
+                                    {DESTINATIONS.length ? (
+                                        <div className="launchpad-list">
+                                            {DESTINATIONS.map((item) => (
+                                                <LaunchpadListItem key={item.label} item={item} />
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="launchpad-empty">
+                                            No services are available yet. Add service URLs to enable links.
+                                        </div>
+                                    )}
+                                </div>
+                                {isAdmin ? (
+                                    <div className="launchpad-section">
+                                        <p className="launchpad-section-title">People</p>
+                                        <div className="launchpad-list">
+                                            <LaunchpadListItem item={PEOPLE_ITEM} />
+                                        </div>
+                                    </div>
+                                ) : null}
                                 <div className="launchpad-section">
                                     <p className="launchpad-section-title">Logging, monitoring and tracing</p>
                                     {OBSERVABILITY_LINKS.length ? (
@@ -204,20 +186,6 @@ function Dashboard() {
                                     ) : (
                                         <div className="launchpad-empty">
                                             No observability links are configured yet.
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="launchpad-section">
-                                    <p className="launchpad-section-title">Destinations</p>
-                                    {secondaryItems.length ? (
-                                        <div className="launchpad-list">
-                                            {secondaryItems.map((item) => (
-                                                <LaunchpadListItem key={item.label} item={item} />
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <div className="launchpad-empty">
-                                            No services are available yet. Add service URLs to enable links.
                                         </div>
                                     )}
                                 </div>
