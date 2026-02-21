@@ -10,7 +10,7 @@ from flask_appbuilder.security.views import AuthOAuthView
 
 AUTH_TYPE = AUTH_OAUTH
 AUTH_USER_REGISTRATION = True
-AUTH_USER_REGISTRATION_ROLE = os.getenv("AIRFLOW_OAUTH_DEFAULT_ROLE", "Admin")
+AUTH_USER_REGISTRATION_ROLE = os.getenv("AIRFLOW_OAUTH_DEFAULT_ROLE", "Viewer")
 
 _OAUTH_BASE_URL = os.getenv(
     "AIRFLOW_OAUTH_BASE_URL",

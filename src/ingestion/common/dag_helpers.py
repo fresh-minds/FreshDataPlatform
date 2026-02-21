@@ -19,6 +19,7 @@ from __future__ import annotations
 import logging
 import os
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Optional
 
 log = logging.getLogger(__name__)
@@ -206,6 +207,12 @@ def make_ensure_bucket_callable(bucket_env: str = "MINIO_BUCKET", default: str =
 # dbt task builder
 # ---------------------------------------------------------------------------
 
+def _resolve_repo_root() -> Path:
+    for parent in Path(__file__).resolve().parents:
+        if (parent / "dbt_parallel" / "dbt_project.yml").exists():
+            return parent
+    raise RuntimeError("Could not locate repo root containing dbt_parallel/dbt_project.yml")
+
 def make_dbt_run_callable(
     select: str,
     source_name: str,
@@ -236,11 +243,8 @@ def make_dbt_run_callable(
         bucket = ti.xcom_pull(key="bronze_bucket", task_ids=extract_task_path) or "lakehouse"
         minio_conn = try_get_conn("minio")
 
-        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        project_root = os.path.join(repo_root, "project")
-        if not os.path.isdir(project_root):
-            project_root = repo_root
-        dbt_project_dir = os.path.join(project_root, "dbt_parallel")
+        repo_root = _resolve_repo_root()
+        dbt_project_dir = str(repo_root / "dbt_parallel")
         dbt_profiles_dir = dbt_project_dir
 
         dbt_bin = shutil.which("dbt")

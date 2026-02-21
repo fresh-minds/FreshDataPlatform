@@ -9,6 +9,7 @@ import os
 import secrets
 import time
 import xml.etree.ElementTree as ET
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlencode
@@ -74,7 +75,17 @@ LOG = logging.getLogger("minio_sso_bridge")
 
 STATE_COOKIE_NAME = "minio_sso_bridge_state"
 
-app = FastAPI(title="MinIO SSO Bridge")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    try:
+        _ensure_minio_client_redirect()
+    except Exception as exc:  # noqa: BLE001
+        LOG.warning("Skipping Keycloak redirect reconciliation: %s", exc)
+    yield
+
+
+app = FastAPI(title="MinIO SSO Bridge", lifespan=lifespan)
 
 
 def _sign(payload: str) -> str:
@@ -241,14 +252,6 @@ def _ensure_minio_client_redirect() -> None:
         return
 
     LOG.info("Keycloak client '%s' updated with bridge callback URI", SETTINGS.keycloak_minio_client_id)
-
-
-@app.on_event("startup")
-def _on_startup() -> None:
-    try:
-        _ensure_minio_client_redirect()
-    except Exception as exc:  # noqa: BLE001
-        LOG.warning("Skipping Keycloak redirect reconciliation: %s", exc)
 
 
 @app.get("/healthz", response_class=PlainTextResponse)

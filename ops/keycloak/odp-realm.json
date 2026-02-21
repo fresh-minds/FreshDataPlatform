@@ -2,7 +2,7 @@
     "realm": "odp",
     "displayName": "Open Data Platform",
     "enabled": true,
-    "registrationAllowed": true,
+    "registrationAllowed": false,
     "clients": [
         {
             "clientId": "airflow",

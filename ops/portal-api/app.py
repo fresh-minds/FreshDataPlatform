@@ -152,6 +152,12 @@ def _extract_bearer_token(request: Request) -> str:
     return auth_header[7:]
 
 
+def _require_admin(claims: dict) -> None:
+    roles = set(((claims.get("realm_access") or {}).get("roles") or []))
+    if "admin" not in roles:
+        raise HTTPException(status_code=403, detail="Admin role required")
+
+
 # ---------------------------------------------------------------------------
 # Keycloak Admin API
 # ---------------------------------------------------------------------------
@@ -227,11 +233,18 @@ def healthz() -> str:
 @app.get("/api/users")
 def list_users(request: Request) -> dict:
     token = _extract_bearer_token(request)
-    _verify_portal_token(token)
+    claims = _verify_portal_token(token)
+    _require_admin(claims)
 
     admin_token = _keycloak_admin_token()
     if admin_token is None:
         raise HTTPException(status_code=503, detail="Admin authentication unavailable")
 
     users = _fetch_users(admin_token)
+    LOG.info(
+        "portal_user_directory_read subject=%s username=%s total=%s",
+        claims.get("sub"),
+        claims.get("preferred_username") or claims.get("email") or "unknown",
+        len(users),
+    )
     return {"users": users, "total": len(users)}

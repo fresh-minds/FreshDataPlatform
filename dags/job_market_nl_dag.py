@@ -132,7 +132,7 @@ def _run_quality_checks(**kwargs):
     import sys
 
     result = subprocess.run(
-        [sys.executable, "scripts/run_data_quality.py", "--all"],
+        [sys.executable, "scripts/quality/run_data_quality.py", "--all"],
         capture_output=True,
         text=True,
     )
