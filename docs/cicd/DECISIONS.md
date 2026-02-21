@@ -4,7 +4,9 @@
 - GitHub Actions is already in use, so CI/CD is implemented and extended with GitHub Actions workflows.
 
 ## CI Structure
+- Workflow files remain active in `.github/workflows/` root (not under archival subfolders).
 - `ci.yml` handles preflight, lint/format, typecheck, unit tests, integration smoke, and build artifacts.
+- `dbt-ci.yml` handles dbt parse/compile, warehouse-backed dbt build/tests, and schema + DAG checks.
 - `security.yml` handles SAST, secret scanning, dependency scans, container/file system scanning, and SBOM.
 - Existing E2E workflows are retained and aligned with caching and least-privilege permissions.
 

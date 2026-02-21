@@ -14,4 +14,7 @@
 - Security / node-deps
 - Security / trivy
 - Security / sbom
+- dbt CI / dbt compile & parse
+- dbt CI / dbt build & test
+- dbt CI / Schema & DAG validation
 - Schema Quality / validate-dbml

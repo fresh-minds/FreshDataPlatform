@@ -172,6 +172,8 @@ AKS:
   and `KEYCLOAK_OIDC_DISCOVERY_URL` to the public Keycloak hostname (for example:
   `https://keycloak.FRONTEND_DOMAIN/realms/odp/protocol/openid-connect`).
 - Set `MINIO_OIDC_REDIRECT_URI=https://minio.FRONTEND_DOMAIN/oauth_callback`.
+- Realm self-registration is disabled by default in bundled manifests (`registrationAllowed: false`).
+- Keep `AIRFLOW_OAUTH_DEFAULT_ROLE` at least privilege (`Viewer`) unless you have a controlled admin onboarding flow.
 
 ## AKS Ingress + TLS (Custom Domain)
 

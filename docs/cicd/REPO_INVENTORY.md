@@ -30,6 +30,12 @@
 
 ## Existing CI/CD
 - GitHub Actions:
+  - `.github/workflows/ci.yml`
+  - `.github/workflows/security.yml`
+  - `.github/workflows/release.yml`
+  - `.github/workflows/cd-deploy.yml`
+  - `.github/workflows/build-images.yml`
+  - `.github/workflows/dbt-ci.yml`
   - `.github/workflows/e2e-data-platform.yml`
   - `.github/workflows/schema-quality.yml`
   - `.github/workflows/sso-e2e.yml`

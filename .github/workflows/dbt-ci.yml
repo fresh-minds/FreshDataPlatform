@@ -47,7 +47,7 @@ jobs:
       - name: Install dbt
         run: |
           python -m pip install --upgrade pip
-          python -m pip install dbt-core dbt-postgres dbt-utils
+          python -m pip install dbt-core dbt-postgres
 
       - name: Install dbt packages
         run: dbt deps --project-dir dbt_parallel --profiles-dir dbt_parallel
@@ -92,7 +92,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install dbt-core dbt-postgres dbt-utils
+          python -m pip install dbt-core dbt-postgres
           python -m pip install -e ".[dev]"
 
       - name: Install dbt packages
@@ -102,6 +102,7 @@ jobs:
         run: |
           PGPASSWORD=postgres psql -h localhost -U postgres -d open_data_platform_dw -c "
             CREATE SCHEMA IF NOT EXISTS job_market_nl;
+            CREATE SCHEMA IF NOT EXISTS source_sp1;
             CREATE TABLE IF NOT EXISTS job_market_nl.it_market_snapshot (
               period_key TEXT NOT NULL,
               period_label TEXT,
@@ -133,6 +134,26 @@ jobs:
               loaded_at TIMESTAMPTZ NOT NULL DEFAULT now()
             );
 
+            CREATE TABLE IF NOT EXISTS source_sp1.vacatures (
+              vacature_id TEXT PRIMARY KEY,
+              title TEXT,
+              status TEXT,
+              client_name TEXT,
+              location TEXT,
+              publish_date DATE,
+              closing_date DATE,
+              hours NUMERIC,
+              hours_text TEXT,
+              description TEXT,
+              category TEXT,
+              updated_at_source TIMESTAMP,
+              source_url TEXT,
+              bronze_object_path TEXT,
+              checksum_sha256 TEXT,
+              ingested_at TIMESTAMP,
+              is_active BOOLEAN
+            );
+
             -- Insert minimal seed data for tests
             INSERT INTO job_market_nl.it_market_snapshot
               (period_key, period_label, sector_name, vacancies, vacancy_rate, job_ads_count)
@@ -150,6 +171,18 @@ jobs:
               (job_id, region, latitude, longitude, location_label)
             VALUES ('ad-001', 'Noord-Holland', 52.37, 4.90, 'Amsterdam'),
                    ('ad-002', 'Zuid-Holland', 51.92, 4.48, 'Rotterdam');
+
+            INSERT INTO source_sp1.vacatures (
+              vacature_id, title, status, client_name, location, publish_date, closing_date,
+              hours, hours_text, description, category, updated_at_source, source_url,
+              bronze_object_path, checksum_sha256, ingested_at, is_active
+            ) VALUES (
+              'vac-001', 'Data Engineer', 'Open', 'FreshMinds', 'Amsterdam',
+              CURRENT_DATE - INTERVAL '2 day', CURRENT_DATE + INTERVAL '30 day',
+              40, '36-40 uur', 'Build platform pipelines', 'Engineering',
+              NOW() - INTERVAL '1 day', 'https://example.com/vac-001',
+              'bronze/source_sp1/vac-001.json', 'abc123', NOW(), true
+            ) ON CONFLICT (vacature_id) DO NOTHING;
           "
 
       - name: dbt debug (connection check)

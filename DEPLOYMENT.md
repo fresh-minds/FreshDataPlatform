@@ -133,10 +133,20 @@ Minimum critical groups:
 - Superset and DataHub secrets
 - Keycloak OIDC client credentials (if SSO enabled)
 
+Security defaults:
+- Keep `AIRFLOW_OAUTH_DEFAULT_ROLE=Viewer` unless you explicitly require a broader default.
+- Keep Keycloak realm `registrationAllowed=false` in shared/dev-like environments.
+
 Use generated strong values for secrets before any shared environment deployment.
 
 ## CI/CD Workflows
 GitHub Actions currently include:
+- `.github/workflows/ci.yml`
+- `.github/workflows/security.yml`
+- `.github/workflows/release.yml`
+- `.github/workflows/cd-deploy.yml`
+- `.github/workflows/build-images.yml`
+- `.github/workflows/dbt-ci.yml`
 - `.github/workflows/e2e-data-platform.yml`
 - `.github/workflows/sso-e2e.yml`
 - `.github/workflows/schema-quality.yml`
