@@ -27,6 +27,8 @@ Open Data Platform is a reference implementation for running analytics workloads
 - Security and identity:
   - Keycloak-based SSO flows for Airflow, DataHub, and MinIO
   - Dedicated SSO test suite and reports
+- Operator UX consistency:
+  - Frontend `/platform`, `/architecture`, and `/services` provide aligned observability links (Grafana, Prometheus, Alertmanager)
 
 ## Architecture Overview
 The platform is composed of three planes: control plane, data plane, and operator plane.

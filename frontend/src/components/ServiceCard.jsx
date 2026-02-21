@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ExternalLink, CheckCircle, XCircle, Loader2, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
-const ServiceCard = ({ name, description, url, healthUrl, icon: Icon, color }) => {
+const ServiceCard = ({ name, description, url, icon: Icon, color }) => {
     const [status, setStatus] = useState('loading'); // loading, healthy, unhealthy
     const isInternal = url?.startsWith('/');
 
@@ -31,17 +31,6 @@ const ServiceCard = ({ name, description, url, healthUrl, icon: Icon, color }) =
         const interval = setInterval(checkHealth, 30000);
         return () => clearInterval(interval);
     }, [url, name, isInternal]);
-
-    const getStatusColor = () => {
-        switch (status) {
-            case 'healthy':
-                return 'text-green-400';
-            case 'unhealthy':
-                return 'text-red-400';
-            default:
-                return 'text-gray-400';
-        }
-    };
 
     return (
         <div className="service-card" style={{ '--accent-color': color }}>

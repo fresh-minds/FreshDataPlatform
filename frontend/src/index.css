@@ -703,6 +703,31 @@ h1, h2, h3 {
   stroke-width: 1.5;
 }
 
+.arch-node-link {
+  cursor: pointer;
+}
+
+.arch-node-link .arch-node {
+  transition: stroke 0.2s ease, fill 0.2s ease;
+}
+
+.arch-node-link:hover .arch-node {
+  stroke: #1f2933;
+  fill: #f8fafc;
+}
+
+.arch-node-link-mark {
+  font-size: 12px;
+  fill: #64748b;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  pointer-events: none;
+}
+
+.arch-node-link:hover .arch-node-link-mark {
+  fill: #0f172a;
+}
+
 .arch-node.accent {
   fill: #eef2ff;
   stroke: #8da2fb;

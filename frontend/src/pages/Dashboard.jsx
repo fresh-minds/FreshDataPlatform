@@ -13,8 +13,13 @@ import { hasServiceUrl, isLocalEnvironment, serviceUrls } from '../config/servic
 import useAuth from '../auth/useAuth';
 
 const QUICK_ACTIONS = [
-    { label: 'Open analytics', href: serviceUrls.superset },
-    { label: 'Open monitoring', href: serviceUrls.grafana }
+    { label: 'Open analytics', href: serviceUrls.superset }
+].filter((link) => hasServiceUrl(link.href));
+
+const OBSERVABILITY_LINKS = [
+    { label: 'Grafana', href: serviceUrls.grafana },
+    { label: 'Prometheus', href: serviceUrls.prometheus },
+    { label: 'Alertmanager', href: serviceUrls.alertmanager }
 ].filter((link) => hasServiceUrl(link.href));
 
 const OVERVIEW_ACTION = { label: 'One-screen overview', href: '/overview', icon: Eye };
@@ -76,11 +81,6 @@ const QUICK_ACTION_SUBJECTS = {
         subject: 'Analytics',
         detail: 'Superset workspaces',
         icon: BarChart3
-    },
-    'Open monitoring': {
-        subject: 'Monitoring',
-        detail: 'Grafana operations',
-        icon: Activity
     }
 };
 
@@ -106,6 +106,26 @@ const QUICK_ACTION_ITEMS = ALL_QUICK_ACTIONS.map((action) => {
         icon: action.icon ?? Terminal
     };
 });
+
+const getLinkProps = (href) => (
+    href.startsWith('/')
+        ? {}
+        : { target: '_blank', rel: 'noreferrer' }
+);
+
+const LaunchpadListItem = ({ item, title }) => {
+    const Icon = item.icon ?? Terminal;
+
+    return (
+        <a key={item.label} href={item.href} className="launchpad-item" {...getLinkProps(item.href)}>
+            <Icon size={18} aria-hidden="true" />
+            <div className="launchpad-text">
+                <span>{title ?? item.subject}</span>
+                <strong>{item.detail}</strong>
+            </div>
+        </a>
+    );
+};
 
 function Dashboard() {
     const { user, logout } = useAuth();
@@ -150,8 +170,7 @@ function Dashboard() {
                                         <a
                                             href={overviewItem.href}
                                             className="launchpad-primary"
-                                            target={overviewItem.href.startsWith('/') ? undefined : '_blank'}
-                                            rel={overviewItem.href.startsWith('/') ? undefined : 'noreferrer'}
+                                            {...getLinkProps(overviewItem.href)}
                                         >
                                             <div className="launchpad-primary-text">
                                                 <span>{overviewItem.subject}</span>
@@ -166,27 +185,35 @@ function Dashboard() {
                                     )}
                                 </div>
                                 <div className="launchpad-section">
+                                    <p className="launchpad-section-title">Logging, monitoring and tracing</p>
+                                    {OBSERVABILITY_LINKS.length ? (
+                                        <div className="launchpad-list">
+                                            {OBSERVABILITY_LINKS.map((link) => (
+                                                <LaunchpadListItem
+                                                    key={link.label}
+                                                    item={{
+                                                        label: link.label,
+                                                        href: link.href,
+                                                        subject: 'Logging, monitoring and tracing',
+                                                        detail: link.label,
+                                                        icon: Activity
+                                                    }}
+                                                />
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="launchpad-empty">
+                                            No observability links are configured yet.
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="launchpad-section">
                                     <p className="launchpad-section-title">Destinations</p>
                                     {secondaryItems.length ? (
                                         <div className="launchpad-list">
-                                            {secondaryItems.map((item) => {
-                                                const Icon = item.icon ?? Terminal;
-                                                return (
-                                                <a
-                                                    key={item.label}
-                                                    href={item.href}
-                                                    className="launchpad-item"
-                                                    target={item.href.startsWith('/') ? undefined : '_blank'}
-                                                    rel={item.href.startsWith('/') ? undefined : 'noreferrer'}
-                                                >
-                                                    <Icon size={18} aria-hidden="true" />
-                                                    <div className="launchpad-text">
-                                                        <span>{item.subject}</span>
-                                                        <strong>{item.detail}</strong>
-                                                    </div>
-                                                </a>
-                                                );
-                                            })}
+                                            {secondaryItems.map((item) => (
+                                                <LaunchpadListItem key={item.label} item={item} />
+                                            ))}
                                         </div>
                                     ) : (
                                         <div className="launchpad-empty">
