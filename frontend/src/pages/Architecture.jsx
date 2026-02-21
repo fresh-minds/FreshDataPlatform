@@ -6,8 +6,81 @@ const LINKS = [
     { label: 'Open overview', href: '/overview' },
     { label: 'Open documentation', href: '/docs' },
     { label: 'Airflow', href: serviceUrls.airflow },
-    { label: 'Grafana', href: serviceUrls.grafana }
+    { label: 'Grafana', href: serviceUrls.grafana },
+    { label: 'Prometheus', href: serviceUrls.prometheus },
+    { label: 'Alertmanager', href: serviceUrls.alertmanager }
 ].filter((link) => link.href.startsWith('/') || hasServiceUrl(link.href));
+
+const OBSERVABILITY_NODES = [
+    {
+        key: 'grafana',
+        label: 'Grafana',
+        href: serviceUrls.grafana,
+        x: 900,
+        y: 295,
+        width: 120,
+        height: 60,
+        textX: 960,
+        textY: 323,
+        subLabel: ':3001',
+        subTextY: 345,
+        linkMarkX: 1006,
+        linkMarkY: 312
+    },
+    {
+        key: 'prometheus',
+        label: 'Prometheus',
+        href: serviceUrls.prometheus,
+        x: 1040,
+        y: 295,
+        width: 120,
+        height: 60,
+        textX: 1100,
+        textY: 323,
+        subLabel: ':9090',
+        subTextY: 345,
+        linkMarkX: 1146,
+        linkMarkY: 312
+    },
+    {
+        key: 'alertmanager',
+        label: 'Alertmanager',
+        href: serviceUrls.alertmanager,
+        x: 900,
+        y: 365,
+        width: 120,
+        height: 50,
+        textX: 960,
+        textY: 388,
+        linkMarkX: 1006,
+        linkMarkY: 382
+    }
+];
+
+function ObservabilityNode({ node }) {
+    const content = (
+        <>
+            <rect x={node.x} y={node.y} width={node.width} height={node.height} rx="12" className="arch-node" />
+            <text x={node.textX} y={node.textY} className="arch-node-text">{node.label}</text>
+            {node.subLabel && node.subTextY ? (
+                <text x={node.textX} y={node.subTextY} className="arch-node-sub">{node.subLabel}</text>
+            ) : null}
+            {hasServiceUrl(node.href) ? (
+                <text x={node.linkMarkX} y={node.linkMarkY} className="arch-node-link-mark" aria-hidden="true">↗</text>
+            ) : null}
+        </>
+    );
+
+    if (hasServiceUrl(node.href)) {
+        return (
+            <a href={node.href} target="_blank" rel="noreferrer" className="arch-node-link">
+                {content}
+            </a>
+        );
+    }
+
+    return <g>{content}</g>;
+}
 
 function Architecture() {
     return (
@@ -88,16 +161,11 @@ function Architecture() {
 
                         <rect x="880" y="240" width="280" height="190" rx="18" className="arch-group" />
                         <text x="900" y="270" className="arch-group-title">Observability</text>
-                        <rect x="900" y="295" width="120" height="60" rx="12" className="arch-node" />
-                        <text x="960" y="323" className="arch-node-text">Grafana</text>
-                        <text x="960" y="345" className="arch-node-sub">:3001</text>
-                        <rect x="1040" y="295" width="120" height="60" rx="12" className="arch-node" />
-                        <text x="1100" y="323" className="arch-node-text">Prometheus</text>
-                        <text x="1100" y="345" className="arch-node-sub">:9090</text>
-                        <rect x="900" y="365" width="120" height="50" rx="12" className="arch-node" />
-                        <text x="960" y="395" className="arch-node-text">Loki</text>
+                        {OBSERVABILITY_NODES.map((node) => (
+                            <ObservabilityNode key={node.key} node={node} />
+                        ))}
                         <rect x="1040" y="365" width="120" height="50" rx="12" className="arch-node" />
-                        <text x="1100" y="395" className="arch-node-text">Tempo</text>
+                        <text x="1100" y="395" className="arch-node-text">Telemetry</text>
 
                         <path d="M180 125 L200 125" className="arch-line" markerEnd="url(#arrow)" />
                         <path d="M320 125 L400 125" className="arch-line" markerEnd="url(#arrow)" />

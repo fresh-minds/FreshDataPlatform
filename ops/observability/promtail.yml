@@ -15,3 +15,20 @@ scrape_configs:
         labels:
           job: airflow
           __path__: /var/log/airflow/**/*.log
+
+  - job_name: docker-stdout
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 10s
+    pipeline_stages:
+      - docker: {}
+    relabel_configs:
+      - target_label: job
+        replacement: docker
+      - source_labels: [__meta_docker_container_name]
+        regex: '/(.*)'
+        target_label: container
+      - source_labels: [__meta_docker_container_label_com_docker_compose_service]
+        target_label: compose_service
+      - source_labels: [__meta_docker_container_log_stream]
+        target_label: stream

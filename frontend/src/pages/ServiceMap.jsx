@@ -33,11 +33,25 @@ const SERVICES = [
         color: "#4F46E5"
     },
     {
-        name: "Monitoring (Grafana)",
-        description: "Metrics, logs, and traces in a unified dashboard.",
+        name: "Grafana",
+        description: "Unified dashboards across metrics, logs, and traces.",
         url: serviceUrls.grafana,
         icon: LineChart,
         color: "#16A34A"
+    },
+    {
+        name: "Prometheus",
+        description: "Metrics and alert rule evaluation endpoint.",
+        url: serviceUrls.prometheus,
+        icon: Activity,
+        color: "#DC2626"
+    },
+    {
+        name: "Alertmanager",
+        description: "Alert routing, grouping, and notification management.",
+        url: serviceUrls.alertmanager,
+        icon: Activity,
+        color: "#7C3AED"
     },
     {
         name: "MinIO S3",

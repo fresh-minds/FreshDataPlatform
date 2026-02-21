@@ -44,6 +44,7 @@ docker exec airflow-webserver airflow dags list-runs -d source_sp1_vacatures_ing
 make lint
 make test
 make qa-test
+make observability-verify
 ```
 
 Governance suite note:
@@ -72,9 +73,16 @@ Service links are resolved via:
 - Vite env vars (`VITE_*_URL`)
 - Fallback localhost endpoints in `frontend/src/config/serviceUrls.js`
 
+Platform dashboard note:
+- `/platform` includes a dedicated "Logging, monitoring and tracing" section with links to Grafana, Prometheus, and Alertmanager.
+- Optional frontend overrides: `VITE_GRAFANA_URL`, `VITE_PROMETHEUS_URL`, `VITE_ALERTMANAGER_URL`.
+- `/architecture` and `/services` expose the same observability links for consistent navigation.
+- In `/architecture`, the observability nodes in the SVG diagram (Grafana, Prometheus, Alertmanager) are also directly clickable.
+
 ## Useful Make Targets
 - `make help`: list available targets
 - `make run-job-connectors`: run RSS/Sitemap connector runner
+- `make observability-verify`: validate Compose logs/metrics/traces ingestion path (Grafana/Loki/Prometheus/Tempo); supports strict trace-volume mode (`OBS_REQUIRE_TRACE_VOLUME=true`) and ambient-only mode (`OBS_TRACE_VOLUME_MODE=ambient`)
 - `make schema-validate`: validate DBML conventions
 - `make schema-drift-check`: compare warehouse to `schema/warehouse.dbml`
 - `make governance-validate`: validate governance metadata completeness

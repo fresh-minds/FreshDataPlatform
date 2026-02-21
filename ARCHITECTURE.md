@@ -42,6 +42,8 @@ flowchart LR
 ## Component View
 ### Operator Plane
 - `frontend/`: React launchpad linking all platform surfaces
+- `/platform` launchpad section "Logging, monitoring and tracing" links Grafana, Prometheus, and Alertmanager
+- `/architecture` and `/services` pages expose the same observability links for consistent operator access
 - Airflow UI: DAG operations and task-level monitoring
 - DataHub UI: metadata catalog and lineage exploration
 - Superset UI: BI dashboards and ad hoc query surface

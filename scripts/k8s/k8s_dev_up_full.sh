@@ -7,6 +7,7 @@ NAMESPACE="${NAMESPACE:-odp-dev}"
 KIND_MOUNT_PATH="${KIND_MOUNT_PATH:-/workspace/ai_trial}"
 KIND_CONTEXT="kind-${CLUSTER_NAME}"
 KOMPOSE_OVERRIDE_FILE="${KOMPOSE_OVERRIDE_FILE:-$ROOT_DIR/docker-compose.k8s.yml}"
+KOMPOSE_LIB="$ROOT_DIR/scripts/k8s/k8s_kompose_lib.sh"
 
 PORTAL_IMAGE="${PORTAL_IMAGE:-ai-trial/portal:dev}"
 JUPYTER_IMAGE="${JUPYTER_IMAGE:-ai-trial/jupyter:dev}"
@@ -16,6 +17,14 @@ export NAMESPACE
 
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
+
+if [[ ! -f "$KOMPOSE_LIB" ]]; then
+  echo "Missing kompose shared library: $KOMPOSE_LIB" >&2
+  exit 1
+fi
+
+# shellcheck source=scripts/k8s/k8s_kompose_lib.sh
+source "$KOMPOSE_LIB"
 
 log() {
   echo "[k8s-dev-up-full] $*"
@@ -115,97 +124,28 @@ kind load docker-image "$JUPYTER_IMAGE" --name "$CLUSTER_NAME"
 kind load docker-image "$MINIO_SSO_BRIDGE_IMAGE" --name "$CLUSTER_NAME"
 
 log "Generating Kubernetes manifests from docker-compose..."
-kompose convert \
-  --volumes hostPath \
-  -f "$ROOT_DIR/docker-compose.yml" \
-  -f "$KOMPOSE_OVERRIDE_FILE" \
-  -o "$TMP_DIR"
+KOMPOSE_OUT_DIR="$TMP_DIR"
+KOMPOSE_OVERRIDE="$KOMPOSE_OVERRIDE_FILE"
+KOMPOSE_LOG_SOURCE="k8s-dev-up-full"
+SKIP_MSTEAMS="$SKIP_MSTEAMS"
+export ROOT_DIR KOMPOSE_OUT_DIR KOMPOSE_OVERRIDE KIND_MOUNT_PATH SKIP_MSTEAMS NAMESPACE KOMPOSE_LOG_SOURCE
+kompose_generate
 
 log "Removing manifests covered by core stack..."
-rm -f \
-  "$TMP_DIR"/airflow-*.yaml \
-  "$TMP_DIR"/create-buckets-*.yaml \
-  "$TMP_DIR"/keycloak-*.yaml \
-  "$TMP_DIR"/minio-deployment.yaml \
-  "$TMP_DIR"/minio-service.yaml \
-  "$TMP_DIR"/postgres-deployment.yaml \
-  "$TMP_DIR"/postgres-service.yaml \
-  "$TMP_DIR"/warehouse-deployment.yaml \
-  "$TMP_DIR"/warehouse-service.yaml \
-  "$TMP_DIR"/datahub-*-setup-*.yaml \
-  "$TMP_DIR"/datahub-upgrade-*.yaml \
-  "$TMP_DIR"/airflow-init-*.yaml
-
-if [[ "$SKIP_MSTEAMS" == "true" ]]; then
-  rm -f \
-    "$TMP_DIR"/prometheus-msteams-deployment.yaml \
-    "$TMP_DIR"/prometheus-msteams-service.yaml
-fi
+kompose_remove_phase_a
 
 log "Rewriting host paths for kind node mount..."
-while IFS= read -r -d '' manifest; do
-  perl -0pi -e "s|\Q$ROOT_DIR\E|$KIND_MOUNT_PATH|g" "$manifest"
-done < <(find "$TMP_DIR" -type f -name '*.yaml' -print0)
+kompose_postprocess_local
 
 log "Normalizing generated service ports for in-cluster access..."
-for service_manifest in "$TMP_DIR"/*-service.yaml; do
-  [[ -f "$service_manifest" ]] || continue
-  yq -i '(.spec.ports[]? |= (.port = .targetPort))' "$service_manifest"
-done
+kompose_normalise_services
 
-# kompose emits both host-mapped and internal OTEL ports. After normalization,
-# these collide on 4317/4318 and Kubernetes rejects the Service.
-if [[ -f "$TMP_DIR/otel-collector-service.yaml" ]]; then
-  yq -i '.spec.ports = [
-    {"name":"otel-metrics","port":8889,"targetPort":8889,"protocol":"TCP"},
-    {"name":"otlp-grpc","port":4317,"targetPort":4317,"protocol":"TCP"},
-    {"name":"otlp-http","port":4318,"targetPort":4318,"protocol":"TCP"}
-  ]' "$TMP_DIR/otel-collector-service.yaml"
-fi
-
-log "Converting synthetic root hostPath volumes to emptyDir..."
-export KIND_MOUNT_PATH
-for deployment_manifest in "$TMP_DIR"/*-deployment.yaml; do
-  [[ -f "$deployment_manifest" ]] || continue
-  yq -i '(.spec.template.spec.volumes[]? | select(has("hostPath") and .hostPath.path == strenv(KIND_MOUNT_PATH))) |= {"name": .name, "emptyDir": {}}' "$deployment_manifest"
-done
-
-log "Removing development bind mounts for images that should run from container filesystem..."
-if [[ -f "$TMP_DIR/portal-deployment.yaml" ]]; then
-  yq -i 'del(.spec.template.spec.containers[]?.volumeMounts) | del(.spec.template.spec.volumes)' "$TMP_DIR/portal-deployment.yaml"
-fi
-if [[ -f "$TMP_DIR/jupyter-deployment.yaml" ]]; then
-  yq -i 'del(.spec.template.spec.containers[]?.volumeMounts) | del(.spec.template.spec.volumes)' "$TMP_DIR/jupyter-deployment.yaml"
-  yq -i '(.spec.template.spec.containers[0].env[]? | select(.name == "JUPYTER_WORKDIR").value) = "/workspace"' "$TMP_DIR/jupyter-deployment.yaml"
-fi
-
-if [[ -f "$TMP_DIR/superset-deployment.yaml" ]]; then
-  yq -i '.spec.template.spec.containers[0].args = [
-    "sh",
-    "-c",
-    "pip install --no-cache-dir authlib && superset fab create-admin --username admin --firstname Superset --lastname Admin --email admin@superset.com --password admin || true && superset db upgrade && superset init && /usr/bin/run-server.sh & SERVER_PID=$! && echo [Superset] Waiting for /health... && for i in $(seq 1 60); do curl -sSf http://localhost:8088/health >/dev/null && break || sleep 2; done && python /app/scripts/superset/superset_bootstrap_job_market.py || true && wait $SERVER_PID"
-  ]' "$TMP_DIR/superset-deployment.yaml"
-fi
-
-log "Fixing probe commands generated as single-shell strings..."
-for deployment_manifest in "$TMP_DIR"/*-deployment.yaml; do
-  [[ -f "$deployment_manifest" ]] || continue
-  # Disable Kubernetes service-link env var injection to avoid
-  # collisions like DATAHUB_GMS_PORT=tcp://... overriding app config.
-  yq -i '.spec.template.spec.enableServiceLinks = false' "$deployment_manifest"
-  yq -i '(.spec.template.spec.containers[]? | select(has("livenessProbe") and .livenessProbe.exec.command and ((.livenessProbe.exec.command | length) == 1)) | .livenessProbe.exec.command) |= ["sh", "-c", .[0]]' "$deployment_manifest"
-  yq -i '(.spec.template.spec.containers[]? | select(has("readinessProbe") and .readinessProbe.exec.command and ((.readinessProbe.exec.command | length) == 1)) | .readinessProbe.exec.command) |= ["sh", "-c", .[0]]' "$deployment_manifest"
-  yq -i '(.spec.template.spec.containers[]? | select(has("startupProbe") and .startupProbe.exec.command and ((.startupProbe.exec.command | length) == 1)) | .startupProbe.exec.command) |= ["sh", "-c", .[0]]' "$deployment_manifest"
-done
+log "Fixing deployment probes and service-link env collisions..."
+kompose_fix_deployments
 
 GMS_MANIFEST="$TMP_DIR/datahub-gms-deployment.yaml"
 FRONTEND_MANIFEST="$TMP_DIR/datahub-frontend-deployment.yaml"
-if [[ -f "$GMS_MANIFEST" ]]; then
-  mv "$GMS_MANIFEST" "$TMP_DIR/.datahub-gms-deployment.hold"
-fi
-if [[ -f "$FRONTEND_MANIFEST" ]]; then
-  mv "$FRONTEND_MANIFEST" "$TMP_DIR/.datahub-frontend-deployment.hold"
-fi
+kompose_hold_datahub
 
 log "Applying extended stack manifests..."
 kubectl -n "$NAMESPACE" apply -f "$TMP_DIR"
@@ -228,12 +168,19 @@ for job in datahub-mysql-setup datahub-elasticsearch-setup datahub-kafka-setup d
   wait_for_job_complete "$job" 600s
 done
 
-if [[ -f "$TMP_DIR/.datahub-gms-deployment.hold" ]]; then
-  mv "$TMP_DIR/.datahub-gms-deployment.hold" "$GMS_MANIFEST"
+HAS_GMS_HOLD=false
+HAS_FRONTEND_HOLD=false
+[[ -f "$TMP_DIR/.datahub-gms-deployment.hold" ]] && HAS_GMS_HOLD=true
+[[ -f "$TMP_DIR/.datahub-frontend-deployment.hold" ]] && HAS_FRONTEND_HOLD=true
+
+if [[ "$HAS_GMS_HOLD" == "true" || "$HAS_FRONTEND_HOLD" == "true" ]]; then
+  kompose_restore_datahub
+fi
+
+if [[ "$HAS_GMS_HOLD" == "true" ]]; then
   kubectl -n "$NAMESPACE" apply -f "$GMS_MANIFEST"
 fi
-if [[ -f "$TMP_DIR/.datahub-frontend-deployment.hold" ]]; then
-  mv "$TMP_DIR/.datahub-frontend-deployment.hold" "$FRONTEND_MANIFEST"
+if [[ "$HAS_FRONTEND_HOLD" == "true" ]]; then
   kubectl -n "$NAMESPACE" apply -f "$FRONTEND_MANIFEST"
 fi
 

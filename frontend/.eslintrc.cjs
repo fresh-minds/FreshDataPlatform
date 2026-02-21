@@ -14,6 +14,12 @@ module.exports = {
     react: {
       version: "detect",
     },
+    "import/core-modules": ["keycloak-js"],
+    "import/resolver": {
+      node: {
+        extensions: [".js", ".jsx", ".mjs", ".cjs", ".json"],
+      },
+    },
   },
   rules: {
     "react/prop-types": "off"

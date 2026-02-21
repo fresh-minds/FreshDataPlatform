@@ -660,6 +660,7 @@ services:
     volumes:
       - ./ops/observability/promtail.yml:/etc/promtail/config.yml
       - ./logs:/var/log/airflow
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     depends_on:
       - loki
 
