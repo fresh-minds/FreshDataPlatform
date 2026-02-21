@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import pytest
 
-import scripts.verify_keycloak_resources as verify
+import scripts.testing.verify_keycloak_resources as verify
 
 
 def test_resolve_keycloak_base_and_realm_prefers_browser_reachable_host(monkeypatch: pytest.MonkeyPatch) -> None:

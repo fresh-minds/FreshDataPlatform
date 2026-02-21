@@ -33,6 +33,11 @@ services:
       - OTEL_METRICS_EXPORT_INTERVAL=${OTEL_METRICS_EXPORT_INTERVAL:-60000}
       - OTEL_SERVICE_NAMESPACE=${OTEL_SERVICE_NAMESPACE:-open-data-platform}
       - ENVIRONMENT=${ENVIRONMENT:-local}
+      - PLAYWRIGHT_BROWSERS_PATH=/opt/airflow/playwright
+      # Source SP1 portal credentials for ad hoc/task debug runs
+      - SP1_USERNAME=${SP1_USERNAME:-}
+      - SP1_PASSWORD=${SP1_PASSWORD:-}
+      - SP1_BASE_URL=${SP1_BASE_URL:-}
       - PYTHONPATH=/opt/airflow/project
     volumes:
       - ./dags:/opt/airflow/dags
@@ -81,6 +86,7 @@ services:
       - OTEL_METRICS_EXPORT_INTERVAL=${OTEL_METRICS_EXPORT_INTERVAL:-60000}
       - OTEL_SERVICE_NAMESPACE=${OTEL_SERVICE_NAMESPACE:-open-data-platform}
       - ENVIRONMENT=${ENVIRONMENT:-local}
+      - PLAYWRIGHT_BROWSERS_PATH=/opt/airflow/playwright
       # Credentials for scripts running in pod
       - MINIO_ENDPOINT=http://minio:9000
       - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:?Set MINIO_ROOT_USER}
@@ -90,6 +96,9 @@ services:
       - WAREHOUSE_DB=${WAREHOUSE_DB:-open_data_platform_dw}
       - WAREHOUSE_USER=${WAREHOUSE_USER:?Set WAREHOUSE_USER}
       - WAREHOUSE_PASSWORD=${WAREHOUSE_PASSWORD:?Set WAREHOUSE_PASSWORD}
+      - SP1_USERNAME=${SP1_USERNAME:-}
+      - SP1_PASSWORD=${SP1_PASSWORD:-}
+      - SP1_BASE_URL=${SP1_BASE_URL:-}
     volumes:
       - ./dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
@@ -145,6 +154,7 @@ services:
       - KEYCLOAK_DATAHUB_CLIENT_SECRET=${KEYCLOAK_DATAHUB_CLIENT_SECRET:?Set KEYCLOAK_DATAHUB_CLIENT_SECRET}
       - KEYCLOAK_MINIO_CLIENT_SECRET=${KEYCLOAK_MINIO_CLIENT_SECRET:?Set KEYCLOAK_MINIO_CLIENT_SECRET}
       - KEYCLOAK_SUPERSET_CLIENT_SECRET=${KEYCLOAK_SUPERSET_CLIENT_SECRET:-change_me_keycloak_superset_secret}
+      - KEYCLOAK_GRAFANA_CLIENT_SECRET=${KEYCLOAK_GRAFANA_CLIENT_SECRET:-change_me_keycloak_grafana_secret}
       - KEYCLOAK_DEFAULT_USER_PASSWORD=${KEYCLOAK_DEFAULT_USER_PASSWORD:?Set KEYCLOAK_DEFAULT_USER_PASSWORD}
     command: start-dev --http-port=8090 --import-realm
     ports:
@@ -266,10 +276,10 @@ services:
         SERVER_PID=$$! &&
         echo \"[Superset] Waiting for /health...\" &&
         for i in $$(seq 1 60); do curl -sSf http://localhost:8088/health >/dev/null && break || sleep 2; done &&
-        python /app/scripts/superset_bootstrap_job_market.py || true &&
+        python /app/scripts/superset/superset_bootstrap_job_market.py || true &&
         wait $$SERVER_PID"
     volumes:
-      - ./scripts/superset_config.py:/app/pythonpath/superset_config.py
+      - ./scripts/superset/superset_config.py:/app/pythonpath/superset_config.py
       - ./scripts:/app/scripts
       - ./schema:/app/schema:ro
 
@@ -496,11 +506,39 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: open-data-platform-portal
+    environment:
+      - VITE_KEYCLOAK_URL=${KEYCLOAK_BROWSER_BASE_URL:-http://localhost:8090}
+      - VITE_KEYCLOAK_REALM=odp
+      - VITE_KEYCLOAK_CLIENT_ID=portal
+      - VITE_PORTAL_API_URL=${PORTAL_API_PUBLIC_URL:-http://localhost:8070}
     ports:
       - "3000:3000"
     volumes:
       - ./frontend:/app
       - /app/node_modules
+    depends_on:
+      keycloak:
+        condition: service_started
+
+  portal-api:
+    build:
+      context: .
+      dockerfile: ops/portal-api/Dockerfile
+    container_name: open-data-platform-portal-api
+    environment:
+      - KEYCLOAK_INTERNAL_BASE_URL=${KEYCLOAK_INTERNAL_BASE_URL:-http://keycloak:8090}
+      - KEYCLOAK_REALM=odp
+      - KEYCLOAK_ADMIN_USER=${KEYCLOAK_ADMIN_USER:?Set KEYCLOAK_ADMIN_USER}
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:?Set KEYCLOAK_ADMIN_PASSWORD}
+      - KEYCLOAK_ADMIN_REALM=${KEYCLOAK_ADMIN_REALM:-master}
+      - PORTAL_CLIENT_ID=portal
+      - PORTAL_CORS_ORIGINS=${PORTAL_CORS_ORIGINS:-http://localhost:3000}
+      - LOG_LEVEL=${PORTAL_API_LOG_LEVEL:-INFO}
+    ports:
+      - "8070:8070"
+    depends_on:
+      keycloak:
+        condition: service_started
 
   jupyter:
     build:
@@ -580,6 +618,21 @@ services:
     environment:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD}
+      - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-http://localhost:3001}
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+      - GF_AUTH_GENERIC_OAUTH_ENABLED=true
+      - GF_AUTH_GENERIC_OAUTH_NAME=Keycloak
+      - GF_AUTH_GENERIC_OAUTH_AUTO_LOGIN=true
+      - GF_AUTH_GENERIC_OAUTH_ALLOW_SIGN_UP=true
+      - GF_AUTH_GENERIC_OAUTH_CLIENT_ID=${KEYCLOAK_GRAFANA_CLIENT_ID:-grafana}
+      - GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET=${KEYCLOAK_GRAFANA_CLIENT_SECRET:-change_me_keycloak_grafana_secret}
+      - GF_AUTH_GENERIC_OAUTH_SCOPES=openid profile email
+      - GF_AUTH_GENERIC_OAUTH_AUTH_URL=${KEYCLOAK_OIDC_BROWSER_AUTHORIZE_URL:-http://localhost:8090/realms/odp/protocol/openid-connect/auth}
+      - GF_AUTH_GENERIC_OAUTH_TOKEN_URL=${KEYCLOAK_OIDC_TOKEN_URL:-http://keycloak:8090/realms/odp/protocol/openid-connect/token}
+      - GF_AUTH_GENERIC_OAUTH_API_URL=${KEYCLOAK_OIDC_USERINFO_URL:-http://keycloak:8090/realms/odp/protocol/openid-connect/userinfo}
+      - GF_AUTH_GENERIC_OAUTH_LOGIN_ATTRIBUTE_PATH=preferred_username
+      - GF_AUTH_GENERIC_OAUTH_NAME_ATTRIBUTE_PATH=name
+      - GF_AUTH_GENERIC_OAUTH_EMAIL_ATTRIBUTE_PATH=email
     volumes:
       - grafana-data:/var/lib/grafana
       - ./ops/observability/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml

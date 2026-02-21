@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: odp-runtime
+data:
+  ENVIRONMENT: dev
+  AIRFLOW__CORE__EXECUTOR: LocalExecutor
+  AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+  AIRFLOW__METRICS__STATSD_ON: "False"
+  AIRFLOW_WEBSERVER_BASE_URL: https://airflow.example.com
+  OTEL_ENABLED: "true"
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector.observability.svc.cluster.local:4318
+  OTEL_METRICS_EXPORT_INTERVAL: "60000"
+  OTEL_SERVICE_NAMESPACE: open-data-platform

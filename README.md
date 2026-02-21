@@ -90,10 +90,16 @@ flowchart LR
 ```text
 airflow/                 Airflow image and web auth config
 dags/                    Orchestration DAGs
+src/ingestion/           Source ingestion framework (common helpers + per-source modules)
+  common/                Shared: source_config, postgres, dag_helpers, minio, provenance
+  _template/             Python templates for new sources
+  <source>/              Per-source config, extractor, parser (e.g. source_sp1/)
 pipelines/               Domain pipeline logic (job_market_nl)
 shared/                  Shared runtime/config/connectors/utilities
 scripts/                 Bootstrap, QA, governance, and ops scripts
-dbt_parallel/            Parallel dbt project and seeds
+dbt_parallel/            Parallel dbt project, seeds, and model templates
+  _model_templates/      dbt model templates for new sources (staging/intermediate/marts)
+  models/                Active dbt models (staging, intermediate, marts per source)
 schema/                  DBML, glossary, metrics, DQ rules
 tests/                   Unit, integration, governance, E2E, SSO suites
 frontend/                Operator launchpad and architecture UI
@@ -121,8 +127,11 @@ make dev-install
 ### 2) Start the local platform stack
 Option A (recommended, full bootstrap including seed/setup):
 ```bash
-./scripts/bootstrap_all.sh --auto-fill-env
+./scripts/platform/bootstrap_all.sh --auto-fill-env
 ```
+`bootstrap_all.sh` will create `.venv` if missing, recreate it when the interpreter link is broken,
+and install bootstrap dependencies via `pip install -e ".[dev,pipeline]"`.
+Use `--skip-dev-install` only if you want to manage dependencies yourself.
 
 Option B (just services):
 ```bash
@@ -161,6 +170,7 @@ Key groups:
   - `IS_LOCAL`, `USE_MINIO`, `LOCAL_LAKEHOUSE_PATH`
 - Service credentials:
   - `AIRFLOW_*`, `WAREHOUSE_*`, `MINIO_*`, `SUPERSET_*`, `DATAHUB_*`
+  - `SP1_*` (required for `source_sp1_vacatures_ingestion`)
 - SSO/identity:
   - `KEYCLOAK_*`, `MINIO_OIDC_REDIRECT_URI`
 - Observability:
@@ -189,6 +199,17 @@ For medallion entities, serving tables, and governance metadata:
 For component-level architecture and runtime flows:
 
 - [ARCHITECTURE.md](ARCHITECTURE.md)
+
+## Adding a New Ingestion Source
+
+The platform includes a standardization framework for onboarding new data
+sources with minimal boilerplate. Templates, generic helpers, and a step-by-step
+guide are provided:
+
+- [Data Ingestion Guide](docs/INGESTION_GUIDE.md) — end-to-end walkthrough
+- Python templates: `src/ingestion/_template/`
+- DAG template: `dags/_template_dag.py`
+- dbt model templates: `dbt_parallel/_model_templates/`
 
 ## Roadmap (Inferred)
 - Expand beyond `job_market_nl` into additional governed domains

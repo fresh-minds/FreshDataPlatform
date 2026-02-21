@@ -4,10 +4,13 @@ on:
   pull_request:
     paths:
       - "schema/**"
-      - "scripts/validate_dbml.py"
-      - "scripts/validate_governance_metadata.py"
+      - "scripts/quality/validate_dbml.py"
+      - "scripts/quality/validate_governance_metadata.py"
       - "Makefile"
       - ".github/workflows/schema-quality.yml"
+
+permissions:
+  contents: read
 
 jobs:
   validate-dbml:
@@ -20,6 +23,12 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
 
       - name: Validate DBML schema
         run: make schema-validate

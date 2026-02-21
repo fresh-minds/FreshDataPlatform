@@ -102,9 +102,9 @@ flowchart LR
 - Local development:
   - Docker Compose (`docker-compose.yml`)
 - Local Kubernetes dev-like:
-  - kind cluster via `scripts/k8s_dev_up.sh`
+  - kind cluster via `scripts/k8s/k8s_dev_up.sh`
 - Cloud dev-like:
-  - AKS provisioning/deploy via `scripts/aks_up.sh`
+  - AKS provisioning/deploy via `scripts/aks/aks_up.sh`
 
 More detail: [DEPLOYMENT.md](DEPLOYMENT.md)
 
@@ -123,4 +123,3 @@ More detail: [DEPLOYMENT.md](DEPLOYMENT.md)
 - Keep both Spark-compatible and Postgres/dbt-native transformation paths.
 - Use schema-as-code plus QA policy checks as governance baseline.
 - Favor composable OSS services instead of tightly coupled platform products.
-

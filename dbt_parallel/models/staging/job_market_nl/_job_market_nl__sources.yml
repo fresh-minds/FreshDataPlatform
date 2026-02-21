@@ -1,0 +1,75 @@
+version: 2
+
+sources:
+  - name: job_market_nl
+    description: "Job market NL serving tables in the Postgres warehouse, populated by the Python/Spark pipeline."
+    schema: "{{ var('job_market_source_schema', 'job_market_nl') }}"
+    loader: "pipelines.job_market_nl.postgres_pipeline"
+    loaded_at_field: loaded_at
+    freshness:
+      warn_after:
+        count: 48
+        period: hour
+      error_after:
+        count: 168
+        period: hour
+    tables:
+      - name: it_market_snapshot
+        description: "Latest IT market snapshot combining CBS vacancy rate data with job ads counts."
+        columns:
+          - name: period_key
+            description: "Period identifier (e.g. 2024Q1)"
+          - name: period_label
+            description: "Human-readable period label"
+          - name: sector_name
+            description: "Industry sector name"
+          - name: vacancies
+            description: "Number of open vacancies in the sector"
+          - name: vacancy_rate
+            description: "Vacancy rate as a percentage"
+          - name: job_ads_count
+            description: "Number of job advertisements found"
+          - name: loaded_at
+            description: "Timestamp when this row was loaded"
+
+      - name: it_market_top_skills
+        description: "Top skills extracted from IT job advertisements with frequency counts."
+        columns:
+          - name: skill
+            description: "Skill name extracted from job ads"
+          - name: count
+            description: "Number of job ads mentioning this skill"
+          - name: loaded_at
+            description: "Timestamp when this row was loaded"
+
+      - name: it_market_region_distribution
+        description: "Regional distribution of IT job ads across Dutch provinces."
+        columns:
+          - name: region
+            description: "Province or region name"
+          - name: job_ads_count
+            description: "Number of job ads in this region"
+          - name: share_pct
+            description: "Percentage share of total job ads"
+          - name: latitude
+            description: "Centroid latitude of the region"
+          - name: longitude
+            description: "Centroid longitude of the region"
+          - name: loaded_at
+            description: "Timestamp when this row was loaded"
+
+      - name: it_market_job_ads_geo
+        description: "Geo-coded individual job ad locations."
+        columns:
+          - name: job_id
+            description: "Unique identifier for the job ad"
+          - name: region
+            description: "Province or region name"
+          - name: latitude
+            description: "Latitude of the job ad location"
+          - name: longitude
+            description: "Longitude of the job ad location"
+          - name: location_label
+            description: "Human-readable location label"
+          - name: loaded_at
+            description: "Timestamp when this row was loaded"

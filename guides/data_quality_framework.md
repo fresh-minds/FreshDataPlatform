@@ -3,7 +3,7 @@
 This platform now supports a single, centralized quality-rule definition file:
 
 - Rules file: `schema/data_quality_rules.yaml`
-- Runner script: `scripts/run_data_quality.py`
+- Runner script: `scripts/quality/run_data_quality.py`
 
 The goal is to define checks once and reuse them across domains.
 
@@ -42,8 +42,8 @@ make dq-check-all
 You can also run directly:
 
 ```bash
-python scripts/run_data_quality.py --dataset job_market_nl.job_market_snapshot
-python scripts/run_data_quality.py --all
+python scripts/quality/run_data_quality.py --dataset job_market_nl.job_market_snapshot
+python scripts/quality/run_data_quality.py --all
 ```
 
 ## Rule structure (example)

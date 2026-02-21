@@ -2,6 +2,7 @@
     "realm": "odp",
     "displayName": "Open Data Platform",
     "enabled": true,
+    "registrationAllowed": false,
     "clients": [
         {
             "clientId": "airflow",
@@ -134,8 +135,73 @@
                     }
                 }
             ]
+        },
+        {
+            "clientId": "grafana",
+            "name": "Grafana",
+            "enabled": true,
+            "protocol": "openid-connect",
+            "publicClient": false,
+            "secret": "${KEYCLOAK_GRAFANA_CLIENT_SECRET}",
+            "standardFlowEnabled": true,
+            "directAccessGrantsEnabled": true,
+            "redirectUris": [
+                "http://localhost:3001/login/generic_oauth"
+            ],
+            "webOrigins": [
+                "http://localhost:3001"
+            ],
+            "protocolMappers": [
+                {
+                    "name": "grafana-audience",
+                    "protocol": "openid-connect",
+                    "protocolMapper": "oidc-audience-mapper",
+                    "config": {
+                        "included.client.audience": "grafana",
+                        "access.token.claim": "true",
+                        "id.token.claim": "false",
+                        "userinfo.token.claim": "false"
+                    }
+                }
+            ]
+        },
+        {
+            "clientId": "portal",
+            "name": "Platform Portal",
+            "enabled": true,
+            "protocol": "openid-connect",
+            "publicClient": true,
+            "standardFlowEnabled": true,
+            "directAccessGrantsEnabled": false,
+            "redirectUris": [
+                "http://localhost:3000/*"
+            ],
+            "webOrigins": [
+                "http://localhost:3000"
+            ],
+            "protocolMappers": [
+                {
+                    "name": "portal-audience",
+                    "protocol": "openid-connect",
+                    "protocolMapper": "oidc-audience-mapper",
+                    "config": {
+                        "included.client.audience": "portal",
+                        "access.token.claim": "true",
+                        "id.token.claim": "false",
+                        "userinfo.token.claim": "false"
+                    }
+                }
+            ]
         }
     ],
+    "roles": {
+        "realm": [
+            {
+                "name": "admin",
+                "description": "Platform administrator"
+            }
+        ]
+    },
     "users": [
         {
             "username": "odp-admin",
@@ -144,6 +210,7 @@
             "emailVerified": true,
             "firstName": "ODP",
             "lastName": "Admin",
+            "realmRoles": ["admin"],
             "credentials": [
                 {
                     "type": "password",

@@ -1,0 +1,43 @@
+dataset: job_market_nl.it_market_region_distribution
+owner: data-platform@example.com
+description: "Regional distribution of IT job ads across Dutch provinces."
+domain: job_market_nl
+layer: gold
+classification: internal
+sensitivity: normal
+product_tag: labor-market
+pii_columns: []
+pii_classifications: {}
+retention_days: 365
+timestamp_column: loaded_at
+primary_key:
+  - region
+upstreams:
+  - job_market_nl_dbt.job_market_region_distribution
+tests:
+  schema:
+    required_columns:
+      - region
+      - job_ads_count
+      - share_pct
+      - latitude
+      - longitude
+      - loaded_at
+  constraints:
+    not_null:
+      - region
+      - job_ads_count
+      - share_pct
+      - latitude
+      - longitude
+      - loaded_at
+    unique:
+      - region
+  freshness:
+    column: loaded_at
+    max_age_hours: 8760
+    format: timestamp
+governance:
+  require_rbac: false
+  allowed_roles_read: []
+  non_authorized_export_queries: []

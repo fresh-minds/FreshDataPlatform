@@ -1,0 +1,126 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airflow-scheduler
+  labels:
+    app.kubernetes.io/name: airflow-scheduler
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: airflow-scheduler
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: airflow-scheduler
+    spec:
+      serviceAccountName: airflow-scheduler
+      terminationGracePeriodSeconds: 90
+      securityContext:
+        fsGroup: 0
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: airflow-scheduler
+          image: ai-trial/airflow:dev
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - secretRef:
+                name: odp-env
+            - configMapRef:
+                name: odp-runtime
+          env:
+            - name: PYTHONPATH
+              value: /opt/airflow/project
+            - name: USE_DATAHUB
+              value: "false"
+            - name: MINIO_ENDPOINT
+              value: http://minio:9000
+            - name: MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: odp-env
+                  key: MINIO_ROOT_USER
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: odp-env
+                  key: MINIO_ROOT_PASSWORD
+            - name: WAREHOUSE_HOST
+              value: warehouse
+            - name: WAREHOUSE_PORT
+              value: "5432"
+            - name: WAREHOUSE_DB
+              valueFrom:
+                secretKeyRef:
+                  name: odp-env
+                  key: WAREHOUSE_DB
+            - name: WAREHOUSE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: odp-env
+                  key: WAREHOUSE_USER
+            - name: WAREHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: odp-env
+                  key: WAREHOUSE_PASSWORD
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              set -euo pipefail
+              export AIRFLOW__CORE__SQL_ALCHEMY_CONN="postgresql+psycopg2://${AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD}@postgres/${AIRFLOW_DB_NAME}"
+              export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="$AIRFLOW__CORE__SQL_ALCHEMY_CONN"
+              export AIRFLOW__CORE__FERNET_KEY="${AIRFLOW_FERNET_KEY}"
+              exec airflow scheduler
+          startupProbe:
+            exec:
+              command:
+                - bash
+                - -ec
+                - |
+                  export AIRFLOW__CORE__SQL_ALCHEMY_CONN="postgresql+psycopg2://${AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD}@postgres/${AIRFLOW_DB_NAME}"
+                  export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="$AIRFLOW__CORE__SQL_ALCHEMY_CONN"
+                  airflow jobs check --job-type SchedulerJob --hostname "$(hostname)"
+            failureThreshold: 40
+            periodSeconds: 10
+            timeoutSeconds: 15
+          livenessProbe:
+            exec:
+              command:
+                - bash
+                - -ec
+                - |
+                  export AIRFLOW__CORE__SQL_ALCHEMY_CONN="postgresql+psycopg2://${AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD}@postgres/${AIRFLOW_DB_NAME}"
+                  export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN="$AIRFLOW__CORE__SQL_ALCHEMY_CONN"
+                  airflow jobs check --job-type SchedulerJob --hostname "$(hostname)"
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 3Gi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 50000
+            runAsGroup: 0
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: logs
+              mountPath: /opt/airflow/logs
+      volumes:
+        - name: logs
+          emptyDir: {}

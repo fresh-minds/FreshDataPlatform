@@ -1,0 +1,36 @@
+version: 2
+
+models:
+  - name: int_source_sp1__vacatures_enriched
+    description: >
+      Enriched vacatures with computed fields: days_open, is_expired,
+      and coalesced dimension keys for safe joining.
+    config:
+      materialized: view
+      tags: ['source_sp1', 'intermediate']
+    columns:
+      - name: vacature_id
+        description: "Primary key from the supplier portal."
+        tests:
+          - not_null
+          - unique
+      - name: days_open
+        description: "Number of days between publish_date and closing_date."
+      - name: is_expired
+        description: "True when closing_date is in the past."
+      - name: client_name_clean
+        description: "Coalesced client name (defaults to 'Unknown')."
+        tests:
+          - not_null
+      - name: location_clean
+        description: "Coalesced location (defaults to 'Unknown')."
+        tests:
+          - not_null
+      - name: category_clean
+        description: "Coalesced category (defaults to 'Uncategorised')."
+        tests:
+          - not_null
+      - name: status_clean
+        description: "Coalesced status (defaults to 'Unknown')."
+        tests:
+          - not_null

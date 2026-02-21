@@ -41,7 +41,7 @@ spec:
             - name: MINIO_PROMETHEUS_JOB_ID
               value: minio
             - name: MINIO_IDENTITY_OPENID_ENABLE
-              value: "on"
+              value: "off"
             - name: MINIO_IDENTITY_OPENID_CONFIG_URL
               valueFrom:
                 secretKeyRef:

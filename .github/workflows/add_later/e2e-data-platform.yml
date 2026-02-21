@@ -1,0 +1,121 @@
+name: E2E Data Platform
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "tests/e2e/**"
+      - "tests/data_quality/**"
+      - "tests/contracts/**"
+      - "tests/governance/**"
+      - "tests/helpers/**"
+      - "tests/configs/**"
+      - "tests/fixtures/**"
+      - "scripts/testing/run_e2e_tests.sh"
+      - "dbt_parallel/**"
+      - "dags/**"
+      - "pipelines/**"
+      - "shared/**"
+      - "docker-compose.yml"
+      - "pyproject.toml"
+      - "Makefile"
+
+permissions:
+  contents: read
+
+jobs:
+  e2e-platform-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install -e ".[dev]"
+
+      - name: Set CI environment
+        run: |
+          python - <<'PY'
+          import os, secrets, base64
+          fernet = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode()
+          env_lines = {
+              "AIRFLOW_DB_USER": "airflow_app",
+              "AIRFLOW_DB_PASSWORD": "airflow_app_pass_123",
+              "AIRFLOW_DB_NAME": "airflow",
+              "AIRFLOW_FERNET_KEY": fernet,
+              "AIRFLOW_ADMIN_USER": "admin",
+              "AIRFLOW_ADMIN_PASSWORD": "admin_secure_123",
+              "AIRFLOW_ADMIN_EMAIL": "admin@example.com",
+              "MINIO_ROOT_USER": "minio_admin",
+              "MINIO_ROOT_PASSWORD": "minio_secure_123",
+              "WAREHOUSE_DB": "freshminds_dw",
+              "WAREHOUSE_USER": "warehouse_app",
+              "WAREHOUSE_PASSWORD": "warehouse_secure_123",
+              "SUPERSET_SECRET_KEY": "superset_secret_key_for_ci",
+              "SUPERSET_DB_USER": "superset_app",
+              "SUPERSET_DB_PASSWORD": "superset_secure_123",
+              "SUPERSET_DB_NAME": "superset",
+              "SUPERSET_ADMIN_USER": "admin",
+              "SUPERSET_ADMIN_PASSWORD": "superset_admin_secure_123",
+              "SUPERSET_ADMIN_EMAIL": "admin@superset.com",
+              "DATAHUB_MYSQL_DATABASE": "datahub",
+              "DATAHUB_MYSQL_USER": "datahub_app",
+              "DATAHUB_MYSQL_PASSWORD": "datahub_secure_123",
+              "DATAHUB_MYSQL_ROOT_PASSWORD": "datahub_root_secure_123",
+              "DATAHUB_FRONTEND_SECRET": "datahub_frontend_secret_ci",
+          }
+          with open(os.environ["GITHUB_ENV"], "a") as f:
+              for k, v in env_lines.items():
+                  f.write(f"{k}={v}\n")
+          PY
+
+      - name: Start platform stack
+        run: docker compose up -d
+
+      - name: Wait for core endpoints
+        run: |
+          for i in {1..60}; do
+            if curl -sf http://localhost:8080/health >/dev/null \
+              && curl -sf http://localhost:8081/health >/dev/null \
+              && curl -sf http://localhost:9000/minio/health/live >/dev/null \
+              && curl -sf http://localhost:8088/login/ >/dev/null; then
+              echo "Core endpoints are ready"
+              exit 0
+            fi
+            echo "Waiting for services... ($i/60)"
+            sleep 5
+          done
+          echo "Timed out waiting for services" >&2
+          docker compose ps
+          exit 1
+
+      - name: Run E2E suite
+        run: ./scripts/testing/run_e2e_tests.sh
+
+      - name: Upload evidence pack
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-evidence
+          path: tests/e2e/evidence/latest
+
+      - name: Dump service status on failure
+        if: failure()
+        run: |
+          docker compose ps
+          docker compose logs --tail=200
+
+      - name: Tear down stack
+        if: always()
+        run: docker compose down -v

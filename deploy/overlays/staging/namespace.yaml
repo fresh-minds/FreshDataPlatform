@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: odp-staging
+  labels:
+    app.kubernetes.io/name: open-data-platform
+    app.kubernetes.io/environment: staging
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

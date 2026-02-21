@@ -1,8 +1,0 @@
-version: 2
-
-sources:
-  - name: job_market_nl
-    schema: "{{ var('job_market_source_schema', 'job_market_nl') }}"
-    tables:
-      - name: it_market_snapshot
-      - name: it_market_top_skills

@@ -29,12 +29,27 @@ make run-job-market
 LOCAL_MOCK_PIPELINES=false make run PIPELINE=job_market_nl.bronze_cbs_vacancy_rate
 ```
 
+### Run Source SP1 portal DAG (Airflow)
+Prerequisite: set `SP1_USERNAME` and
+`SP1_PASSWORD` in `.env`, then refresh Airflow containers.
+
+```bash
+docker compose up -d airflow-webserver airflow-scheduler
+docker exec airflow-webserver airflow dags trigger source_sp1_vacatures_ingestion
+docker exec airflow-webserver airflow dags list-runs -d source_sp1_vacatures_ingestion --no-backfill
+```
+
 ### Run quality checks
 ```bash
 make lint
 make test
 make qa-test
 ```
+
+Governance suite note:
+- `tests/governance/test_governance_controls.py` bootstraps `platform_audit.pipeline_runs`
+  with a deterministic seed row when the table is absent, so local and CI runs are
+  stable without requiring a prior E2E pipeline execution.
 
 ### Run full E2E suites
 ```bash
@@ -71,9 +86,25 @@ Service links are resolved via:
 - Testing: Pytest suites under `tests/`
 - Packaging: `pyproject.toml` + editable install (`pip install -e ".[dev]"`)
 
-## Adding a New Pipeline
+## Adding a New Ingestion Source
+
+The ingestion framework under `src/ingestion/` provides templates and generic
+helpers for onboarding new data sources into the medallion pipeline
+(Bronze → Silver → Gold).
+
+Quick steps:
+1. Copy `src/ingestion/_template/` to `src/ingestion/<source_name>/`.
+2. Define a `SourceTableConfig` in `config.py`.
+3. Write an extractor and parser.
+4. Copy dbt model templates from `dbt_parallel/_model_templates/`.
+5. Copy `dags/_template_dag.py` and wire everything together.
+6. Verify locally: `dbt run + test`, trigger DAG.
+
+Full walkthrough: [Data Ingestion Guide](docs/INGESTION_GUIDE.md)
+
+## Adding a New Pipeline (Spark/Python)
 1. Implement ingestion/transform logic in `pipelines/<domain>/`.
-2. Register callable in `scripts/run_local.py` if it should be runnable from the generic local runner.
+2. Register callable in `scripts/pipeline/run_local.py` if it should be runnable from the generic local runner.
 3. Add/extend DAG wiring in `dags/` if orchestration is needed.
 4. Define validation rules in:
    - `schema/data_quality_rules.yaml`
@@ -94,8 +125,8 @@ Service links are resolved via:
   - `make schema-validate`
   - `make governance-validate`
 - Publish metadata with:
-  - `python scripts/sync_dbml_to_datahub.py`
-  - `python scripts/register_datahub_catalog.py`
+  - `python scripts/catalog/sync_dbml_to_datahub.py`
+  - `python scripts/catalog/register_datahub_catalog.py`
 
 ## Troubleshooting
 - Services not healthy:

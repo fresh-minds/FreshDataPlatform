@@ -1,0 +1,66 @@
+services:
+  minio-sso-bridge:
+    image: ai-trial/minio-sso-bridge:dev
+    environment:
+      - BRIDGE_BASE_URL=${MINIO_SSO_BRIDGE_BASE_URL_K8S:-https://minio.eu-sovereigndataplatform.com}
+      - KEYCLOAK_BROWSER_BASE_URL=${KEYCLOAK_BROWSER_BASE_URL_K8S:-https://keycloak.eu-sovereigndataplatform.com}
+      - KEYCLOAK_INTERNAL_BASE_URL=${KEYCLOAK_INTERNAL_BASE_URL_K8S:-http://keycloak:8090}
+      - MINIO_CONSOLE_PUBLIC_URL=${MINIO_CONSOLE_PUBLIC_URL_K8S:-https://minio.eu-sovereigndataplatform.com}
+      - MINIO_CONSOLE_INTERNAL_URL=${MINIO_CONSOLE_INTERNAL_URL_K8S:-http://minio:9001}
+      - MINIO_API_INTERNAL_URL=${MINIO_API_INTERNAL_URL_K8S:-http://minio:9000}
+
+  portal:
+    image: ai-trial/portal:dev
+
+  jupyter:
+    image: ai-trial/jupyter:dev
+
+  superset:
+    environment:
+      - KEYCLOAK_OIDC_SUPERSET_BROWSER_AUTHORIZE_URL=${KEYCLOAK_OIDC_SUPERSET_BROWSER_AUTHORIZE_URL_K8S:-https://keycloak.eu-sovereigndataplatform.com/realms/odp/protocol/openid-connect/auth}
+      - SUPERSET_ENABLE_PROXY_FIX=true
+      - SUPERSET_PREFERRED_URL_SCHEME=https
+
+  grafana:
+    environment:
+      - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL_K8S:-https://grafana.eu-sovereigndataplatform.com}
+      - GF_AUTH_GENERIC_OAUTH_AUTH_URL=${KEYCLOAK_OIDC_BROWSER_AUTHORIZE_URL_K8S:-https://keycloak.eu-sovereigndataplatform.com/realms/odp/protocol/openid-connect/auth}
+
+  datahub-frontend:
+    environment:
+      - AUTH_OIDC_BASE_URL=${DATAHUB_ROOT_URL_K8S:-https://datahub.eu-sovereigndataplatform.com}
+      - AUTH_OIDC_DISCOVERY_URI=${KEYCLOAK_OIDC_DISCOVERY_URL_K8S:-https://keycloak.eu-sovereigndataplatform.com/realms/odp/.well-known/openid-configuration}
+
+  minio:
+    environment:
+      - MINIO_IDENTITY_OPENID_ENABLE=on
+      - MINIO_IDENTITY_OPENID_DISPLAY_NAME=${MINIO_OIDC_DISPLAY_NAME_K8S:-Keycloak}
+      - MINIO_IDENTITY_OPENID_CONFIG_URL=${KEYCLOAK_OIDC_DISCOVERY_URL_K8S:-https://keycloak.eu-sovereigndataplatform.com/realms/odp/.well-known/openid-configuration}
+      - MINIO_IDENTITY_OPENID_REDIRECT_URI=${MINIO_OIDC_REDIRECT_URI_K8S:-https://minio.eu-sovereigndataplatform.com/oauth_callback}
+      - MINIO_BROWSER_REDIRECT_URL=${MINIO_BROWSER_REDIRECT_URL_K8S:-https://minio.eu-sovereigndataplatform.com}
+      - MINIO_SERVER_URL=${MINIO_SERVER_URL_K8S:-https://minio-api.eu-sovereigndataplatform.com}
+
+  superset-db:
+    expose:
+      - "5432"
+
+  datahub-mysql:
+    expose:
+      - "3306"
+
+  datahub-zookeeper:
+    expose:
+      - "2181"
+
+  datahub-schema-registry:
+    expose:
+      - "8081"
+
+  datahub-kafka:
+    expose:
+      - "29092"
+
+  otel-collector:
+    expose:
+      - "4317"
+      - "4318"

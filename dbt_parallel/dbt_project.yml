@@ -21,8 +21,15 @@ vars:
 models:
   open_data_platform_parallel_dbt:
     +materialized: view
-    job_market_nl:
-      +schema: job_market_nl_dbt
+    staging:
+      +materialized: view
+      +schema: staging
+    intermediate:
+      +materialized: view
+      +schema: intermediate
+    marts:
+      +materialized: table
+      +schema: marts
 
 seeds:
   open_data_platform_parallel_dbt:

@@ -1,0 +1,18 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: minio-sso-login
+  namespace: __NAMESPACE__
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: minio.__FRONTEND_DOMAIN__
+      http:
+        paths:
+          - path: /login
+            pathType: Prefix
+            backend:
+              service:
+                name: minio-sso-bridge
+                port:
+                  number: 9011

@@ -29,6 +29,24 @@ What this does:
 3. Creates/updates Kubernetes Secret `odp-env` from `.env`.
 4. Applies core services, runs init Jobs, then starts Airflow.
 
+## Full Compose Parity (kind)
+
+If you want the full `docker-compose.yml` stack on local Kubernetes (core + Superset + DataHub + observability + portal + notebooks):
+
+```bash
+make k8s-dev-up-full
+```
+
+This command:
+
+1. Bootstraps the core stack (`make k8s-dev-up`).
+2. Builds and loads additional local images (`portal`, `jupyter`, `minio-sso-bridge`).
+3. Converts `docker-compose.yml` to Kubernetes manifests (with `docker-compose.k8s.yml` overrides).
+4. Applies the additional services to the same namespace.
+5. Runs DataHub setup jobs (`mysql`, `elasticsearch`, `kafka`, `upgrade`) before finalizing GMS/frontend rollout.
+
+Note: on `arm64` kind nodes, `prometheus-msteams` is skipped because the upstream image is `amd64`-only.
+
 ## Access (kind)
 
 Use port-forward in separate terminals:
@@ -47,6 +65,37 @@ Then:
 - MinIO API: [http://localhost:9000](http://localhost:9000)
 - MinIO Console: [http://localhost:9001](http://localhost:9001)
 - Warehouse Postgres: `localhost:5433`
+
+## Shared SSO Gateway (kind)
+
+To enforce one Keycloak login flow across all UIs behind a single auth gateway:
+
+```bash
+make k8s-sso-gateway-up
+make k8s-sso-gateway-forward
+```
+
+Then use these ingress URLs (all protected by oauth2-proxy + Keycloak):
+
+- Auth start: `http://auth.localtest.me:8085/oauth2/sign_in`
+- Airflow: `http://airflow.localtest.me:8085`
+- Superset: `http://superset.localtest.me:8085`
+- DataHub: `http://datahub.localtest.me:8085`
+- MinIO Console: `http://minio.localtest.me:8085`
+- Portal: `http://portal.localtest.me:8085`
+- Grafana: `http://grafana.localtest.me:8085`
+- Prometheus: `http://prometheus.localtest.me:8085`
+- Jupyter: `http://jupyter.localtest.me:8085`
+
+Keycloak stays directly reachable at:
+
+- `http://keycloak.localtest.me:8085`
+
+To stop the gateway port-forward:
+
+```bash
+make k8s-sso-gateway-forward-stop
+```
 
 ## Stop (kind)
 
@@ -123,6 +172,8 @@ AKS:
   and `KEYCLOAK_OIDC_DISCOVERY_URL` to the public Keycloak hostname (for example:
   `https://keycloak.FRONTEND_DOMAIN/realms/odp/protocol/openid-connect`).
 - Set `MINIO_OIDC_REDIRECT_URI=https://minio.FRONTEND_DOMAIN/oauth_callback`.
+- Realm self-registration is disabled by default in bundled manifests (`registrationAllowed: false`).
+- Keep `AIRFLOW_OAUTH_DEFAULT_ROLE` at least privilege (`Viewer`) unless you have a controlled admin onboarding flow.
 
 ## AKS Ingress + TLS (Custom Domain)
 

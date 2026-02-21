@@ -1,0 +1,28 @@
+# TEMPLATE — copy and rename to:
+#   dbt_parallel/models/staging/<source_name>/_stg_<source_name>__models.yml
+# See docs/INGESTION_GUIDE.md § Step 4a for details.
+
+version: 2
+
+sources:
+  - name: SOURCENAME                          # must match {{ source('SOURCENAME', ...) }}
+    schema: "SOURCENAME"                      # Postgres schema
+    description: "Raw data from SOURCENAME loaded by the ingestion pipeline."
+    tables:
+      - name: DATASET                         # Postgres table name
+        description: "DATASET records from SOURCENAME."
+        columns:
+          - name: entity_id
+            tests:
+              - not_null
+              - unique
+
+models:
+  - name: stg_SOURCENAME__DATASET
+    description: "Staging view: 1:1 mapping from source with light transforms."
+    columns:
+      - name: entity_id
+        description: "Primary key."
+        tests:
+          - not_null
+          - unique

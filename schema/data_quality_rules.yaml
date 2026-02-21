@@ -1,11 +1,129 @@
-version: "1.0"
+version: "1.1"
 
 defaults:
   fail_on:
     - high
   default_severity: high
 
+# =====================================================================
+# BRONZE LAYER — Schema validation and volume checks
+# =====================================================================
+
 datasets:
+  # --- Bronze CBS ---
+  job_market_nl.cbs_vacancy_rate_raw:
+    domain: job_market_nl
+    layer: bronze
+    table: cbs_vacancy_rate_raw
+    missing_behavior: warn
+    checks:
+      - name: required_columns
+        type: columns_exist
+        columns: [SIC2008, Periods, Vacancies_1, VacancyRate_2, ingestion_timestamp]
+      - name: has_rows
+        type: row_count
+        min: 1
+        severity: high
+      - name: ingestion_timestamp_not_null
+        type: non_null
+        columns: [ingestion_timestamp]
+        max_null_pct: 0
+
+  # --- Bronze Adzuna ---
+  job_market_nl.adzuna_job_ads_raw:
+    domain: job_market_nl
+    layer: bronze
+    table: adzuna_job_ads_raw
+    missing_behavior: warn
+    checks:
+      - name: required_columns
+        type: columns_exist
+        columns: [id, title, description, ingestion_timestamp]
+      - name: has_rows
+        type: row_count
+        min: 1
+        severity: high
+      - name: ingestion_timestamp_not_null
+        type: non_null
+        columns: [ingestion_timestamp]
+        max_null_pct: 0
+
+  # --- Bronze UWV ---
+  job_market_nl.uwv_open_match_raw:
+    domain: job_market_nl
+    layer: bronze
+    table: uwv_open_match_raw
+    missing_behavior: warn
+    checks:
+      - name: has_rows
+        type: row_count
+        min: 1
+        severity: medium
+      - name: ingestion_timestamp_not_null
+        type: non_null
+        columns: [ingestion_timestamp]
+        max_null_pct: 0
+
+# =====================================================================
+# SILVER LAYER — Referential integrity, dedup, domain constraints
+# =====================================================================
+
+  # --- Silver CBS ---
+  job_market_nl.cbs_vacancy_rate:
+    domain: job_market_nl
+    layer: silver
+    table: cbs_vacancy_rate
+    missing_behavior: warn
+    checks:
+      - name: required_columns
+        type: columns_exist
+        columns: [sector_code, sector_name, period_key, period_label, vacancies, vacancy_rate, source]
+      - name: sector_code_not_null
+        type: non_null
+        columns: [sector_code]
+        max_null_pct: 0
+      - name: period_key_not_null
+        type: non_null
+        columns: [period_key]
+        max_null_pct: 0
+      - name: vacancies_non_negative
+        type: value_range
+        column: vacancies
+        min: 0
+        max_invalid_pct: 0
+      - name: vacancy_rate_range
+        type: value_range
+        column: vacancy_rate
+        min: 0
+        max: 100
+        max_invalid_pct: 5
+
+  # --- Silver Adzuna ---
+  job_market_nl.adzuna_job_ads:
+    domain: job_market_nl
+    layer: silver
+    table: adzuna_job_ads
+    missing_behavior: warn
+    checks:
+      - name: required_columns
+        type: columns_exist
+        columns: [id, title, description]
+      - name: id_not_null
+        type: non_null
+        columns: [id]
+        max_null_pct: 0
+      - name: title_not_null
+        type: non_null
+        columns: [title]
+        max_null_pct: 0
+      - name: no_duplicate_ids
+        type: unique
+        columns: [id]
+
+# =====================================================================
+# GOLD LAYER — KPI validation and business rules
+# =====================================================================
+
   job_market_nl.job_market_snapshot:
     domain: job_market_nl
     layer: gold
@@ -14,7 +132,7 @@ datasets:
     checks:
       - name: required_columns
         type: columns_exist
-        columns: [period_key, sector_name, vacancies, vacancy_rate]
+        columns: [period_key, sector_name, vacancies, vacancy_rate, job_ads_count]
       - name: period_key_not_null
         type: non_null
         columns: [period_key]
@@ -23,6 +141,11 @@ datasets:
         type: non_null
         columns: [sector_name]
         max_null_pct: 0
+      - name: job_ads_count_non_negative
+        type: value_range
+        column: job_ads_count
+        min: 0
+        max_invalid_pct: 0
 
   job_market_nl.job_market_top_skills:
     domain: job_market_nl
@@ -42,3 +165,58 @@ datasets:
         column: count
         min: 0
         max_invalid_pct: 0
+      - name: no_duplicate_skills
+        type: unique
+        columns: [skill]
+
+  job_market_nl.it_market_region_distribution:
+    domain: job_market_nl
+    layer: gold
+    table: it_market_region_distribution
+    missing_behavior: warn
+    checks:
+      - name: required_columns
+        type: columns_exist
+        columns: [region, job_ads_count, share_pct, latitude, longitude]
+      - name: region_not_null
+        type: non_null
+        columns: [region]
+        max_null_pct: 0
+      - name: share_pct_range
+        type: value_range
+        column: share_pct
+        min: 0
+        max: 100
+        max_invalid_pct: 0
+      - name: no_duplicate_regions
+        type: unique
+        columns: [region]
+
+  job_market_nl.it_market_job_ads_geo:
+    domain: job_market_nl
+    layer: gold
+    table: it_market_job_ads_geo
+    missing_behavior: warn
+    checks:
+      - name: required_columns
+        type: columns_exist
+        columns: [job_id, region, latitude, longitude]
+      - name: job_id_not_null
+        type: non_null
+        columns: [job_id]
+        max_null_pct: 0
+      - name: no_duplicate_job_ids
+        type: unique
+        columns: [job_id]
+      - name: latitude_range
+        type: value_range
+        column: latitude
+        min: 50.5
+        max: 53.6
+        max_invalid_pct: 5
+      - name: longitude_range
+        type: value_range
+        column: longitude
+        min: 3.3
+        max: 7.3
+        max_invalid_pct: 5

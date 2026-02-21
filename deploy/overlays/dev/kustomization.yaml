@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: odp-dev
+resources:
+  - namespace.yaml
+  - ../../base
+patches:
+  - path: patch-configmap.yaml
+  - path: patch-replicas.yaml
+  - path: patch-resources.yaml
+  - path: patch-rolling-strategy.yaml
+  - path: patch-ingress.yaml
+  - path: patch-hpa.yaml
+images:
+  - name: ai-trial/airflow
+    newName: aitrial4910a5a6.azurecr.io/ai-trial/airflow
+    newTag: dev-20260216064414
+  - name: ai-trial/frontend
+    newName: aitrial4910a5a6.azurecr.io/ai-trial/frontend
+    newTag: frontend-20260219151011

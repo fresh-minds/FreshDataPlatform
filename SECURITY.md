@@ -191,6 +191,15 @@ git secrets --scan
 - **GitLab**: Use "Secret Detection" in CI pipeline
 - **General**: Use `detect-secrets` or `truffleHog3`
 
+## Dependency Vulnerability Baselines
+
+### Portal API JWT library
+- `ops/portal-api/requirements.txt` must keep `python-jose[cryptography]` at `>=3.4.0`.
+- Reason: CVE-2024-33664 affects `python-jose` versions `<3.4.0` and is flagged by Trivy/code scanning.
+- Verification:
+  - Build/scan target image after dependency changes.
+  - Confirm no open findings for `CVE-2024-33664` in the portal API artifact.
+
 ## Team Policies
 
 1. **Code Review**: All PRs reviewed before merge

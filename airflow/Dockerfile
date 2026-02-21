@@ -18,16 +18,31 @@ RUN pip install --no-cache-dir \
     pydantic \
     pydantic-settings \
     pytz \
+    beautifulsoup4 \
     acryl-datahub \
     acryl-datahub-airflow-plugin \
     boto3 \
     psycopg2-binary \
+    dbt-postgres \
+    openpyxl \
     opentelemetry-api \
     opentelemetry-sdk \
     opentelemetry-exporter-otlp \
     apache-airflow-providers-fab \
     apache-airflow-providers-openlineage>=1.8.0 \
-    authlib
+    authlib \
+    playwright
+
+# Install Playwright browser (Chromium) + OS deps for extraction runs.
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/airflow/playwright
+USER root
+RUN mkdir -p /opt/airflow/playwright \
+    && chown -R airflow:root /opt/airflow/playwright
+RUN PYTHONPATH=/home/airflow/.local/lib/python3.8/site-packages \
+    python -m playwright install --with-deps chromium
+
+# Drop back to the airflow user for runtime
+USER airflow
 
 # Force upgrade to compatible openlineage provider for Airflow >= 2.10
 RUN pip install --no-cache-dir --upgrade "apache-airflow-providers-openlineage>=1.8.0"
@@ -39,6 +54,7 @@ COPY --chown=airflow:root plugins/ /opt/airflow/plugins/
 COPY --chown=airflow:root pipelines/ /opt/airflow/project/pipelines/
 COPY --chown=airflow:root shared/ /opt/airflow/project/shared/
 COPY --chown=airflow:root scripts/ /opt/airflow/project/scripts/
+COPY --chown=airflow:root src/ /opt/airflow/project/src/
 COPY --chown=airflow:root dbt_parallel/ /opt/airflow/project/dbt_parallel/
 COPY --chown=airflow:root schema/ /opt/airflow/project/schema/
 COPY --chown=airflow:root pyproject.toml /opt/airflow/project/pyproject.toml

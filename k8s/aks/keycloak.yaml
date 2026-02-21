@@ -9,6 +9,7 @@ data:
         "realm": "odp",
         "displayName": "Open Data Platform",
         "enabled": true,
+        "registrationAllowed": false,
         "clients": [
             {
                 "clientId": "airflow",
@@ -110,8 +111,133 @@ data:
                         }
                     }
                 ]
+            },
+            {
+                "clientId": "superset",
+                "name": "Superset",
+                "enabled": true,
+                "protocol": "openid-connect",
+                "publicClient": false,
+                "secret": "${KEYCLOAK_SUPERSET_CLIENT_SECRET}",
+                "standardFlowEnabled": true,
+                "directAccessGrantsEnabled": true,
+                "redirectUris": [
+                    "https://superset.__FRONTEND_DOMAIN__/oauth-authorized/keycloak"
+                ],
+                "webOrigins": [
+                    "https://superset.__FRONTEND_DOMAIN__"
+                ],
+                "protocolMappers": [
+                    {
+                        "name": "superset-audience",
+                        "protocol": "openid-connect",
+                        "protocolMapper": "oidc-audience-mapper",
+                        "config": {
+                            "included.client.audience": "superset",
+                            "access.token.claim": "true",
+                            "id.token.claim": "false",
+                            "userinfo.token.claim": "false"
+                        }
+                    }
+                ]
+            },
+            {
+                "clientId": "grafana",
+                "name": "Grafana",
+                "enabled": true,
+                "protocol": "openid-connect",
+                "publicClient": false,
+                "secret": "${KEYCLOAK_GRAFANA_CLIENT_SECRET}",
+                "standardFlowEnabled": true,
+                "directAccessGrantsEnabled": true,
+                "redirectUris": [
+                    "https://grafana.__FRONTEND_DOMAIN__/login/generic_oauth"
+                ],
+                "webOrigins": [
+                    "https://grafana.__FRONTEND_DOMAIN__"
+                ],
+                "protocolMappers": [
+                    {
+                        "name": "grafana-audience",
+                        "protocol": "openid-connect",
+                        "protocolMapper": "oidc-audience-mapper",
+                        "config": {
+                            "included.client.audience": "grafana",
+                            "access.token.claim": "true",
+                            "id.token.claim": "false",
+                            "userinfo.token.claim": "false"
+                        }
+                    }
+                ]
+            },
+            {
+                "clientId": "${KEYCLOAK_GATEWAY_CLIENT_ID}",
+                "name": "Platform Gateway",
+                "enabled": true,
+                "protocol": "openid-connect",
+                "publicClient": false,
+                "secret": "${KEYCLOAK_GATEWAY_CLIENT_SECRET}",
+                "standardFlowEnabled": true,
+                "directAccessGrantsEnabled": true,
+                "redirectUris": [
+                    "https://auth.__FRONTEND_DOMAIN__/oauth2/callback"
+                ],
+                "webOrigins": [
+                    "https://auth.__FRONTEND_DOMAIN__"
+                ],
+                "protocolMappers": [
+                    {
+                        "name": "platform-gateway-audience",
+                        "protocol": "openid-connect",
+                        "protocolMapper": "oidc-audience-mapper",
+                        "config": {
+                            "included.client.audience": "${KEYCLOAK_GATEWAY_CLIENT_ID}",
+                            "access.token.claim": "true",
+                            "id.token.claim": "false",
+                            "userinfo.token.claim": "false"
+                        }
+                    }
+                ]
+            },
+            {
+                "clientId": "portal",
+                "name": "Platform Portal",
+                "enabled": true,
+                "protocol": "openid-connect",
+                "publicClient": true,
+                "standardFlowEnabled": true,
+                "directAccessGrantsEnabled": false,
+                "redirectUris": [
+                    "https://__FRONTEND_DOMAIN__/*",
+                    "https://www.__FRONTEND_DOMAIN__/*"
+                ],
+                "webOrigins": [
+                    "https://__FRONTEND_DOMAIN__",
+                    "https://www.__FRONTEND_DOMAIN__"
+                ],
+                "protocolMappers": [
+                    {
+                        "name": "portal-audience",
+                        "protocol": "openid-connect",
+                        "protocolMapper": "oidc-audience-mapper",
+                        "config": {
+                            "included.client.audience": "portal",
+                            "access.token.claim": "true",
+                            "id.token.claim": "false",
+                            "userinfo.token.claim": "false"
+                        }
+                    }
+                ]
             }
         ],
+        "roles": {
+            "realm": [
+                {
+                    "name": "admin",
+                    "description": "Platform administrator"
+                }
+            ]
+        },
         "users": [
             {
                 "username": "odp-admin",
@@ -120,6 +246,7 @@ data:
                 "emailVerified": true,
                 "firstName": "ODP",
                 "lastName": "Admin",
+                "realmRoles": ["admin"],
                 "credentials": [
                     {
                         "type": "password",
@@ -153,7 +280,13 @@ spec:
           image: alpine:3.20
           command: ["/bin/sh", "-c"]
           args:
-            - apk add --no-cache gettext >/dev/null && envsubst < /realm/odp-realm.json > /import/odp-realm.json
+            - |
+              apk add --no-cache gettext >/dev/null
+              export KEYCLOAK_SUPERSET_CLIENT_SECRET="${KEYCLOAK_SUPERSET_CLIENT_SECRET:-change_me_keycloak_superset_secret}"
+              export KEYCLOAK_GRAFANA_CLIENT_SECRET="${KEYCLOAK_GRAFANA_CLIENT_SECRET:-change_me_keycloak_grafana_secret}"
+              export KEYCLOAK_GATEWAY_CLIENT_ID="${KEYCLOAK_GATEWAY_CLIENT_ID:-platform-gateway}"
+              export KEYCLOAK_GATEWAY_CLIENT_SECRET="${KEYCLOAK_GATEWAY_CLIENT_SECRET:-change_me_keycloak_gateway_secret}"
+              envsubst < /realm/odp-realm.json > /import/odp-realm.json
           envFrom:
             - secretRef:
                 name: odp-env
@@ -181,6 +314,10 @@ spec:
                 secretKeyRef:
                   name: odp-env
                   key: KEYCLOAK_ADMIN_PASSWORD
+            - name: KC_PROXY_HEADERS
+              value: xforwarded
+            - name: KC_HOSTNAME
+              value: https://keycloak.__FRONTEND_DOMAIN__
           volumeMounts:
             - name: realm-import
               mountPath: /opt/keycloak/data/import

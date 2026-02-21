@@ -9,13 +9,14 @@ import os
 import secrets
 import time
 import xml.etree.ElementTree as ET
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlencode
 
 import requests
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import PlainTextResponse, RedirectResponse
 
 
 def _env(name: str, default: str | None = None, *, required: bool = False) -> str:
@@ -74,7 +75,17 @@ LOG = logging.getLogger("minio_sso_bridge")
 
 STATE_COOKIE_NAME = "minio_sso_bridge_state"
 
-app = FastAPI(title="MinIO SSO Bridge")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    try:
+        _ensure_minio_client_redirect()
+    except Exception as exc:  # noqa: BLE001
+        LOG.warning("Skipping Keycloak redirect reconciliation: %s", exc)
+    yield
+
+
+app = FastAPI(title="MinIO SSO Bridge", lifespan=lifespan)
 
 
 def _sign(payload: str) -> str:
@@ -243,49 +254,19 @@ def _ensure_minio_client_redirect() -> None:
     LOG.info("Keycloak client '%s' updated with bridge callback URI", SETTINGS.keycloak_minio_client_id)
 
 
-@app.on_event("startup")
-def _on_startup() -> None:
-    try:
-        _ensure_minio_client_redirect()
-    except Exception as exc:  # noqa: BLE001
-        LOG.warning("Skipping Keycloak redirect reconciliation: %s", exc)
-
-
 @app.get("/healthz", response_class=PlainTextResponse)
 def healthz() -> str:
     return "ok"
 
 
-@app.get("/", response_class=HTMLResponse)
-def index() -> str:
-    return f"""
-<!doctype html>
-<html>
-  <head>
-    <meta charset=\"utf-8\" />
-    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
-    <title>MinIO SSO Bridge</title>
-    <style>
-      body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 2rem; }}
-      .box {{ max-width: 460px; border: 1px solid #ddd; border-radius: 10px; padding: 1.2rem; }}
-      .btn {{ display:inline-block; padding:0.7rem 1rem; background:#111827; color:#fff; text-decoration:none; border-radius:8px; }}
-      .muted {{ color:#4b5563; margin-top:0.7rem; }}
-      code {{ background:#f3f4f6; padding:0.1rem 0.3rem; border-radius:4px; }}
-    </style>
-  </head>
-  <body>
-    <div class=\"box\">
-      <h2>MinIO + Keycloak Sign In</h2>
-      <p>Use this bridge to authenticate with Keycloak and create a MinIO Console session.</p>
-      <p><a class=\"btn\" href=\"/start\">Sign in with Keycloak</a></p>
-      <p class=\"muted\">After success you will be redirected to <code>{SETTINGS.minio_console_public_url.rstrip('/')}</code>.</p>
-    </div>
-  </body>
-</html>
-"""
+@app.get("/")
+def index() -> RedirectResponse:
+    """Auto-redirect to /start to begin Keycloak SSO immediately."""
+    return RedirectResponse(url="/start", status_code=302)
 
 
 @app.get("/start")
+@app.get("/start/")
 def start_sso() -> RedirectResponse:
     state = secrets.token_urlsafe(24)
     nonce = secrets.token_urlsafe(24)
@@ -318,7 +299,15 @@ def start_sso() -> RedirectResponse:
     return response
 
 
+@app.get("/login")
+@app.get("/login/")
+def login() -> RedirectResponse:
+    # Allow direct /login routing without ingress rewrites.
+    return start_sso()
+
+
 @app.get("/callback")
+@app.get("/callback/")
 def callback(request: Request) -> RedirectResponse:
     params = request.query_params
     if params.get("error"):

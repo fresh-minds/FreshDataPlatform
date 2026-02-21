@@ -1,0 +1,65 @@
+version: 2
+
+sources:
+  - name: source_sp1
+    description: >
+      Vacatures (job requisitions) from the Source SP1 portal, loaded by
+      the Python ingestion pipeline into Postgres schema "source_sp1".
+    schema: "{{ var('source_sp1_source_schema', 'source_sp1') }}"
+    loader: "src.ingestion.source_sp1"
+    loaded_at_field: ingested_at
+    freshness:
+      warn_after:
+        count: 48
+        period: hour
+      error_after:
+        count: 168
+        period: hour
+
+    tables:
+      - name: vacatures
+        description: >
+          Raw normalised vacature records upserted by the ingestion pipeline.
+          Each row represents one job requisition visible to the authenticated
+          account on the Source SP1 portal.
+        columns:
+          - name: vacature_id
+            description: >
+              Stable identifier from the portal (Salesforce record ID or
+              deterministic SHA-256 hash when no stable ID is available).
+          - name: title
+            description: Job requisition title / function title.
+          - name: status
+            description: >
+              Portal-reported status (e.g. Open, Gesloten, Inactief).
+              Exact values depend on the portal configuration.
+          - name: client_name
+            description: Client / account name the vacancy belongs to.
+          - name: location
+            description: Work location (city, region).
+          - name: publish_date
+            description: Date the vacancy was published.
+          - name: closing_date
+            description: Closing / expiration date of the vacancy.
+          - name: hours
+            description: Computed numeric hours per week (midpoint when a range).
+          - name: hours_text
+            description: Raw hours-per-week text as returned by the portal.
+          - name: description
+            description: Full vacancy description text.
+          - name: category
+            description: Functional category or discipline.
+          - name: updated_at_source
+            description: Last-modified timestamp from the portal, when available.
+          - name: source_url
+            description: URL of the portal page from which the record was extracted.
+          - name: bronze_object_path
+            description: S3 key of the raw bronze artifact in MinIO.
+          - name: checksum_sha256
+            description: SHA-256 of normalised content fields for change detection.
+          - name: ingested_at
+            description: Timestamp when the row was last written by the pipeline.
+          - name: is_active
+            description: >
+              Inferred boolean: true when status is not closed/expired AND
+              closing_date (if present) is in the future.

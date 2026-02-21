@@ -9,7 +9,8 @@ const LOCAL_DEFAULTS = {
     minioSsoBridge: 'http://localhost:9011',
     minioConsole: 'http://localhost:9001',
     minioApi: 'http://localhost:9000',
-    prometheus: 'http://localhost:9090'
+    prometheus: 'http://localhost:9090',
+    portalApi: 'http://localhost:8070'
 };
 
 const trimTrailingSlash = (url) => url.replace(/\/+$/, '');
@@ -42,14 +43,15 @@ export const isLocalEnvironment = getIsLocalEnvironment();
 
 const cloudDefaults = {
     airflow: buildSubdomainUrl('airflow'),
-    datahub: '',
-    superset: '',
-    jupyter: '',
-    grafana: '',
+    datahub: buildSubdomainUrl('datahub'),
+    superset: buildSubdomainUrl('superset'),
+    jupyter: buildSubdomainUrl('jupyter'),
+    grafana: buildSubdomainUrl('grafana'),
     minioSsoBridge: '',
     minioConsole: buildSubdomainUrl('minio'),
     minioApi: buildSubdomainUrl('minio-api'),
-    prometheus: ''
+    prometheus: buildSubdomainUrl('prometheus'),
+    portalApi: buildSubdomainUrl('portal-api')
 };
 
 const fallbackDefaults = isLocalEnvironment ? LOCAL_DEFAULTS : cloudDefaults;
@@ -67,7 +69,8 @@ export const serviceUrls = {
     minioConsole,
     minioUi: minioSsoBridge || minioConsole,
     minioApi: readEnv('VITE_MINIO_API_URL') || fallbackDefaults.minioApi,
-    prometheus: readEnv('VITE_PROMETHEUS_URL') || fallbackDefaults.prometheus
+    prometheus: readEnv('VITE_PROMETHEUS_URL') || fallbackDefaults.prometheus,
+    portalApi: readEnv('VITE_PORTAL_API_URL') || fallbackDefaults.portalApi
 };
 
 export const hasServiceUrl = (url) => typeof url === 'string' && url.length > 0;

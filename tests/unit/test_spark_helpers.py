@@ -30,7 +30,7 @@ class TestCleanDfForSpark:
         """Mixed string and number should convert to string."""
         df = pd.DataFrame({"mixed": [1, "two", 3]})
         result = clean_df_for_spark(df)
-        assert result["mixed"].dtype == object
+        assert pd.api.types.is_string_dtype(result["mixed"])
         assert list(result["mixed"]) == ["1", "two", "3"]
 
     def test_mixed_int_and_float(self):
@@ -43,13 +43,13 @@ class TestCleanDfForSpark:
         """All-null column should convert to string."""
         df = pd.DataFrame({"nulls": [None, None, None]})
         result = clean_df_for_spark(df)
-        assert result["nulls"].dtype == object
+        assert pd.api.types.is_string_dtype(result["nulls"])
 
     def test_nested_dict_column(self):
         """Column with dicts should convert to string."""
         df = pd.DataFrame({"nested": [{"a": 1}, {"b": 2}, "plain"]})
         result = clean_df_for_spark(df)
-        assert result["nested"].dtype == object
+        assert pd.api.types.is_string_dtype(result["nested"])
 
 
 class TestDropColumnsIfExist:
@@ -88,3 +88,21 @@ class TestSafeColumnRename:
         df = pd.DataFrame({"a": [1]})
         result = safe_column_rename(df, {"z": "new_z"})
         assert list(result.columns) == ["a"]
+
+    def test_data_preserved_after_rename(self):
+        """Renaming should not alter the underlying data."""
+        df = pd.DataFrame({"score": [10, 20, 30]})
+        result = safe_column_rename(df, {"score": "points"})
+        assert list(result["points"]) == [10, 20, 30]
+
+    def test_rename_multiple_columns(self):
+        """Multiple renames in a single call should all apply."""
+        df = pd.DataFrame({"a": [1], "b": [2], "c": [3]})
+        result = safe_column_rename(df, {"a": "x", "b": "y"})
+        assert set(result.columns) == {"x", "y", "c"}
+
+    def test_empty_rename_mapping_is_noop(self):
+        """An empty rename map should leave the DataFrame unchanged."""
+        df = pd.DataFrame({"col": [1, 2]})
+        result = safe_column_rename(df, {})
+        assert list(result.columns) == ["col"]

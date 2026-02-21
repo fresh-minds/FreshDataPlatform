@@ -4,10 +4,13 @@ import {
     BarChart3,
     Database,
     Eye,
+    LogOut,
     Network,
-    Terminal
+    Terminal,
+    Users
 } from 'lucide-react';
 import { hasServiceUrl, isLocalEnvironment, serviceUrls } from '../config/serviceUrls';
+import useAuth from '../auth/useAuth';
 
 const QUICK_ACTIONS = [
     { label: 'Open analytics', href: serviceUrls.superset },
@@ -15,6 +18,7 @@ const QUICK_ACTIONS = [
 ].filter((link) => hasServiceUrl(link.href));
 
 const OVERVIEW_ACTION = { label: 'One-screen overview', href: '/overview', icon: Eye };
+const DIRECTORY_ACTION = { label: 'User directory', href: '/directory', icon: Users };
 
 const PRIMARY_ENDPOINTS = [
     { label: 'Airflow UI', href: serviceUrls.airflow, icon: Network },
@@ -63,6 +67,11 @@ const QUICK_ACTION_SUBJECTS = {
         subject: 'Overview',
         detail: 'Single-page platform view'
     },
+    'User directory': {
+        subject: 'People',
+        detail: 'Platform users',
+        icon: Users
+    },
     'Open analytics': {
         subject: 'Analytics',
         detail: 'Superset workspaces',
@@ -75,7 +84,9 @@ const QUICK_ACTION_SUBJECTS = {
     }
 };
 
-const QUICK_ACTION_ITEMS = [OVERVIEW_ACTION, ...QUICK_ACTIONS].map((action) => {
+const ALL_QUICK_ACTIONS = [OVERVIEW_ACTION, DIRECTORY_ACTION, ...QUICK_ACTIONS];
+
+const QUICK_ACTION_ITEMS = ALL_QUICK_ACTIONS.map((action) => {
     const mapping = QUICK_ACTION_SUBJECTS[action.label];
 
     if (mapping) {
@@ -97,9 +108,14 @@ const QUICK_ACTION_ITEMS = [OVERVIEW_ACTION, ...QUICK_ACTIONS].map((action) => {
 });
 
 function Dashboard() {
-    const overviewItem = QUICK_ACTION_ITEMS.find((item) => item.label === 'One-screen overview');
+    const { user, logout } = useAuth();
+    const isAdmin = user?.roles?.includes('admin') ?? false;
+    const visibleQuickActions = isAdmin
+        ? QUICK_ACTION_ITEMS
+        : QUICK_ACTION_ITEMS.filter((item) => item.label !== 'User directory');
+    const overviewItem = visibleQuickActions.find((item) => item.label === 'One-screen overview');
     const secondaryItems = [
-        ...QUICK_ACTION_ITEMS.filter((item) => item.label !== 'One-screen overview'),
+        ...visibleQuickActions.filter((item) => item.label !== 'One-screen overview'),
         ...STATUS_ITEMS
     ];
 
@@ -110,6 +126,14 @@ function Dashboard() {
                     <div className="docs-nav">
                         <span className="docs-tag">Launchpad</span>
                         <div className="environment-badge">{isLocalEnvironment ? 'LOCAL ENV' : 'AKS ENV'}</div>
+                        {user && (
+                            <div className="user-badge">
+                                <span className="user-badge-name">{user.fullName || user.username}</span>
+                                <button className="user-badge-logout" onClick={logout} type="button" title="Sign out">
+                                    <LogOut size={14} aria-hidden="true" />
+                                </button>
+                            </div>
+                        )}
                     </div>
                     <div className="docs-hero-grid">
                         <div className="docs-hero-copy launchpad-copy">

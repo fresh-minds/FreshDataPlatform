@@ -1,0 +1,146 @@
+version: 2
+
+models:
+  # ── Dimensions ────────────────────────────────────────────────────
+
+  - name: dim_period
+    description: "Period dimension derived from CBS snapshot data."
+    config:
+      materialized: table
+      tags: ['job_market', 'dimension']
+    columns:
+      - name: period_sk
+        description: "Surrogate key (MD5 hash of period_key)."
+        tests:
+          - not_null
+          - unique
+      - name: period_key
+        description: "Natural business key (e.g. 2024Q1)."
+        tests:
+          - not_null
+          - unique
+      - name: period_label
+        description: "Human-readable period label."
+
+  - name: dim_sector
+    description: "Industry sector dimension from CBS SIC2008 classification."
+    config:
+      materialized: table
+      tags: ['job_market', 'dimension']
+    columns:
+      - name: sector_sk
+        description: "Surrogate key (MD5 hash of sector_name)."
+        tests:
+          - not_null
+          - unique
+      - name: sector_name
+        description: "Sector name."
+        tests:
+          - not_null
+          - unique
+
+  - name: dim_region
+    description: "Dutch province dimension with centroid coordinates."
+    config:
+      materialized: table
+      tags: ['job_market', 'dimension']
+    columns:
+      - name: region_sk
+        description: "Surrogate key (MD5 hash of region name)."
+        tests:
+          - not_null
+          - unique
+      - name: region_name
+        description: "Province name."
+        tests:
+          - not_null
+          - unique
+      - name: latitude
+        tests:
+          - not_null
+      - name: longitude
+        tests:
+          - not_null
+
+  # ── Facts ─────────────────────────────────────────────────────────
+
+  - name: fact_it_market_snapshot
+    description: >
+      Star-schema fact table: IT market snapshot with dimension surrogate key
+      references and enriched context (regions, skills).
+    config:
+      materialized: table
+      tags: ['job_market', 'fact']
+    columns:
+      - name: snapshot_sk
+        description: "Surrogate key (MD5 hash of period_key + sector_name)."
+        tests:
+          - not_null
+          - unique
+      - name: period_sk
+        description: "FK to dim_period."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_period')
+              field: period_sk
+      - name: sector_sk
+        description: "FK to dim_sector."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_sector')
+              field: sector_sk
+      - name: vacancies
+        description: "Number of open vacancies."
+      - name: vacancy_rate
+        description: "Vacancy rate percentage."
+      - name: job_ads_count
+        tests:
+          - not_null
+      - name: regions_with_ads
+        tests:
+          - not_null
+      - name: distinct_skills_count
+        tests:
+          - not_null
+
+  - name: fact_it_market_top_skills
+    description: "Fact table of skill demand from IT job advertisements."
+    config:
+      materialized: table
+      tags: ['job_market', 'fact']
+    columns:
+      - name: skill_sk
+        description: "Surrogate key (MD5 hash of skill name)."
+        tests:
+          - not_null
+          - unique
+      - name: skill
+        tests:
+          - not_null
+          - unique
+      - name: mention_count
+        description: "Number of job ads mentioning this skill."
+        tests:
+          - not_null
+
+# ── Exposures ─────────────────────────────────────────────────────
+
+exposures:
+  - name: superset_it_market_dashboard
+    type: dashboard
+    description: >
+      IT Market Dashboard in Superset showing vacancy trends, top skills,
+      and regional distribution of IT job ads in the Netherlands.
+    maturity: low
+    url: "http://localhost:8088/superset/dashboard/it-market/"
+    depends_on:
+      - ref('fact_it_market_snapshot')
+      - ref('fact_it_market_top_skills')
+      - ref('dim_period')
+      - ref('dim_sector')
+      - ref('dim_region')
+    owner:
+      name: "Data Platform Team"
+      email: "data-platform@example.com"

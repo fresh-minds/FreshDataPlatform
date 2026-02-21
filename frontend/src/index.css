@@ -1522,3 +1522,148 @@ h1, h2, h3 {
     transform: none;
   }
 }
+
+/* Keycloak Auth - Loading State */
+.kc-loading {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  font-family: var(--font-display);
+  color: var(--text-secondary);
+}
+
+.kc-loading p {
+  font-size: 1.1rem;
+  margin: 0 0 1rem;
+}
+
+.kc-loading button {
+  background: var(--primary-color);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.5rem 1.25rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Home Page - User Bar */
+.home-user-bar {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  z-index: 10;
+}
+
+.home-user-name {
+  font-size: 0.85rem;
+  color: var(--home-muted);
+  font-weight: 500;
+}
+
+.home-logout-btn {
+  background: transparent;
+  border: 1px solid var(--home-line);
+  color: var(--home-muted);
+  padding: 0.3rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.home-logout-btn:hover {
+  border-color: var(--home-accent);
+  color: var(--home-accent);
+}
+
+/* Dashboard - User Badge */
+.user-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+.user-badge-name {
+  font-size: 0.85rem;
+  color: var(--docs-muted);
+  font-weight: 500;
+}
+
+.user-badge-logout {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid rgba(31, 41, 51, 0.15);
+  color: var(--docs-muted);
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.user-badge-logout:hover {
+  border-color: var(--docs-accent);
+  color: var(--docs-accent);
+}
+
+/* Directory Page */
+.directory-search {
+  width: 100%;
+  padding: 0.65rem 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(31, 41, 51, 0.12);
+  background: #fff;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  color: var(--docs-ink, #1f2933);
+  outline: none;
+  box-sizing: border-box;
+}
+
+.directory-search:focus {
+  border-color: var(--docs-accent, #0f766e);
+}
+
+.directory-search::placeholder {
+  color: var(--docs-muted, #5f6b7a);
+}
+
+.directory-meta {
+  font-size: 0.8rem;
+  color: var(--docs-muted, #5f6b7a);
+  margin: 0 0 0.75rem 0;
+}
+
+.directory-retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+  background: transparent;
+  border: 1px solid rgba(31, 41, 51, 0.2);
+  color: var(--docs-ink, #1f2933);
+  padding: 0.4rem 0.9rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.directory-retry:hover {
+  border-color: var(--docs-accent, #0f766e);
+}
+
+.launchpad-item--user {
+  cursor: default;
+}

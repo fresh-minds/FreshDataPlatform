@@ -9,6 +9,8 @@
 ### Prerequisites
 - Docker Engine + Compose plugin
 - `.env` configured from `.env.template`
+- For `source_sp1_vacatures_ingestion`: set
+  `SP1_USERNAME` and `SP1_PASSWORD` in `.env`
 
 ### Bring up stack
 ```bash
@@ -19,8 +21,10 @@ docker compose up -d
 This sets up/validates env, starts services, and bootstraps MinIO/Superset/DataHub/warehouse assets.
 
 ```bash
-./scripts/bootstrap_all.sh --auto-fill-env
+./scripts/platform/bootstrap_all.sh --auto-fill-env
 ```
+The script auto-creates `.venv` for bootstrap dependencies (`.[dev,pipeline]`) and recreates it if the Python interpreter path is stale.
+Pass `--skip-dev-install` if you already manage a separate environment.
 
 ### Key local endpoints
 - Airflow: `http://localhost:8080`
@@ -54,6 +58,30 @@ kubectl -n odp-dev port-forward svc/keycloak 8090:8090
 ```bash
 make k8s-dev-down
 ```
+
+### Full Compose Parity on kind
+To run the full Compose-equivalent stack in Kubernetes (`docker-compose.yml` + k8s overrides):
+
+```bash
+make k8s-dev-up-full
+```
+
+This includes the core stack plus Superset, DataHub, observability components, portal, notebooks, and exporters.
+On `arm64` kind clusters, `prometheus-msteams` is skipped automatically because its image is `amd64`-only.
+
+### Shared SSO Gateway on kind
+To front multiple UIs with one Keycloak-backed login session:
+
+```bash
+make k8s-sso-gateway-up
+make k8s-sso-gateway-forward
+```
+
+Use host-based URLs such as:
+- `http://airflow.localtest.me:8085`
+- `http://superset.localtest.me:8085`
+- `http://datahub.localtest.me:8085`
+- `http://minio.localtest.me:8085`
 
 ## 3) AKS (Dev-like)
 ### Prerequisites
@@ -105,12 +133,22 @@ Minimum critical groups:
 - Superset and DataHub secrets
 - Keycloak OIDC client credentials (if SSO enabled)
 
+Security defaults:
+- Keep `AIRFLOW_OAUTH_DEFAULT_ROLE=Viewer` unless you explicitly require a broader default.
+- Keep Keycloak realm `registrationAllowed=false` in shared/dev-like environments.
+
 Use generated strong values for secrets before any shared environment deployment.
 
 ## CI/CD Workflows
 GitHub Actions currently include:
-- `.github/workflows/e2e-data-platform.yml`
-- `.github/workflows/sso-e2e.yml`
+<!-- - `.github/workflows/ci.yml` -->
+- `.github/workflows/security.yml`
+<!-- - `.github/workflows/release.yml` -->
+<!-- - `.github/workflows/cd-deploy.yml` -->
+<!-- - `.github/workflows/build-images.yml` -->
+- `.github/workflows/dbt-ci.yml`
+<!-- - `.github/workflows/e2e-data-platform.yml` -->
+<!-- - `.github/workflows/sso-e2e.yml` -->
 - `.github/workflows/schema-quality.yml`
 
 These validate:

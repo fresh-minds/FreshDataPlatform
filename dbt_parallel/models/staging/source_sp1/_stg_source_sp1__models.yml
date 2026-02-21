@@ -1,0 +1,84 @@
+version: 2
+
+models:
+  - name: stg_source_sp1__vacatures
+    description: >
+      Staged vacatures from the Source SP1 portal: type-cast, null-filtered,
+      and ready for downstream intermediate and mart models.
+      Source: source_sp1.vacatures (Python pipeline).
+
+    columns:
+      - name: vacature_id
+        description: >
+          Stable unique identifier. Either the Salesforce record ID from the
+          portal or a deterministic SHA-256 hash derived from (title, location,
+          publish_date) when no explicit ID is available.
+        tests:
+          - not_null
+          - unique
+
+      - name: title
+        description: Job requisition / function title.
+
+      - name: status
+        description: >
+          Portal-reported vacancy status. Null when the portal does not expose
+          a status field. Known values vary by portal configuration.
+        tests:
+          - not_null:
+              severity: warn
+
+      - name: client_name
+        description: Name of the client organisation for this vacancy.
+
+      - name: location
+        description: Work location (city or region text from the portal).
+
+      - name: publish_date
+        description: Date on which the vacancy was published. May be null.
+
+      - name: closing_date
+        description: Closing / expiration date. May be null for open-ended vacancies.
+
+      - name: hours
+        description: >
+          Numeric hours per week. Derived from hours_text: midpoint when a
+          range (e.g. "32-40") is provided, otherwise the literal numeric value.
+
+      - name: hours_text
+        description: Raw hours-per-week text as provided by the portal.
+
+      - name: description
+        description: Full vacancy description / function profile text.
+
+      - name: category
+        description: Functional category, sector, or discipline label.
+
+      - name: updated_at_source
+        description: >
+          Last-modified timestamp from the portal (Salesforce SystemModstamp or
+          LastModifiedDate). Null when the portal does not expose this field.
+
+      - name: ingested_at
+        description: Timestamp of the most recent pipeline write for this row.
+        tests:
+          - not_null
+
+      - name: source_url
+        description: URL of the portal page from which this record was extracted.
+
+      - name: bronze_object_path
+        description: S3 key of the raw bronze artifact in MinIO.
+
+      - name: checksum_sha256
+        description: >
+          SHA-256 hash of normalised content fields. Used for change detection:
+          an upsert only updates the row when this value differs.
+        tests:
+          - not_null
+
+      - name: is_active
+        description: >
+          Inferred boolean flag. True when status is not in the closed/inactive
+          set AND closing_date (if present) is not in the past. Null when
+          neither status nor closing_date is available.

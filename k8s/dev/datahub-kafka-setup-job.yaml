@@ -1,0 +1,25 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: datahub-kafka-setup
+  namespace: odp-dev
+  labels:
+    app.kubernetes.io/name: datahub-kafka-setup
+spec:
+  backoffLimit: 6
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: datahub-kafka-setup
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: datahub-kafka-setup
+          image: acryldata/datahub-kafka-setup:v1.2.0.1
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: KAFKA_BOOTSTRAP_SERVER
+              value: datahub-kafka:29092
+            - name: KAFKA_ZOOKEEPER_CONNECT
+              value: datahub-zookeeper:2181

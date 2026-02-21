@@ -17,7 +17,7 @@ metrics:
     certification: "DRAFT"
     grain: "month"
     source:
-      dataset: "job_market_nl.job_market_snapshot"
+      dataset: "job_market_nl.it_market_snapshot"
       primary_key: "period_key"
       timestamp_column: "period_key"
     dimensions:

@@ -48,7 +48,7 @@ make test-e2e
 The GitHub workflow `.github/workflows/e2e-data-platform.yml` runs on pull requests affecting pipeline/test/governance assets and executes:
 
 ```bash
-./scripts/run_e2e_tests.sh
+./scripts/testing/run_e2e_tests.sh
 ```
 
 It uploads `tests/e2e/evidence/latest` as the evidence artifact.
