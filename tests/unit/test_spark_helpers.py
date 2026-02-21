@@ -30,7 +30,7 @@ class TestCleanDfForSpark:
         """Mixed string and number should convert to string."""
         df = pd.DataFrame({"mixed": [1, "two", 3]})
         result = clean_df_for_spark(df)
-        assert result["mixed"].dtype == object
+        assert pd.api.types.is_string_dtype(result["mixed"])
         assert list(result["mixed"]) == ["1", "two", "3"]
 
     def test_mixed_int_and_float(self):
@@ -43,13 +43,13 @@ class TestCleanDfForSpark:
         """All-null column should convert to string."""
         df = pd.DataFrame({"nulls": [None, None, None]})
         result = clean_df_for_spark(df)
-        assert result["nulls"].dtype == object
+        assert pd.api.types.is_string_dtype(result["nulls"])
 
     def test_nested_dict_column(self):
         """Column with dicts should convert to string."""
         df = pd.DataFrame({"nested": [{"a": 1}, {"b": 2}, "plain"]})
         result = clean_df_for_spark(df)
-        assert result["nested"].dtype == object
+        assert pd.api.types.is_string_dtype(result["nested"])
 
 
 class TestDropColumnsIfExist:

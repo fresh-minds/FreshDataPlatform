@@ -46,6 +46,11 @@ make test
 make qa-test
 ```
 
+Governance suite note:
+- `tests/governance/test_governance_controls.py` bootstraps `platform_audit.pipeline_runs`
+  with a deterministic seed row when the table is absent, so local and CI runs are
+  stable without requiring a prior E2E pipeline execution.
+
 ### Run full E2E suites
 ```bash
 make test-e2e
