@@ -73,13 +73,20 @@ Service links are resolved via:
 - Vite env vars (`VITE_*_URL`)
 - Fallback localhost endpoints in `frontend/src/config/serviceUrls.js`
 
+Homepage assistant note:
+- On `/`, clicking the hero image opens a chat panel on the right.
+- The panel calls `portal-api` endpoint `POST /api/chat` (authenticated with the Keycloak bearer token).
+- Preferred backend env vars (Azure AI Foundry Agent): `AZURE_FOUNDRY_AGENT_ENDPOINT` and either `AZURE_FOUNDRY_AGENT_ID` or `AZURE_FOUNDRY_AGENT_NAME`, plus `AZURE_FOUNDRY_API_KEY`.
+- Optional fallback backend env vars: `AZURE_OPENAI_CHAT_ENDPOINT`, `AZURE_OPENAI_API_KEY`.
+
 Platform dashboard note:
 - `/platform` keeps "Overview" at the top, followed by ordered destinations (Orchestration, Storage, Analytics + Notebook workspace row, Catalog & lineage).
-- The "People" section is shown in a separate box and only visible to admins.
+- The "People" section is shown in a separate box, only visible to admins, and rendered at the very bottom.
 - `/platform` includes a dedicated "Logging, monitoring and tracing" section with links to Grafana, Prometheus, and Alertmanager.
 - Optional frontend overrides: `VITE_GRAFANA_URL`, `VITE_PROMETHEUS_URL`, `VITE_ALERTMANAGER_URL`.
 - `/architecture` and `/services` expose the same observability links for consistent navigation.
 - In `/architecture`, the observability nodes in the SVG diagram (Grafana, Prometheus, Alertmanager) are also directly clickable.
+- The `/architecture` diagram also reflects active runtime components from Compose, including Jupyter (`:8888`) and tracing/log backends (Loki `:3100`, Tempo `:3200`).
 
 ## Useful Make Targets
 - `make help`: list available targets
