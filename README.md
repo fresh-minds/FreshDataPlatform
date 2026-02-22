@@ -229,3 +229,7 @@ guide are provided:
    - `make qa-test`
    - `make test-e2e`
 4. Open a PR with a clear scope and validation notes.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
