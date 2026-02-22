@@ -2,7 +2,7 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 from datetime import datetime, timedelta
 import os
-from scripts.catalog.datahub_client import DataHubService
+from scripts.datahub_client import DataHubService
 
 # This DAG serves as an example of how to manually emit metadata to DataHub
 # Note: Automatic lineage should be handled by the acryl-datahub-airflow-plugin

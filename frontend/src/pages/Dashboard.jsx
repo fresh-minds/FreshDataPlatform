@@ -158,6 +158,14 @@ function Dashboard() {
                                         </div>
                                     )}
                                 </div>
+                                {isAdmin ? (
+                                    <div className="launchpad-section">
+                                        <p className="launchpad-section-title">People</p>
+                                        <div className="launchpad-list">
+                                            <LaunchpadListItem item={PEOPLE_ITEM} />
+                                        </div>
+                                    </div>
+                                ) : null}
                                 <div className="launchpad-section">
                                     <p className="launchpad-section-title">Logging, monitoring and tracing</p>
                                     {OBSERVABILITY_LINKS.length ? (
@@ -181,14 +189,6 @@ function Dashboard() {
                                         </div>
                                     )}
                                 </div>
-                                {isAdmin ? (
-                                    <div className="launchpad-section">
-                                        <p className="launchpad-section-title">People</p>
-                                        <div className="launchpad-list">
-                                            <LaunchpadListItem item={PEOPLE_ITEM} />
-                                        </div>
-                                    </div>
-                                ) : null}
                             </div>
                         </div>
                     </div>

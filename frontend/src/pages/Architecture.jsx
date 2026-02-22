@@ -6,7 +6,6 @@ const LINKS = [
     { label: 'Open overview', href: '/overview' },
     { label: 'Open documentation', href: '/docs' },
     { label: 'Airflow', href: serviceUrls.airflow },
-    { label: 'Jupyter', href: serviceUrls.jupyter },
     { label: 'Grafana', href: serviceUrls.grafana },
     { label: 'Prometheus', href: serviceUrls.prometheus },
     { label: 'Alertmanager', href: serviceUrls.alertmanager }
@@ -159,9 +158,6 @@ function Architecture() {
                         <rect x="620" y="295" width="220" height="60" rx="12" className="arch-node" />
                         <text x="730" y="323" className="arch-node-text">Superset</text>
                         <text x="730" y="345" className="arch-node-sub">:8088</text>
-                        <rect x="620" y="365" width="220" height="50" rx="12" className="arch-node" />
-                        <text x="730" y="388" className="arch-node-text">Jupyter</text>
-                        <text x="730" y="408" className="arch-node-sub">:8888</text>
 
                         <rect x="880" y="240" width="280" height="190" rx="18" className="arch-group" />
                         <text x="900" y="270" className="arch-group-title">Observability</text>
@@ -169,8 +165,7 @@ function Architecture() {
                             <ObservabilityNode key={node.key} node={node} />
                         ))}
                         <rect x="1040" y="365" width="120" height="50" rx="12" className="arch-node" />
-                        <text x="1100" y="388" className="arch-node-text">Loki + Tempo</text>
-                        <text x="1100" y="408" className="arch-node-sub">:3100 / :3200</text>
+                        <text x="1100" y="395" className="arch-node-text">Telemetry</text>
 
                         <path d="M180 125 L200 125" className="arch-line" markerEnd="url(#arrow)" />
                         <path d="M320 125 L400 125" className="arch-line" markerEnd="url(#arrow)" />
