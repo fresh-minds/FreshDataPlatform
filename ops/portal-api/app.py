@@ -36,8 +36,7 @@ class ApiSettings:
     azure_foundry_agent_id: str
     azure_foundry_agent_name: str
     azure_foundry_api_key: str
-    azure_openai_chat_endpoint: str
-    azure_openai_api_key: str
+    azure_foundry_bearer_token: str
 
 
 SETTINGS = ApiSettings(
@@ -50,9 +49,8 @@ SETTINGS = ApiSettings(
     azure_foundry_agent_endpoint=_env("AZURE_FOUNDRY_AGENT_ENDPOINT", _env("AZURE_EXISTING_AIPROJECT_ENDPOINT", "")),
     azure_foundry_agent_id=_env("AZURE_FOUNDRY_AGENT_ID", _env("AZURE_EXISTING_AGENT_ID", "")),
     azure_foundry_agent_name=_env("AZURE_FOUNDRY_AGENT_NAME", ""),
-    azure_foundry_api_key=_env("AZURE_FOUNDRY_API_KEY", _env("AZURE_OPENAI_API_KEY", "")),
-    azure_openai_chat_endpoint=_env("AZURE_OPENAI_CHAT_ENDPOINT", ""),
-    azure_openai_api_key=_env("AZURE_OPENAI_API_KEY", ""),
+    azure_foundry_api_key=_env("AZURE_FOUNDRY_API_KEY", ""),
+    azure_foundry_bearer_token=_env("AZURE_FOUNDRY_BEARER_TOKEN", ""),
     cors_origins=[
         origin.strip()
         for origin in _env("PORTAL_CORS_ORIGINS", "http://localhost:3000").split(",")
@@ -285,12 +283,35 @@ def _build_foundry_responses_url(base_endpoint: str) -> str:
     return f"{endpoint}/openai/v1/responses"
 
 
+def _extract_provider_error(response: requests.Response) -> tuple[str, str]:
+    provider_code = "provider_error"
+    provider_message = response.text[:800] if response.text else "Unknown provider error"
+
+    try:
+        data = response.json()
+    except ValueError:
+        return provider_code, provider_message
+
+    error_obj = data.get("error") if isinstance(data, dict) else None
+    if isinstance(error_obj, dict):
+        code = error_obj.get("code")
+        message = error_obj.get("message")
+        if isinstance(code, str) and code.strip():
+            provider_code = code.strip()
+        if isinstance(message, str) and message.strip():
+            provider_message = message.strip()
+
+    return provider_code, provider_message
+
+
 def _call_foundry_agent(messages: list[dict], claims: dict) -> str:
     agent_ref = _foundry_agent_ref()
     if not agent_ref:
         raise HTTPException(status_code=502, detail="Foundry agent is not configured")
-    if not SETTINGS.azure_foundry_agent_endpoint or not SETTINGS.azure_foundry_api_key:
-        raise HTTPException(status_code=502, detail="Foundry agent endpoint or key missing")
+    if not SETTINGS.azure_foundry_agent_endpoint:
+        raise HTTPException(status_code=502, detail="Foundry agent endpoint missing")
+    if not SETTINGS.azure_foundry_api_key and not SETTINGS.azure_foundry_bearer_token:
+        raise HTTPException(status_code=502, detail="Foundry credentials missing (set AZURE_FOUNDRY_API_KEY or AZURE_FOUNDRY_BEARER_TOKEN)")
 
     responses_url = _build_foundry_responses_url(SETTINGS.azure_foundry_agent_endpoint)
     input_messages = [
@@ -303,16 +324,21 @@ def _call_foundry_agent(messages: list[dict], claims: dict) -> str:
 
     payload = {
         "input": input_messages,
-        "agent": agent_ref,
+        "agent_reference": agent_ref,
     }
+
+    headers = {
+        "Content-Type": "application/json",
+    }
+    if SETTINGS.azure_foundry_bearer_token:
+        headers["Authorization"] = f"Bearer {SETTINGS.azure_foundry_bearer_token}"
+    else:
+        headers["api-key"] = SETTINGS.azure_foundry_api_key
 
     try:
         response = requests.post(
             responses_url,
-            headers={
-                "api-key": SETTINGS.azure_foundry_api_key,
-                "Content-Type": "application/json",
-            },
+            headers=headers,
             json=payload,
             timeout=60,
         )
@@ -321,83 +347,21 @@ def _call_foundry_agent(messages: list[dict], claims: dict) -> str:
         raise HTTPException(status_code=502, detail="Chat provider request failed") from exc
 
     if response.status_code >= 400:
+        provider_code, provider_message = _extract_provider_error(response)
         LOG.warning(
-            "portal_chat_foundry_provider_error subject=%s status=%s body=%s",
+            "portal_chat_foundry_provider_error subject=%s status=%s code=%s body=%s",
             claims.get("sub"),
             response.status_code,
+            provider_code,
             response.text[:800],
         )
-        raise HTTPException(status_code=502, detail="Chat provider returned an error")
+        raise HTTPException(
+            status_code=response.status_code,
+            detail=f"Foundry error ({provider_code}): {provider_message}",
+        )
 
     data = response.json()
     reply = _extract_reply_from_responses_payload(data)
-    if not reply:
-        raise HTTPException(status_code=502, detail="Chat provider returned empty response")
-
-    return reply
-
-
-def _call_openai_chat(messages: list[dict], claims: dict) -> str:
-    if not SETTINGS.azure_openai_chat_endpoint or not SETTINGS.azure_openai_api_key:
-        raise HTTPException(status_code=502, detail="Azure OpenAI endpoint or key missing")
-
-    headers = {
-        "api-key": SETTINGS.azure_openai_api_key,
-        "Content-Type": "application/json",
-    }
-
-    request_payload = {
-        "messages": messages,
-        "temperature": 0.2,
-    }
-
-    try:
-        response = requests.post(
-            SETTINGS.azure_openai_chat_endpoint,
-            headers=headers,
-            json=request_payload,
-            timeout=45,
-        )
-    except requests.RequestException as exc:
-        LOG.exception("portal_chat_request_failed subject=%s", claims.get("sub"))
-        raise HTTPException(status_code=502, detail="Chat provider request failed") from exc
-
-    if response.status_code >= 400:
-        response_text = response.text or ""
-        if "temperature" in response_text and "unsupported_value" in response_text:
-            LOG.info("portal_chat_retry_without_temperature subject=%s", claims.get("sub"))
-            try:
-                response = requests.post(
-                    SETTINGS.azure_openai_chat_endpoint,
-                    headers=headers,
-                    json={"messages": messages},
-                    timeout=45,
-                )
-            except requests.RequestException as exc:
-                LOG.exception("portal_chat_retry_failed subject=%s", claims.get("sub"))
-                raise HTTPException(status_code=502, detail="Chat provider request failed") from exc
-
-    if response.status_code >= 400:
-        LOG.warning(
-            "portal_chat_provider_error subject=%s status=%s body=%s",
-            claims.get("sub"),
-            response.status_code,
-            response.text[:800],
-        )
-        raise HTTPException(status_code=502, detail="Chat provider returned an error")
-
-    data = response.json()
-    choices = data.get("choices") or []
-    if not choices:
-        raise HTTPException(status_code=502, detail="Chat provider returned no choices")
-
-    message = (choices[0] or {}).get("message") or {}
-    content = message.get("content", "")
-    if isinstance(content, list):
-        reply = "\n".join(part.get("text", "") for part in content if isinstance(part, dict)).strip()
-    else:
-        reply = str(content).strip()
-
     if not reply:
         raise HTTPException(status_code=502, detail="Chat provider returned empty response")
 
@@ -443,13 +407,8 @@ def chat(request: Request, payload: ChatRequest) -> ChatResponse:
     ]
     messages.append({"role": "user", "content": payload.message})
 
-    use_foundry_agent = bool(SETTINGS.azure_foundry_agent_endpoint and _foundry_agent_ref())
-    if use_foundry_agent:
-        LOG.info("portal_chat_provider_mode subject=%s mode=foundry_agent", claims.get("sub"))
-        reply = _call_foundry_agent(messages, claims)
-    else:
-        LOG.info("portal_chat_provider_mode subject=%s mode=azure_openai_chat", claims.get("sub"))
-        reply = _call_openai_chat(messages, claims)
+    LOG.info("portal_chat_provider_mode subject=%s mode=foundry_agent", claims.get("sub"))
+    reply = _call_foundry_agent(messages, claims)
 
     LOG.info(
         "portal_chat_success subject=%s username=%s",

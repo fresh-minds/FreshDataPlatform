@@ -77,7 +77,9 @@ Homepage assistant note:
 - On `/`, clicking the hero image opens a chat panel on the right.
 - The panel calls `portal-api` endpoint `POST /api/chat` (authenticated with the Keycloak bearer token).
 - Preferred backend env vars (Azure AI Foundry Agent): `AZURE_FOUNDRY_AGENT_ENDPOINT` and either `AZURE_FOUNDRY_AGENT_ID` or `AZURE_FOUNDRY_AGENT_NAME`, plus `AZURE_FOUNDRY_API_KEY`.
-- Optional fallback backend env vars: `AZURE_OPENAI_CHAT_ENDPOINT`, `AZURE_OPENAI_API_KEY`.
+- Optional agent auth alternative: `AZURE_FOUNDRY_BEARER_TOKEN` (when using Entra bearer token instead of API key).
+- If chat returns a Foundry `403 Forbidden`, assign the calling identity permission for `Microsoft.MachineLearningServices/workspaces/agents/action` on the target AI Foundry project/workspace.
+- OpenAI fallback is removed; homepage chat uses Foundry agent only.
 
 Platform dashboard note:
 - `/platform` keeps "Overview" at the top, followed by ordered destinations (Orchestration, Storage, Analytics + Notebook workspace row, Catalog & lineage).

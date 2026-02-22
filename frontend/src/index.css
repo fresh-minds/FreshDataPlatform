@@ -139,15 +139,15 @@ h1, h2, h3 {
 }
 
 .home-icon-frame {
-  width: min(100%, 360px);
-  background-color: #f8fafc;
+  width: min(100%, 1032px);
+  background-color: #060606;
   border: 1px solid var(--home-line);
   border-radius: 20px;
   padding: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 200px;
+  min-height: 380px;
   margin: 0 auto;
 }
 
@@ -171,7 +171,7 @@ h1, h2, h3 {
   display: block;
   width: auto;
   max-width: 100%;
-  max-height: 320px;
+  max-height: 384px;
   height: auto;
   object-fit: contain;
   border-radius: 12px;

@@ -49,7 +49,16 @@ function Home() {
             });
 
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
+                let errorDetail = '';
+                try {
+                    const errorPayload = await response.json();
+                    if (errorPayload && typeof errorPayload.detail === 'string') {
+                        errorDetail = errorPayload.detail;
+                    }
+                } catch (_error) {
+                    errorDetail = '';
+                }
+                throw new Error(errorDetail || `HTTP ${response.status}`);
             }
 
             const data = await response.json();
@@ -78,7 +87,7 @@ function Home() {
             <div className="home-layout">
                 <div className="home-layout-main">
                     <section className="home-shell" aria-labelledby="home-title">
-                        <h1 id="home-title">Operate your data platform from one place.</h1>
+                        {/* <h1 id="home-title">Operate your data platform from one place.</h1> */}
 
                         <button
                             type="button"
@@ -95,14 +104,14 @@ function Home() {
                             </div>
                         </button>
 
-                        <button
+                        {/* <button
                             type="button"
                             className="home-qa-tag"
                             onClick={() => setChatOpen(true)}
                             aria-label="Open chat assistant"
                         >
                             QA this platform!
-                        </button>
+                        </button> */}
 
                         <p className="home-copy">
                             Monitor pipelines, explore trusted datasets, and access analytics without switching contexts.
