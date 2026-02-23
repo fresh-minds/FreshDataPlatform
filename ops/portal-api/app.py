@@ -184,6 +184,10 @@ def _require_admin(claims: dict) -> None:
         raise HTTPException(status_code=403, detail="Admin role required")
 
 
+def _claim_username(claims: dict) -> str:
+    return claims.get("preferred_username") or claims.get("email") or "unknown"
+
+
 def _keycloak_admin_token() -> str | None:
     if not SETTINGS.keycloak_admin_user or not SETTINGS.keycloak_admin_password:
         return None
@@ -387,7 +391,7 @@ def list_users(request: Request) -> dict:
     LOG.info(
         "portal_user_directory_read subject=%s username=%s total=%s",
         claims.get("sub"),
-        claims.get("preferred_username") or claims.get("email") or "unknown",
+        _claim_username(claims),
         len(users),
     )
     return {"users": users, "total": len(users)}
@@ -413,7 +417,7 @@ def chat(request: Request, payload: ChatRequest) -> ChatResponse:
     LOG.info(
         "portal_chat_success subject=%s username=%s",
         claims.get("sub"),
-        claims.get("preferred_username") or claims.get("email") or "unknown",
+        _claim_username(claims),
     )
     return ChatResponse(reply=reply)
 
