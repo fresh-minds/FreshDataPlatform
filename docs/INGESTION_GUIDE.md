@@ -323,12 +323,13 @@ cp dags/_template_dag.py dags/<source_name>_<dataset>_ingestion.py
 Edit the file:
 
 1. Update `_SOURCE_NAME` and `_DATASET` constants.
-2. Import your source config.
-3. Wire `make_ensure_ddl_callable(YOUR_CONFIG)` into preflight.
-4. Implement `_extract_to_bronze()` using your extractor.
-5. Implement `_parse_and_load()` using your parser + `upsert_records()`.
-6. Set the dbt selector in `make_dbt_run_callable(select="stg_<source>__<dataset>+")`.
-7. Add source-specific connections to `make_validate_connections_callable()`.
+2. Update `_DAG_ID` to your real DAG ID (for example: `<source_name>_<dataset>_ingestion`).
+3. Import your source config.
+4. Wire `make_ensure_ddl_callable(YOUR_CONFIG)` into preflight.
+5. Implement `_extract_to_bronze()` using your extractor.
+6. Implement `_parse_and_load()` using your parser + `upsert_records()`.
+7. Set the dbt selector in `make_dbt_run_callable(select="stg_<source>__<dataset>+")`.
+8. Add source-specific connections to `make_validate_connections_callable()`.
 
 **Key imports from `dag_helpers`:**
 

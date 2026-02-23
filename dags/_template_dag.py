@@ -55,6 +55,7 @@ log = logging.getLogger(__name__)
 _SOURCE_NAME = "my_source"
 _DATASET = "my_dataset"
 _DEFAULT_BUCKET = "lakehouse"
+_DAG_ID = "template_my_source_my_dataset_ingestion"
 
 
 # ===========================================================================
@@ -230,7 +231,7 @@ def _parse_and_load(**kwargs):
 _ddl_callable = None  # placeholder — replace with line above
 
 with DAG(
-    dag_id=f"{_SOURCE_NAME}_{_DATASET}_ingestion",
+    dag_id=_DAG_ID,
     default_args=make_default_args(),
     description=f"Ingest {_SOURCE_NAME} {_DATASET} → MinIO bronze → Postgres silver → dbt gold",
     schedule_interval="@daily",
