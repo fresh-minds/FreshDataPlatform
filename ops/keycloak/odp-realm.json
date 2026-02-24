@@ -3,6 +3,7 @@
     "displayName": "Open Data Platform",
     "enabled": true,
     "registrationAllowed": false,
+    "loginTheme": "odp-demo-autologin",
     "clients": [
         {
             "clientId": "airflow",

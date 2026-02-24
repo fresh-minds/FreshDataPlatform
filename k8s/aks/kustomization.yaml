@@ -11,3 +11,5 @@ resources:
   - airflow-webserver.yaml
   - airflow-scheduler.yaml
   - frontend.yaml
+  - dbt-docs.yaml
+  - keyvault-sync.yaml

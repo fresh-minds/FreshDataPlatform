@@ -29,6 +29,7 @@ Open Data Platform is a reference implementation for running analytics workloads
   - Dedicated SSO test suite and reports
 - Operator UX consistency:
   - Frontend `/platform`, `/architecture`, and `/services` provide aligned observability links (Grafana, Prometheus, Alertmanager)
+  - Frontend `/platform` includes `docs and horizontal technical lineage` linking to dbt docs (`dbt docs & lineage`)
 
 ## Architecture Overview
 The platform is composed of three planes: control plane, data plane, and operator plane.
@@ -145,6 +146,18 @@ Optional notebook workspace:
 docker compose up -d jupyter
 ```
 
+Generate and host dbt docs locally:
+```bash
+make dbt-docs-refresh
+```
+
+Then open `http://localhost:8089` (or navigate from `/platform`).
+
+Keep dbt docs and lineage auto-updated during development:
+```bash
+make dbt-docs-watch
+```
+
 ### 3) Run a pipeline
 Postgres-only end-to-end job market pipeline:
 ```bash
@@ -170,11 +183,13 @@ Main configuration lives in `.env` (see `.env.template`).
 Key groups:
 - Runtime and storage:
   - `IS_LOCAL`, `USE_MINIO`, `LOCAL_LAKEHOUSE_PATH`
+- Frontend links:
+  - `VITE_DBT_DOCS_URL`, `DBT_DOCS_PUBLIC_URL`, `VITE_SHOW_DEMO_RIBBON`, `VITE_DEMO_AUTO_ADMIN`, `VITE_DEMO_USERNAME`
 - Service credentials:
   - `AIRFLOW_*`, `WAREHOUSE_*`, `MINIO_*`, `SUPERSET_*`, `DATAHUB_*`
   - `SP1_*` (required for `source_sp1_vacatures_ingestion`)
 - SSO/identity:
-  - `KEYCLOAK_*`, `MINIO_OIDC_REDIRECT_URI`
+  - `KEYCLOAK_*`, `KEYCLOAK_DEMO_AUTO_LOGIN`, `KEYCLOAK_DEMO_AUTOLOGIN_USERNAME`, `MINIO_OIDC_REDIRECT_URI`
 - Observability:
   - `OTEL_*`, `GRAFANA_ADMIN_*`, `ALERT_TEAMS_WEBHOOK_URL`
 - Connector controls:
@@ -191,6 +206,51 @@ For local workflows, coding standards, and extension patterns:
 For Docker Compose, kind, and AKS deployment flows:
 
 - [DEPLOYMENT.md](DEPLOYMENT.md)
+
+AKS post-deploy smoke verification:
+
+```bash
+make k8s-aks-smoke
+```
+
+`make k8s-aks-up` runs this smoke verification automatically by default (`AKS_SMOKE_AFTER_UP` unset/empty = `true`); smoke HTTP checks retry for roughly 60 seconds per endpoint before failing. Set `AKS_SMOKE_AFTER_UP=false` to skip.
+
+AKS secret source defaults to Azure Key Vault (seeded from `.env` and synced to Kubernetes secret `odp-env`):
+
+```bash
+AKS_KEY_VAULT_NAME=aitrialkv1234abcd make k8s-aks-up
+```
+
+If the AKS Key Vault provider add-on is already enabled, `make k8s-aks-up` now detects that state and continues without failing.
+For Key Vault RBAC-enabled vaults, the signed-in Azure principal needs Key Vault secret write access (`Key Vault Secrets Officer` or `Key Vault Administrator`) to seed secrets.
+Empty `.env` values are skipped for Key Vault sync because Azure Key Vault does not accept empty secret values.
+Use `AKS_NODE_COUNT` to enforce minimum AKS System nodepool capacity during reruns (recommended `4` for full parity stack stability).
+
+Disable Key Vault secret sync (fallback to direct `.env` -> Kubernetes secret):
+
+```bash
+AKS_USE_KEY_VAULT=false make k8s-aks-up
+```
+
+AKS fast image-only update (no infra/parity re-apply):
+
+```bash
+make k8s-aks-update-images
+```
+
+Limit to specific services during iteration:
+
+```bash
+AKS_IMAGES=frontend,portal-api make k8s-aks-update-images
+```
+
+AKS rollout summary (label-aligned with deployment docs):
+- **Provisioning and ingress**: cluster/resource setup, ingress-nginx, cert-manager, DNS/TLS wiring.
+- **Image build and publish**: Airflow/frontend images plus parity-service images when enabled.
+- **Core and parity rollout**: Key Vault-backed `odp-env` secret sync, core manifests, parity manifests, staged DataHub setup, dbt docs service rollout.
+- **Airflow reliability hardening**: probe tuning, guarded init retries, conservative rollout settings.
+- **DataHub and auth reliability hardening**: GMS cold-start probe hardening (socket startup + `/health` readiness/liveness with AKS tuning env overrides), staged rollout, ingress buffering for OIDC headers.
+- **Config safety and URL consistency**: AKS URL rewriting, Keycloak config reconciliation, placeholder validation before apply.
 
 ## Data Model
 For medallion entities, serving tables, and governance metadata:

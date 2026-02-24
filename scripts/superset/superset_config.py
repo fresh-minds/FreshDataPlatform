@@ -1,6 +1,7 @@
 import os
 from base64 import urlsafe_b64decode
 from json import loads as json_loads
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from flask import redirect, request
 from flask_appbuilder import expose
@@ -24,6 +25,16 @@ def _strip_trailing_slash(value: str) -> str:
     return value.rstrip("/")
 
 
+def _sanitize_authorize_url(value: str) -> str:
+    stripped = value.strip()
+    if not stripped:
+        return stripped
+
+    parts = urlsplit(stripped)
+    query_params = [(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True) if k.lower() != "prompt"]
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query_params), parts.fragment))
+
+
 KEYCLOAK_OIDC_BASE_URL = _strip_trailing_slash(
     os.getenv(
         "KEYCLOAK_OIDC_BASE_URL",
@@ -35,12 +46,14 @@ KEYCLOAK_OIDC_DISCOVERY_URL = os.getenv(
     "KEYCLOAK_OIDC_DISCOVERY_URL",
     "http://keycloak:8090/realms/odp/.well-known/openid-configuration",
 )
-KEYCLOAK_OIDC_SUPERSET_BROWSER_AUTHORIZE_URL = os.getenv(
-    "KEYCLOAK_OIDC_SUPERSET_BROWSER_AUTHORIZE_URL",
+KEYCLOAK_OIDC_SUPERSET_BROWSER_AUTHORIZE_URL = _sanitize_authorize_url(
     os.getenv(
-        "KEYCLOAK_OIDC_BROWSER_AUTHORIZE_URL",
-        "http://localhost:8090/realms/odp/protocol/openid-connect/auth",
-    ),
+        "KEYCLOAK_OIDC_SUPERSET_BROWSER_AUTHORIZE_URL",
+        os.getenv(
+            "KEYCLOAK_OIDC_BROWSER_AUTHORIZE_URL",
+            "http://localhost:8090/realms/odp/protocol/openid-connect/auth",
+        ),
+    )
 )
 
 AUTH_TYPE = AUTH_OAUTH
@@ -54,6 +67,7 @@ PREFERRED_URL_SCHEME = os.getenv("SUPERSET_PREFERRED_URL_SCHEME", "http")
 class AutoRedirectOAuthView(AuthOAuthView):
     """Skip the login page and redirect straight to the Keycloak provider."""
 
+    @expose("/login")
     @expose("/login/")
     @expose("/login/<provider>")
     @expose("/login/<provider>/<register>")
@@ -122,7 +136,7 @@ OAUTH_PROVIDERS = [
             "access_token_url": KEYCLOAK_OIDC_TOKEN_URL,
             "authorize_url": KEYCLOAK_OIDC_SUPERSET_BROWSER_AUTHORIZE_URL,
             "client_kwargs": {
-                "scope": "profile email",
+                "scope": "openid profile email",
             },
         },
     },

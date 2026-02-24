@@ -137,6 +137,31 @@ You can deploy the same dev-like stack to Azure Kubernetes Service (AKS):
 make k8s-aks-up
 ```
 
+AKS secret prerequisites (default path):
+- Your Azure principal can create/manage Key Vault in the target resource group.
+- Your Azure principal can create role assignments on the Key Vault scope.
+
+By default, `make k8s-aks-up` runs `make k8s-aks-smoke` automatically at the end (`AKS_SMOKE_AFTER_UP` unset/empty = `true`) and fails if smoke checks fail.
+To skip smoke checks for a run:
+
+```bash
+AKS_SMOKE_AFTER_UP=false make k8s-aks-up
+```
+
+For faster incremental app rollouts (without infra/parity re-apply):
+
+```bash
+make k8s-aks-update-images
+```
+
+To patch only specific services:
+
+```bash
+AKS_IMAGES=frontend,portal-api make k8s-aks-update-images
+```
+
+`make k8s-aks-update-images` expects deployments to already exist and skips missing deployments in the selected namespace.
+
 To tear it down again:
 
 ```bash
@@ -145,18 +170,53 @@ make k8s-aks-down
 
 What this does:
 
-1. Creates/updates an Azure resource group, ACR, and AKS cluster.
-2. Builds and pushes the Airflow image to ACR.
-3. Builds and pushes the frontend image to ACR.
-4. Installs ingress-nginx + cert-manager.
-5. Creates/updates Kubernetes Secret `odp-env` from `.env`.
-6. Applies AKS-safe manifests from `k8s/aks` (no `hostPath` mounts).
-7. Runs init Jobs and starts Airflow.
-8. Exposes the frontend and core UIs publicly over HTTPS (DNS + Let's Encrypt):
+- **Provisioning and ingress**
+   1. Creates/updates an Azure resource group, ACR, and AKS cluster.
+   2. Installs ingress-nginx + cert-manager.
+   3. Wires DNS + TLS for public HTTPS endpoints.
+
+- **Image build and publish**
+   1. Builds and pushes the Airflow image to ACR.
+   2. Builds and pushes the frontend image to ACR.
+   3. Builds and pushes additional parity-service images (for example `portal-api`, `jupyter`, `minio-sso-bridge`) when enabled in the AKS flow.
+
+- **Core and parity rollout**
+   1. Creates/updates Azure Key Vault (default), syncs `.env` entries into Key Vault, then syncs Kubernetes Secret `odp-env` via CSI provider.
+   2. Applies AKS-safe manifests from `k8s/aks` (no `hostPath` mounts).
+   3. Runs init jobs and starts Airflow.
+   4. Applies parity manifests generated from `docker-compose.yml` + `docker-compose.k8s.yml`, including staged DataHub dependencies and setup jobs.
+   5. Deploys `dbt-docs` as a dedicated service exposed via ingress.
+
+- **Airflow reliability hardening**
+  - Uses tuned startup/readiness/liveness probe behavior for metadata Postgres and webserver/scheduler.
+  - Applies guarded retry behavior around metadata initialization to avoid startup dead-ends.
+  - Uses conservative rollout settings to reduce AKS transient `503` windows.
+
+- **DataHub and auth reliability hardening**
+  - Stages DataHub setup before GMS/frontend rollout.
+  - Applies one-time MySQL self-heal and setup-job replay when GMS reports `Unknown database 'datahub'`.
+  - Uses hardened GMS probe behavior with extended startup budget for slow cold starts (socket-based startup probe, `/health` readiness/liveness).
+  - Aligns Kafka startup/readiness/liveness probes with its internal listener (`29092`) and uses longer probe command timeouts on AKS to avoid false-negative startup checks.
+  - Applies explicit Kafka AKS resources (`requests: 300m/1200Mi`, `limits: 1000m/2048Mi`) to reduce memory-pressure evictions during parity rollout.
+  - Forces `publishNotReadyAddresses=true` on `datahub-kafka` Service so broker self-connect via service DNS works before readiness flips to true.
+  - Uses dedicated DataHub ingress buffering to avoid OIDC header-size `502` issues.
+
+- **Config safety and URL consistency**
+  - Rewrites browser-facing service/auth URLs to `https://*.FRONTEND_DOMAIN` for AKS parity manifests.
+  - Injects observability configs (`alertmanager`, `loki`, `prometheus`, `promtail`, `tempo`, `otel-collector`, `grafana`) via ConfigMaps for AKS-safe file mounting.
+  - Reconciles Keycloak config as part of the AKS flow to keep client redirects aligned.
+  - Validates manifest placeholders before apply.
+  - Rollout-failure diagnostics resolve pod selectors from each Deployment (`spec.selector.matchLabels`) so Kompose-labeled workloads dump the correct failing pod info.
+
+- **Public entrypoints**
    - `https://FRONTEND_DOMAIN` (frontend)
    - `https://airflow.FRONTEND_DOMAIN` (Airflow UI)
    - `https://minio.FRONTEND_DOMAIN` (MinIO Console)
    - `https://minio-api.FRONTEND_DOMAIN` (MinIO API)
+
+AKS parity mode deploys the full `docker-compose.yml` resource set (portal-api,
+DataHub, Superset, Jupyter, observability stack, exporters, and dbt docs)
+after the core stack is healthy.
 
 Common overrides:
 
@@ -169,6 +229,51 @@ AKS_FORCE_ATTACH_ACR=false \
 NAMESPACE=odp-dev \
 make k8s-aks-up
 ```
+
+AKS Key Vault overrides:
+
+```bash
+AKS_KEY_VAULT_NAME=aitrialkv1234abcd \
+AKS_KEY_VAULT_RESOURCE_GROUP=ai-trial-rg \
+make k8s-aks-up
+```
+
+Disable AKS Key Vault secret sync (fallback to direct `.env` -> Kubernetes secret):
+
+```bash
+AKS_USE_KEY_VAULT=false make k8s-aks-up
+```
+
+Constraint:
+- The AKS manifests currently reference Kubernetes secret name `odp-env`; overriding `AKS_KEY_VAULT_SECRET_NAME` is not supported.
+
+DataHub GMS startup/resource overrides (optional, useful for slow AKS cold starts):
+
+```bash
+DATAHUB_GMS_STARTUP_FAILURE_THRESHOLD=300 \
+DATAHUB_GMS_LIVENESS_INITIAL_DELAY_SECONDS=900 \
+DATAHUB_GMS_CPU_REQUEST=500m \
+DATAHUB_GMS_MEMORY_REQUEST=1500Mi \
+DATAHUB_GMS_CPU_LIMIT=2 \
+DATAHUB_GMS_MEMORY_LIMIT=3Gi \
+make k8s-aks-up
+```
+
+Verification after rollout:
+
+```bash
+make k8s-aks-smoke
+kubectl -n odp-dev get secretproviderclass odp-env-keyvault
+kubectl -n odp-dev rollout status deployment/odp-env-keyvault-sync --timeout=600s
+kubectl -n odp-dev rollout status deployment/datahub-gms --timeout=1200s
+kubectl -n odp-dev rollout status deployment/datahub-kafka --timeout=1200s
+kubectl -n odp-dev get pods -l io.kompose.service=datahub-kafka -o wide
+kubectl -n odp-dev describe pod -l io.kompose.service=datahub-gms | sed -n '1,220p'
+kubectl -n odp-dev logs deploy/datahub-gms --tail=200
+kubectl -n odp-dev get deploy datahub-gms -o jsonpath='{.spec.template.spec.containers[0].startupProbe}' && echo
+```
+
+`make k8s-aks-smoke` runs in-cluster endpoint checks for observability and core services, retries each HTTP check for roughly 60 seconds to absorb short warm-up windows, then prints a GREEN/RED/SKIP matrix and exits non-zero on failures.
 
 Access (same as kind, after `az aks get-credentials` is configured by the script):
 
@@ -184,6 +289,14 @@ Public ingress routes after deployment:
 - `https://minio.FRONTEND_DOMAIN`
 - `https://minio-api.FRONTEND_DOMAIN`
 - `https://keycloak.FRONTEND_DOMAIN`
+- `https://datahub.FRONTEND_DOMAIN`
+- `https://superset.FRONTEND_DOMAIN`
+- `https://grafana.FRONTEND_DOMAIN`
+- `https://jupyter.FRONTEND_DOMAIN`
+- `https://prometheus.FRONTEND_DOMAIN`
+- `https://alertmanager.FRONTEND_DOMAIN`
+- `https://dbt-docs.FRONTEND_DOMAIN`
+- `https://portal-api.FRONTEND_DOMAIN`
 
 ## SSO Notes
 
@@ -210,7 +323,7 @@ AKS:
    - `k8s/aks/frontend-ingress.yaml`
 3. Points Azure DNS records to the ingress public IP:
    - `FRONTEND_DOMAIN` -> ingress IP
-   - `www`, `airflow`, `minio`, `minio-api`, `keycloak` -> CNAME to `FRONTEND_DOMAIN`
+   - `www`, `airflow`, `minio`, `minio-api`, `keycloak`, `datahub`, `superset`, `grafana`, `jupyter`, `prometheus`, `alertmanager`, `dbt-docs`, `portal-api` -> CNAME to `FRONTEND_DOMAIN`
 
 Important:
 - The certificate remains `pending` until DNS resolves to the ingress IP.

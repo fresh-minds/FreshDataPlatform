@@ -17,11 +17,13 @@ spec:
         - minio.__FRONTEND_DOMAIN__
         - minio-api.__FRONTEND_DOMAIN__
         - keycloak.__FRONTEND_DOMAIN__
-        - datahub.__FRONTEND_DOMAIN__
         - superset.__FRONTEND_DOMAIN__
         - grafana.__FRONTEND_DOMAIN__
         - jupyter.__FRONTEND_DOMAIN__
         - prometheus.__FRONTEND_DOMAIN__
+        - alertmanager.__FRONTEND_DOMAIN__
+        - dbt-docs.__FRONTEND_DOMAIN__
+        - portal-api.__FRONTEND_DOMAIN__
       secretName: frontend-tls
   rules:
     - host: __FRONTEND_DOMAIN__
@@ -31,7 +33,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: frontend
+                name: portal
                 port:
                   number: 80
     - host: airflow.__FRONTEND_DOMAIN__
@@ -88,16 +90,6 @@ spec:
                 name: keycloak
                 port:
                   number: 8090
-    - host: datahub.__FRONTEND_DOMAIN__
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: datahub-frontend
-                port:
-                  number: 9002
     - host: superset.__FRONTEND_DOMAIN__
       http:
         paths:
@@ -138,6 +130,36 @@ spec:
                 name: prometheus
                 port:
                   number: 9090
+    - host: alertmanager.__FRONTEND_DOMAIN__
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: alertmanager
+                port:
+                  number: 9093
+    - host: dbt-docs.__FRONTEND_DOMAIN__
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: dbt-docs
+                port:
+                  number: 80
+    - host: portal-api.__FRONTEND_DOMAIN__
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: portal-api
+                port:
+                  number: 8070
     - host: www.__FRONTEND_DOMAIN__
       http:
         paths:
@@ -145,6 +167,6 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: frontend
+                name: portal
                 port:
                   number: 80

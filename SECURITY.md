@@ -15,6 +15,12 @@ This document outlines security best practices for this repository to prevent ac
 ### 2. **Credential Sources**
 Use **one of these methods** for credentials:
 
+### 2.1 **Demo Auth Bypass Guardrail**
+- `VITE_DEMO_AUTO_ADMIN=true` is strictly for controlled demos and local showcase environments.
+- Never enable `VITE_DEMO_AUTO_ADMIN` in production.
+- Demo mode must still authenticate against Keycloak; use `VITE_DEMO_USERNAME` only as a login hint and not as a secret store.
+- `KEYCLOAK_DEMO_AUTO_LOGIN=true` enables automatic credential submission in the Keycloak login theme and must remain disabled outside isolated demo environments.
+
 #### Option A: Local `.env` File (Development)
 ```bash
 # 1. Copy the template
@@ -38,6 +44,10 @@ export MINIO_SECRET_KEY="actual_secret_value"
 # - HashiCorp Vault
 # - GitHub Secrets (for CI/CD)
 ```
+
+AKS default in this repository:
+- `make k8s-aks-up` syncs `.env` entries into Azure Key Vault and projects them back into Kubernetes secret `odp-env` through Secrets Store CSI.
+- Set `AKS_USE_KEY_VAULT=false` only for temporary fallback/testing.
 
 ## Files Protected by `.gitignore`
 

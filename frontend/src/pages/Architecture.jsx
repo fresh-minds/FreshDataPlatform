@@ -2,6 +2,26 @@ import React from 'react';
 import { ArrowUpRight } from 'lucide-react';
 import { hasServiceUrl, serviceUrls } from '../config/serviceUrls';
 
+const isNavigableLink = (href = '') => href.startsWith('/') || hasServiceUrl(href);
+const ARCH_VIEWBOX = { width: 1200, height: 720 };
+
+const ARCH_CONNECTIONS = [
+    { d: 'M180 125 L200 125' },
+    { d: 'M320 125 L400 125' },
+    { d: 'M540 125 L560 125' },
+    { d: 'M640 155 L640 240' },
+    { d: 'M530 320 L620 320' },
+    { d: 'M320 335 L380 335' },
+    { d: 'M220 335 L260 335' },
+    { d: 'M300 365 L300 295' },
+    { d: 'M640 155 L780 155' },
+    { d: 'M910 325 L900 325' },
+    { d: 'M1040 325 L1020 325' },
+    { d: 'M920 365 L900 365' },
+    { d: 'M1040 365 L1020 365' },
+    { d: 'M300 425 L960 365', dotted: true }
+];
+
 const LINKS = [
     { label: 'Open overview', href: '/overview' },
     { label: 'Open documentation', href: '/docs' },
@@ -10,7 +30,7 @@ const LINKS = [
     { label: 'Grafana', href: serviceUrls.grafana },
     { label: 'Prometheus', href: serviceUrls.prometheus },
     { label: 'Alertmanager', href: serviceUrls.alertmanager }
-].filter((link) => link.href.startsWith('/') || hasServiceUrl(link.href));
+].filter((link) => isNavigableLink(link.href));
 
 const OBSERVABILITY_NODES = [
     {
@@ -58,21 +78,31 @@ const OBSERVABILITY_NODES = [
     }
 ];
 
+function NodeSubLabel({ x, y, value }) {
+    if (!value || !y) {
+        return null;
+    }
+
+    return (
+        <text x={x} y={y} className="arch-node-sub">{value}</text>
+    );
+}
+
 function ObservabilityNode({ node }) {
+    const hasExternalServiceLink = hasServiceUrl(node.href);
+
     const content = (
         <>
             <rect x={node.x} y={node.y} width={node.width} height={node.height} rx="12" className="arch-node" />
             <text x={node.textX} y={node.textY} className="arch-node-text">{node.label}</text>
-            {node.subLabel && node.subTextY ? (
-                <text x={node.textX} y={node.subTextY} className="arch-node-sub">{node.subLabel}</text>
-            ) : null}
-            {hasServiceUrl(node.href) ? (
+            <NodeSubLabel x={node.textX} y={node.subTextY} value={node.subLabel} />
+            {hasExternalServiceLink ? (
                 <text x={node.linkMarkX} y={node.linkMarkY} className="arch-node-link-mark" aria-hidden="true">↗</text>
             ) : null}
         </>
     );
 
-    if (hasServiceUrl(node.href)) {
+    if (hasExternalServiceLink) {
         return (
             <a href={node.href} target="_blank" rel="noreferrer" className="arch-node-link">
                 {content}
@@ -81,6 +111,37 @@ function ObservabilityNode({ node }) {
     }
 
     return <g>{content}</g>;
+}
+
+function DiagramGroup({ x, y, width, height, title, titleX, titleY, children }) {
+    return (
+        <>
+            <rect x={x} y={y} width={width} height={height} rx="18" className="arch-group" />
+            <text x={titleX} y={titleY} className="arch-group-title">{title}</text>
+            {children}
+        </>
+    );
+}
+
+function DiagramNode({
+    x,
+    y,
+    width,
+    height,
+    label,
+    labelX,
+    labelY,
+    subLabel,
+    subLabelY,
+    rectClassName = 'arch-node'
+}) {
+    return (
+        <>
+            <rect x={x} y={y} width={width} height={height} rx="12" className={rectClassName} />
+            <text x={labelX} y={labelY} className="arch-node-text">{label}</text>
+            <NodeSubLabel x={labelX} y={subLabelY} value={subLabel} />
+        </>
+    );
 }
 
 function Architecture() {
@@ -107,85 +168,55 @@ function Architecture() {
                 </header>
 
                 <div className="arch-diagram">
-                    <svg viewBox="0 0 1200 720" role="img" aria-label="Architecture diagram">
+                    <svg viewBox={`0 0 ${ARCH_VIEWBOX.width} ${ARCH_VIEWBOX.height}`} role="img" aria-label="Architecture diagram">
                         <defs>
                             <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
                                 <path d="M0,0 L10,3 L0,6 Z" fill="#1f2933" />
                             </marker>
                         </defs>
 
-                        <rect x="40" y="40" width="300" height="150" rx="18" className="arch-group" />
-                        <text x="60" y="70" className="arch-group-title">User Surface</text>
-                        <rect x="60" y="95" width="120" height="60" rx="12" className="arch-node" />
-                        <text x="120" y="130" className="arch-node-text">Browser</text>
-                        <rect x="200" y="95" width="120" height="60" rx="12" className="arch-node accent" />
-                        <text x="260" y="125" className="arch-node-text">Portal</text>
-                        <text x="260" y="145" className="arch-node-sub">:3000</text>
+                        <DiagramGroup x="40" y="40" width="300" height="150" title="User Surface" titleX="60" titleY="70">
+                            <DiagramNode x="60" y="95" width="120" height="60" label="Browser" labelX="120" labelY="130" />
+                            <DiagramNode x="200" y="95" width="120" height="60" label="Portal" labelX="260" labelY="125" subLabel=":3000" subLabelY="145" rectClassName="arch-node accent" />
+                        </DiagramGroup>
 
-                        <rect x="380" y="40" width="360" height="150" rx="18" className="arch-group" />
-                        <text x="400" y="70" className="arch-group-title">Orchestration & Pipelines</text>
-                        <rect x="400" y="95" width="140" height="60" rx="12" className="arch-node" />
-                        <text x="470" y="123" className="arch-node-text">Airflow UI</text>
-                        <text x="470" y="145" className="arch-node-sub">:8080</text>
-                        <rect x="560" y="95" width="160" height="60" rx="12" className="arch-node" />
-                        <text x="640" y="123" className="arch-node-text">Scheduler</text>
-                        <text x="640" y="145" className="arch-node-sub">DAG runs</text>
+                        <DiagramGroup x="380" y="40" width="360" height="150" title="Orchestration & Pipelines" titleX="400" titleY="70">
+                            <DiagramNode x="400" y="95" width="140" height="60" label="Airflow UI" labelX="470" labelY="123" subLabel=":8080" subLabelY="145" />
+                            <DiagramNode x="560" y="95" width="160" height="60" label="Scheduler" labelX="640" labelY="123" subLabel="DAG runs" subLabelY="145" />
+                        </DiagramGroup>
 
-                        <rect x="760" y="40" width="380" height="150" rx="18" className="arch-group" />
-                        <text x="780" y="70" className="arch-group-title">Governance</text>
-                        <rect x="780" y="95" width="130" height="60" rx="12" className="arch-node" />
-                        <text x="845" y="123" className="arch-node-text">DataHub</text>
-                        <text x="845" y="145" className="arch-node-sub">:9002</text>
-                        <rect x="930" y="95" width="190" height="60" rx="12" className="arch-node" />
-                        <text x="1025" y="123" className="arch-node-text">GMS + Search</text>
-                        <text x="1025" y="145" className="arch-node-sub">Kafka / ES</text>
+                        <DiagramGroup x="760" y="40" width="380" height="150" title="Governance" titleX="780" titleY="70">
+                            <DiagramNode x="780" y="95" width="130" height="60" label="DataHub" labelX="845" labelY="123" subLabel=":9002" subLabelY="145" />
+                            <DiagramNode x="930" y="95" width="190" height="60" label="GMS + Search" labelX="1025" labelY="123" subLabel="Kafka / ES" subLabelY="145" />
+                        </DiagramGroup>
 
-                        <rect x="40" y="240" width="520" height="190" rx="18" className="arch-group" />
-                        <text x="60" y="270" className="arch-group-title">Storage & Data Plane</text>
-                        <rect x="60" y="295" width="140" height="60" rx="12" className="arch-node" />
-                        <text x="130" y="323" className="arch-node-text">MinIO S3</text>
-                        <text x="130" y="345" className="arch-node-sub">:9000</text>
-                        <rect x="220" y="295" width="140" height="60" rx="12" className="arch-node" />
-                        <text x="290" y="323" className="arch-node-text">Lakehouse</text>
-                        <text x="290" y="345" className="arch-node-sub">Bronze/Silver/Gold</text>
-                        <rect x="380" y="295" width="160" height="60" rx="12" className="arch-node" />
-                        <text x="460" y="323" className="arch-node-text">Warehouse</text>
-                        <text x="460" y="345" className="arch-node-sub">Postgres</text>
-                        <rect x="60" y="365" width="480" height="50" rx="12" className="arch-band" />
-                        <text x="300" y="395" className="arch-node-text">Pipelines (Spark / Python)</text>
+                        <DiagramGroup x="40" y="240" width="520" height="190" title="Storage & Data Plane" titleX="60" titleY="270">
+                            <DiagramNode x="60" y="295" width="140" height="60" label="MinIO S3" labelX="130" labelY="323" subLabel=":9000" subLabelY="345" />
+                            <DiagramNode x="220" y="295" width="140" height="60" label="Lakehouse" labelX="290" labelY="323" subLabel="Bronze/Silver/Gold" subLabelY="345" />
+                            <DiagramNode x="380" y="295" width="160" height="60" label="Warehouse" labelX="460" labelY="323" subLabel="Postgres" subLabelY="345" />
+                            <DiagramNode x="60" y="365" width="480" height="50" label="Pipelines (Spark / Python)" labelX="300" labelY="395" rectClassName="arch-band" />
+                        </DiagramGroup>
 
-                        <rect x="600" y="240" width="260" height="190" rx="18" className="arch-group" />
-                        <text x="620" y="270" className="arch-group-title">Analytics & BI</text>
-                        <rect x="620" y="295" width="220" height="60" rx="12" className="arch-node" />
-                        <text x="730" y="323" className="arch-node-text">Superset</text>
-                        <text x="730" y="345" className="arch-node-sub">:8088</text>
-                        <rect x="620" y="365" width="220" height="50" rx="12" className="arch-node" />
-                        <text x="730" y="388" className="arch-node-text">Jupyter</text>
-                        <text x="730" y="408" className="arch-node-sub">:8888</text>
+                        <DiagramGroup x="600" y="240" width="260" height="190" title="Analytics & BI" titleX="620" titleY="270">
+                            <DiagramNode x="620" y="295" width="220" height="60" label="Superset" labelX="730" labelY="323" subLabel=":8088" subLabelY="345" />
+                            <DiagramNode x="620" y="365" width="220" height="50" label="Jupyter" labelX="730" labelY="388" subLabel=":8888" subLabelY="408" />
+                        </DiagramGroup>
 
-                        <rect x="880" y="240" width="280" height="190" rx="18" className="arch-group" />
-                        <text x="900" y="270" className="arch-group-title">Observability</text>
-                        {OBSERVABILITY_NODES.map((node) => (
-                            <ObservabilityNode key={node.key} node={node} />
+                        <DiagramGroup x="880" y="240" width="280" height="190" title="Observability" titleX="900" titleY="270">
+                            {OBSERVABILITY_NODES.map((node) => (
+                                <ObservabilityNode key={node.key} node={node} />
+                            ))}
+                            <DiagramNode x="1040" y="365" width="120" height="50" label="Loki + Tempo" labelX="1100" labelY="388" subLabel=":3100 / :3200" subLabelY="408" />
+                        </DiagramGroup>
+
+                        {ARCH_CONNECTIONS.map((connection) => (
+                            <path
+                                key={connection.d}
+                                d={connection.d}
+                                className={`arch-line${connection.dotted ? ' dotted' : ''}`}
+                                markerEnd="url(#arrow)"
+                            />
                         ))}
-                        <rect x="1040" y="365" width="120" height="50" rx="12" className="arch-node" />
-                        <text x="1100" y="388" className="arch-node-text">Loki + Tempo</text>
-                        <text x="1100" y="408" className="arch-node-sub">:3100 / :3200</text>
-
-                        <path d="M180 125 L200 125" className="arch-line" markerEnd="url(#arrow)" />
-                        <path d="M320 125 L400 125" className="arch-line" markerEnd="url(#arrow)" />
-                        <path d="M540 125 L560 125" className="arch-line" markerEnd="url(#arrow)" />
-                        <path d="M640 155 L640 240" className="arch-line" markerEnd="url(#arrow)" />
-                        <path d="M530 320 L620 320" className="arch-line" markerEnd="url(#arrow)" />
-                        <path d="M320 335 L380 335" className="arch-line" markerEnd="url(#arrow)" />
-                        <path d="M220 335 L260 335" className="arch-line" markerEnd="url(#arrow)" />
-                        <path d="M300 365 L300 295" className="arch-line" markerEnd="url(#arrow)" />
-                        <path d="M640 155 L780 155" className="arch-line" markerEnd="url(#arrow)" />
-                        <path d="M910 325 L900 325" className="arch-line" markerEnd="url(#arrow)" />
-                        <path d="M1040 325 L1020 325" className="arch-line" markerEnd="url(#arrow)" />
-                        <path d="M920 365 L900 365" className="arch-line" markerEnd="url(#arrow)" />
-                        <path d="M1040 365 L1020 365" className="arch-line" markerEnd="url(#arrow)" />
-                        <path d="M300 425 L960 365" className="arch-line dotted" markerEnd="url(#arrow)" />
                     </svg>
                 </div>
             </div>

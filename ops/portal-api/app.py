@@ -7,6 +7,9 @@ from dataclasses import dataclass
 from typing import Literal
 
 import requests
+from azure.ai.projects import AIProjectClient
+from azure.core.exceptions import HttpResponseError
+from azure.identity import DefaultAzureCredential
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
@@ -36,7 +39,6 @@ class ApiSettings:
     azure_foundry_agent_id: str
     azure_foundry_agent_name: str
     azure_foundry_api_key: str
-    azure_foundry_bearer_token: str
 
 
 SETTINGS = ApiSettings(
@@ -46,11 +48,10 @@ SETTINGS = ApiSettings(
     keycloak_admin_password=_env("KEYCLOAK_ADMIN_PASSWORD", required=True),
     keycloak_admin_realm=_env("KEYCLOAK_ADMIN_REALM", "master"),
     portal_client_id=_env("PORTAL_CLIENT_ID", "portal"),
-    azure_foundry_agent_endpoint=_env("AZURE_FOUNDRY_AGENT_ENDPOINT", _env("AZURE_EXISTING_AIPROJECT_ENDPOINT", "")),
-    azure_foundry_agent_id=_env("AZURE_FOUNDRY_AGENT_ID", _env("AZURE_EXISTING_AGENT_ID", "")),
-    azure_foundry_agent_name=_env("AZURE_FOUNDRY_AGENT_NAME", ""),
+    azure_foundry_agent_endpoint=_env("AZURE_EXISTING_AIPROJECT_ENDPOINT", _env("AZURE_FOUNDRY_AGENT_ENDPOINT", "")),
+    azure_foundry_agent_id=_env("AZURE_EXISTING_AGENT_ID", _env("AZURE_FOUNDRY_AGENT_ID", "")),
+    azure_foundry_agent_name=_env("AZURE_EXISTING_AGENT_NAME", _env("AZURE_FOUNDRY_AGENT_NAME", "")),
     azure_foundry_api_key=_env("AZURE_FOUNDRY_API_KEY", ""),
-    azure_foundry_bearer_token=_env("AZURE_FOUNDRY_BEARER_TOKEN", ""),
     cors_origins=[
         origin.strip()
         for origin in _env("PORTAL_CORS_ORIGINS", "http://localhost:3000").split(",")
@@ -60,6 +61,10 @@ SETTINGS = ApiSettings(
 
 logging.basicConfig(level=_env("LOG_LEVEL", "INFO").upper())
 LOG = logging.getLogger("portal_api")
+
+_foundry_project_client: AIProjectClient | None = None
+_foundry_openai_client = None
+_foundry_default_credential: DefaultAzureCredential | None = None
 
 app = FastAPI(title="Portal API")
 
@@ -308,23 +313,113 @@ def _extract_provider_error(response: requests.Response) -> tuple[str, str]:
     return provider_code, provider_message
 
 
-def _call_foundry_agent(messages: list[dict], claims: dict) -> str:
-    agent_ref = _foundry_agent_ref()
-    if not agent_ref:
-        raise HTTPException(status_code=502, detail="Foundry agent is not configured")
-    if not SETTINGS.azure_foundry_agent_endpoint:
-        raise HTTPException(status_code=502, detail="Foundry agent endpoint missing")
-    if not SETTINGS.azure_foundry_api_key and not SETTINGS.azure_foundry_bearer_token:
-        raise HTTPException(status_code=502, detail="Foundry credentials missing (set AZURE_FOUNDRY_API_KEY or AZURE_FOUNDRY_BEARER_TOKEN)")
-
-    responses_url = _build_foundry_responses_url(SETTINGS.azure_foundry_agent_endpoint)
-    input_messages = [
+def _normalise_foundry_input_messages(messages: list[dict]) -> list[dict]:
+    return [
         {
             "role": message.get("role", "user"),
             "content": message.get("content", ""),
         }
         for message in messages
     ]
+
+
+def _raise_foundry_provider_http_exception(claims: dict, status_code: int, provider_message: str) -> None:
+    safe_status_code = status_code if 400 <= status_code <= 599 else 502
+    LOG.warning(
+        "portal_chat_foundry_provider_error subject=%s status=%s code=provider_error body=%s",
+        claims.get("sub"),
+        safe_status_code,
+        provider_message[:800],
+    )
+    raise HTTPException(
+        status_code=safe_status_code,
+        detail=f"Foundry error (provider_error): {provider_message}",
+    )
+
+
+def _get_foundry_default_credential() -> DefaultAzureCredential:
+    global _foundry_default_credential
+    if _foundry_default_credential is None:
+        for env_name in ("AZURE_TENANT_ID", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET"):
+            env_value = os.getenv(env_name)
+            if env_value is not None and not env_value.strip():
+                os.environ.pop(env_name, None)
+        _foundry_default_credential = DefaultAzureCredential(exclude_interactive_browser_credential=True)
+    return _foundry_default_credential
+
+
+def _get_foundry_openai_client():
+    global _foundry_project_client, _foundry_openai_client
+    if _foundry_openai_client is not None:
+        return _foundry_openai_client
+
+    _foundry_project_client = AIProjectClient(
+        endpoint=SETTINGS.azure_foundry_agent_endpoint,
+        credential=_get_foundry_default_credential(),
+    )
+    _foundry_openai_client = _foundry_project_client.get_openai_client()
+    return _foundry_openai_client
+
+
+def _extract_reply_from_sdk_response(response_obj: object) -> str:
+    output_text = getattr(response_obj, "output_text", None)
+    if isinstance(output_text, str) and output_text.strip():
+        return output_text.strip()
+
+    model_dump = getattr(response_obj, "model_dump", None)
+    if callable(model_dump):
+        try:
+            data = model_dump()
+        except Exception:
+            data = {}
+        if isinstance(data, dict):
+            reply = _extract_reply_from_responses_payload(data)
+            if reply:
+                return reply
+
+    return ""
+
+
+def _call_foundry_agent_with_default_credential(messages: list[dict], agent_ref: dict, claims: dict) -> str:
+    input_messages = _normalise_foundry_input_messages(messages)
+
+    try:
+        openai_client = _get_foundry_openai_client()
+        response = openai_client.responses.create(
+            input=input_messages,
+            extra_body={"agent": agent_ref},
+        )
+    except HttpResponseError as exc:
+        _raise_foundry_provider_http_exception(claims, exc.status_code if isinstance(exc.status_code, int) else 502, str(exc))
+    except Exception as exc:
+        LOG.exception("portal_chat_foundry_default_credential_failed subject=%s", claims.get("sub"))
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Foundry credential flow failed. Configure DefaultAzureCredential for portal-api "
+                "(for example AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET) "
+                "or set AZURE_FOUNDRY_API_KEY."
+            ),
+        ) from exc
+
+    reply = _extract_reply_from_sdk_response(response)
+    if not reply:
+        raise HTTPException(status_code=502, detail="Chat provider returned empty response")
+
+    return reply
+
+
+def _call_foundry_agent(messages: list[dict], claims: dict) -> str:
+    agent_ref = _foundry_agent_ref()
+    if not agent_ref:
+        raise HTTPException(status_code=502, detail="Foundry agent is not configured")
+    if not SETTINGS.azure_foundry_agent_endpoint:
+        raise HTTPException(status_code=502, detail="Foundry agent endpoint missing")
+    if not SETTINGS.azure_foundry_api_key:
+        return _call_foundry_agent_with_default_credential(messages, agent_ref, claims)
+
+    responses_url = _build_foundry_responses_url(SETTINGS.azure_foundry_agent_endpoint)
+    input_messages = _normalise_foundry_input_messages(messages)
 
     payload = {
         "input": input_messages,
@@ -333,11 +428,8 @@ def _call_foundry_agent(messages: list[dict], claims: dict) -> str:
 
     headers = {
         "Content-Type": "application/json",
+        "api-key": SETTINGS.azure_foundry_api_key,
     }
-    if SETTINGS.azure_foundry_bearer_token:
-        headers["Authorization"] = f"Bearer {SETTINGS.azure_foundry_bearer_token}"
-    else:
-        headers["api-key"] = SETTINGS.azure_foundry_api_key
 
     try:
         response = requests.post(
@@ -420,6 +512,5 @@ def chat(request: Request, payload: ChatRequest) -> ChatResponse:
         _claim_username(claims),
     )
     return ChatResponse(reply=reply)
-
 
 

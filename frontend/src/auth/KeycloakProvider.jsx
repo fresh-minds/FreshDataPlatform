@@ -9,9 +9,20 @@ export const AuthContext = createContext({
 });
 
 const TOKEN_REFRESH_MARGIN_SECONDS = 60;
+const demoAutoAdminEnabled = (import.meta.env.VITE_DEMO_AUTO_ADMIN || 'false').toLowerCase() === 'true';
+const demoAdminUsername = import.meta.env.VITE_DEMO_USERNAME || 'odp-admin';
+
+function getDefaultKeycloakUrl() {
+    const host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1') {
+        return 'http://localhost:8090';
+    }
+    const rootHost = host.replace(/^www\./, '');
+    return `https://keycloak.${rootHost}`;
+}
 
 const buildKeycloakConfig = () => ({
-    url: import.meta.env.VITE_KEYCLOAK_URL || 'http://localhost:8090',
+    url: import.meta.env.VITE_KEYCLOAK_URL || getDefaultKeycloakUrl(),
     realm: import.meta.env.VITE_KEYCLOAK_REALM || 'odp',
     clientId: import.meta.env.VITE_KEYCLOAK_CLIENT_ID || 'portal',
 });
@@ -58,11 +69,20 @@ export default function KeycloakProvider({ children }) {
         };
 
         kc.init({
-            onLoad: 'login-required',
+            onLoad: 'check-sso',
             pkceMethod: 'S256',
             checkLoginIframe: false,
         })
             .then((authenticated) => {
+                if (!authenticated) {
+                    const loginOptions = demoAutoAdminEnabled
+                        ? {
+                              loginHint: demoAdminUsername,
+                          }
+                        : undefined;
+                    kc.login(loginOptions);
+                    return;
+                }
                 setState({
                     ready: true,
                     authenticated,

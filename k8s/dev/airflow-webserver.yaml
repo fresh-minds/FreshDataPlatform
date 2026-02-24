@@ -7,6 +7,7 @@ metadata:
     app.kubernetes.io/name: airflow-webserver
 spec:
   replicas: 1
+  revisionHistoryLimit: 3
   selector:
     matchLabels:
       app.kubernetes.io/name: airflow-webserver
@@ -33,7 +34,7 @@ spec:
             - name: AIRFLOW__FAB__CONFIG_FILE
               value: /opt/airflow/project/airflow/webserver_config.py
             - name: GUNICORN_CMD_ARGS
-              value: --limit-request-field_size 32768
+              value: --workers 1 --timeout 300 --limit-request-field_size 32768
             - name: AIRFLOW_OAUTH_CLIENT_ID
               valueFrom:
                 secretKeyRef:
@@ -71,6 +72,10 @@ spec:
                   name: odp-env
                   key: OTEL_ENABLED
                   optional: true
+            - name: AIRFLOW__WEBSERVER__WORKERS
+              value: "1"
+            - name: AIRFLOW__WEBSERVER__WEB_SERVER_WORKER_TIMEOUT
+              value: "300"
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               valueFrom:
                 secretKeyRef:
@@ -106,16 +111,26 @@ spec:
             httpGet:
               path: /health
               port: 8080
-            initialDelaySeconds: 20
-            periodSeconds: 10
+            initialDelaySeconds: 60
+            periodSeconds: 15
             timeoutSeconds: 5
+            failureThreshold: 10
           livenessProbe:
             httpGet:
               path: /health
               port: 8080
-            initialDelaySeconds: 40
+            initialDelaySeconds: 120
             periodSeconds: 15
             timeoutSeconds: 5
+            failureThreshold: 6
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 60
           volumeMounts:
             - name: dags
               mountPath: /opt/airflow/dags

@@ -80,6 +80,24 @@ Full instructions: [Data Ingestion Guide](../docs/INGESTION_GUIDE.md)
 Run `dbt deps` before `dbt run` if packages are not already installed. The
 `packages.yml` file pins `dbt_utils` to `1.3.3` to keep dbt 1.9 compatible.
 
+## dbt docs + lineage UI
+
+Generate dbt docs artifacts from all dbt logic:
+
+```bash
+.venv/bin/dbt deps --project-dir dbt_parallel --profiles-dir dbt_parallel
+.venv/bin/dbt docs generate --project-dir dbt_parallel --profiles-dir dbt_parallel --vars '{use_seed_data: true}'
+```
+
+From repo root, you can also run:
+
+```bash
+make dbt-docs-refresh
+```
+
+This regenerates docs and serves them at `http://localhost:8089` through the
+`dbt-docs` static service.
+
 ## Mapping
 
 Detailed transformation mapping lives in `dbt_parallel/TRANSFORMATION_MAPPING.md`.
