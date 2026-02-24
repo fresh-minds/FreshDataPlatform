@@ -137,6 +137,32 @@ AKS_USE_KEY_VAULT=false make k8s-aks-up
 Constraint:
 - AKS manifests in this repository currently reference Kubernetes secret name `odp-env`; overriding `AKS_KEY_VAULT_SECRET_NAME` is not supported.
 
+## Troubleshooting AKS postprocess hook mismatch
+
+Summary:
+- AKS rollout now supports both postprocess hook names: `kompose_postprocess_aks` (current) and `se_postprocess_aks` (legacy alias) to avoid `command not found` failures on mixed script revisions.
+
+Prerequisites:
+- Run from the repository root.
+- Ensure local changes include the updated `scripts/k8s/k8s_kompose_lib.sh`.
+
+Command:
+
+```bash
+make k8s-aks-up
+```
+
+Verification:
+
+```bash
+bash -n scripts/aks/aks_up.sh
+bash -n scripts/k8s/k8s_kompose_lib.sh
+make k8s-aks-up
+```
+
+Constraint:
+- This compatibility alias only covers the hook-name mismatch; other AKS rollout failures still require normal diagnostics from `make k8s-aks-up` output.
+
 ## AKS image-only update script
 
 Use this to iterate faster after an initial `make k8s-aks-up`:

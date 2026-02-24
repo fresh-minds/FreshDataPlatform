@@ -309,6 +309,14 @@ AKS:
   and `KEYCLOAK_OIDC_DISCOVERY_URL` to the public Keycloak hostname (for example:
   `https://keycloak.FRONTEND_DOMAIN/realms/odp/protocol/openid-connect`).
 - Set `MINIO_OIDC_REDIRECT_URI=https://minio.FRONTEND_DOMAIN/oauth_callback`.
+- MinIO login entrypoints `https://minio.FRONTEND_DOMAIN/login`, `/start`, and `/callback`
+  are routed through `minio-sso-bridge`, so users with an existing Keycloak session are
+  redirected straight back into the MinIO console.
+- Verify ingress behavior:
+  ```bash
+  curl -sS -D - -o /dev/null "https://minio.${FRONTEND_DOMAIN}/login"
+  ```
+  Expect a `302` redirect to Keycloak (`/protocol/openid-connect/auth`).
 - Realm self-registration is disabled by default in bundled manifests (`registrationAllowed: false`).
 - Keep `AIRFLOW_OAUTH_DEFAULT_ROLE` at least privilege (`Viewer`) unless you have a controlled admin onboarding flow.
 

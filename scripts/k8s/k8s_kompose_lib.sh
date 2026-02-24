@@ -940,6 +940,13 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
+# se_postprocess_aks – backward-compatible alias for older aks_up.sh hooks
+# ---------------------------------------------------------------------------
+se_postprocess_aks() {
+  kompose_postprocess_aks "$@"
+}
+
+# ---------------------------------------------------------------------------
 # EXTENDED_DEPLOYMENTS – common list of deployments to wait for after apply
 # ---------------------------------------------------------------------------
 EXTENDED_DEPLOYMENTS=(

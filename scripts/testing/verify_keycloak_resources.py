@@ -224,19 +224,21 @@ def verify_superset_redirect(
         )
 
 
-def verify_minio_sso_bridge_start(
+def _verify_minio_sso_bridge_entrypoint(
     *,
     minio_sso_bridge_url: str,
     keycloak_base_url: str,
     keycloak_realm: str,
     timeout_s: float,
+    path: str,
 ) -> None:
-    start_url = f"{minio_sso_bridge_url.rstrip('/')}/start"
-    response = requests.get(start_url, allow_redirects=False, timeout=timeout_s)
+    entrypoint_url = f"{minio_sso_bridge_url.rstrip('/')}{path}"
+    response = requests.get(entrypoint_url, allow_redirects=False, timeout=timeout_s)
 
     if response.status_code not in {301, 302, 303, 307, 308}:
         raise RuntimeError(
-            f"MinIO SSO bridge start did not redirect (status={response.status_code}, url={start_url})",
+            "MinIO SSO bridge entrypoint did not redirect "
+            f"(status={response.status_code}, url={entrypoint_url})",
         )
 
     location = response.headers.get("Location", "")
@@ -258,7 +260,33 @@ def verify_minio_sso_bridge_start(
 
     set_cookie = response.headers.get("Set-Cookie", "")
     if "minio_sso_bridge_state=" not in set_cookie:
-        raise RuntimeError("MinIO SSO bridge start did not set state cookie")
+        raise RuntimeError(
+            "MinIO SSO bridge entrypoint did not set state cookie "
+            f"(url={entrypoint_url})",
+        )
+
+
+def verify_minio_sso_bridge_start(
+    *,
+    minio_sso_bridge_url: str,
+    keycloak_base_url: str,
+    keycloak_realm: str,
+    timeout_s: float,
+) -> None:
+    _verify_minio_sso_bridge_entrypoint(
+        minio_sso_bridge_url=minio_sso_bridge_url,
+        keycloak_base_url=keycloak_base_url,
+        keycloak_realm=keycloak_realm,
+        timeout_s=timeout_s,
+        path="/start",
+    )
+    _verify_minio_sso_bridge_entrypoint(
+        minio_sso_bridge_url=minio_sso_bridge_url,
+        keycloak_base_url=keycloak_base_url,
+        keycloak_realm=keycloak_realm,
+        timeout_s=timeout_s,
+        path="/login",
+    )
 
 
 def verify_clients(

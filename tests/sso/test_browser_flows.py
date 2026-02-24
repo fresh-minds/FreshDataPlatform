@@ -127,8 +127,7 @@ def test_minio_sso_bridge_login_flow(
     context = browser_context_factory(f"{browser_name}-minio-bridge-login")
     page = context.new_page()
 
-    page.goto(f"{bridge_url}/", wait_until="domcontentloaded")
-    page.locator("a:has-text('Sign in with Keycloak')").first.click()
+    page.goto(f"{bridge_url}/login", wait_until="domcontentloaded")
 
     assert is_keycloak_auth_url(page.url, sso_settings.keycloak_base_url), (
         "MinIO SSO bridge did not redirect to Keycloak authorize endpoint"

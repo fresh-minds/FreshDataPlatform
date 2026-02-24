@@ -243,6 +243,7 @@ This process handles:
 
 - **Config safety and URL consistency**
   - Kompose-generated AKS deployments are post-processed to rewrite browser-facing auth/redirect URLs (portal, minio-sso-bridge, grafana, superset, datahub) to `https://*.${FRONTEND_DOMAIN}` instead of localhost defaults
+  - AKS ingress routes MinIO `/login`, `/start`, and `/callback` through `minio-sso-bridge` so an existing Keycloak session can sign users directly into MinIO
   - Superset custom auth/bootstrap files are injected as Kubernetes ConfigMaps during AKS parity conversion (instead of hostPath bind mounts) so `superset_config.py` is always present and `/login` auto-redirects directly to Keycloak for existing SSO sessions
   - Alertmanager configuration is injected via Kubernetes `alertmanager-config` ConfigMap (`ops/observability/alertmanager.yml`) so AKS parity deploy does not depend on hostPath file mounts
   - Keycloak is part of the AKS core phase and is reapplied before full-stack parity so realm/client changes (including portal redirect URIs) are continuously reconciled
