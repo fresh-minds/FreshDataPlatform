@@ -1,70 +1,76 @@
 flowchart LR
-  subgraph "User Surface"
-    "Browser" --> "Frontend (Portal :3000)"
+  subgraph user_surface["User Surface"]
+    browser["Browser"]
+    portal["Frontend Portal :3000"]
+    browser --> portal
   end
 
-  subgraph "Orchestration & Pipelines"
-    "Airflow Webserver :8080" --> "Airflow Scheduler"
-    "Airflow Scheduler" --> "Pipelines (Spark / Python)"
+  subgraph orchestration["Orchestration and Pipelines"]
+    airflow_ui["Airflow Webserver :8080"]
+    airflow_scheduler["Airflow Scheduler"]
+    pipelines["Pipelines (Spark / Python)"]
+    airflow_ui --> airflow_scheduler
+    airflow_scheduler --> pipelines
   end
 
-  subgraph "Storage & Data Plane"
-    "MinIO S3 :9000"
-    "MinIO Console :9001"
-    "Lakehouse (Bronze/Silver/Gold)"
-    "Warehouse (Postgres)"
+  subgraph storage["Storage and Data Plane"]
+    minio_api["MinIO S3 :9000"]
+    minio_console["MinIO Console :9001"]
+    lakehouse["Lakehouse (Bronze/Silver/Gold)"]
+    warehouse["Warehouse (Postgres)"]
   end
 
-  subgraph "Analytics & BI"
-    "Superset :8088"
+  subgraph analytics["Analytics and BI"]
+    superset["Superset :8088"]
   end
 
-  subgraph "Governance"
-    "DataHub UI :9002"
-    "DataHub GMS"
-    "DataHub Elasticsearch"
-    "DataHub Kafka"
+  subgraph governance["Governance"]
+    datahub_ui["DataHub UI :9002"]
+    datahub_gms["DataHub GMS"]
+    datahub_es["DataHub Elasticsearch"]
+    datahub_kafka["DataHub Kafka"]
   end
 
-  subgraph "Observability"
-    "Prometheus :9090"
-    "Grafana :3001"
-    "Loki :3100"
-    "Tempo :3200"
-    "OTEL Collector :4318"
-    "StatsD Exporter :9102"
-    "Postgres Exporter (Airflow) :9187"
-    "Postgres Exporter (Warehouse) :9188"
+  subgraph observability["Observability"]
+    prometheus["Prometheus :9090"]
+    grafana["Grafana :3001"]
+    loki["Loki :3100"]
+    tempo["Tempo :3200"]
+    otel["OTEL Collector :4318"]
+    statsd["StatsD Exporter :9102"]
+    pg_airflow["Postgres Exporter (Airflow) :9187"]
+    pg_warehouse["Postgres Exporter (Warehouse) :9188"]
   end
 
-  "Frontend (Portal :3000)" --> "Airflow Webserver :8080"
-  "Frontend (Portal :3000)" --> "DataHub UI :9002"
-  "Frontend (Portal :3000)" --> "Superset :8088"
-  "Frontend (Portal :3000)" --> "Grafana :3001"
+  portal --> airflow_ui
+  portal --> datahub_ui
+  portal --> superset
+  portal --> grafana
 
-  "Airflow Scheduler" --> "MinIO S3 :9000"
-  "Airflow Scheduler" --> "Lakehouse (Bronze/Silver/Gold)"
-  "Pipelines (Spark / Python)" --> "Lakehouse (Bronze/Silver/Gold)"
-  "Lakehouse (Bronze/Silver/Gold)" --> "Warehouse (Postgres)"
-  "Warehouse (Postgres)" --> "Superset :8088"
+  airflow_scheduler --> minio_api
+  airflow_scheduler --> lakehouse
+  pipelines --> lakehouse
+  lakehouse --> warehouse
+  warehouse --> superset
 
-  "Airflow Scheduler" --> "DataHub GMS"
-  "DataHub GMS" --> "DataHub Elasticsearch"
-  "DataHub GMS" --> "DataHub Kafka"
-  "DataHub UI :9002" --> "DataHub GMS"
+  airflow_scheduler --> datahub_gms
+  datahub_gms --> datahub_es
+  datahub_gms --> datahub_kafka
+  datahub_ui --> datahub_gms
 
-  "Airflow Webserver :8080" --> "StatsD Exporter :9102"
-  "Airflow Scheduler" --> "StatsD Exporter :9102"
-  "StatsD Exporter :9102" --> "Prometheus :9090"
-  "Postgres Exporter (Airflow) :9187" --> "Prometheus :9090"
-  "Postgres Exporter (Warehouse) :9188" --> "Prometheus :9090"
-  "MinIO S3 :9000" --> "Prometheus :9090"
+  airflow_ui --> statsd
+  airflow_scheduler --> statsd
+  statsd --> prometheus
+  pg_airflow --> prometheus
+  pg_warehouse --> prometheus
+  minio_api --> prometheus
 
-  "Pipelines (Spark / Python)" --> "OTEL Collector :4318"
-  "OTEL Collector :4318" --> "Prometheus :9090"
-  "OTEL Collector :4318" --> "Tempo :3200"
+  pipelines --> otel
+  otel --> prometheus
+  otel --> tempo
 
-  "Airflow Logs" --> "Loki :3100"
-  "Grafana :3001" --> "Prometheus :9090"
-  "Grafana :3001" --> "Loki :3100"
-  "Grafana :3001" --> "Tempo :3200"
+  airflow_ui --> loki
+  grafana --> prometheus
+  grafana --> loki
+  grafana --> tempo
+  minio_api -. console .-> minio_console
