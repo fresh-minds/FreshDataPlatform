@@ -16,6 +16,9 @@ from scripts.sso.oidc import (
 )
 from tests.sso.settings import SSOSettings
 
+REDIRECT_STATUS_CODES = {301, 302, 303, 307, 308}
+MINIO_SSO_BRIDGE_ENTRYPOINT_PATHS = ("/start", "/login")
+
 
 @pytest.mark.e2e
 def test_openid_configuration_reachable_for_each_realm(
@@ -144,10 +147,10 @@ def _assert_minio_bridge_redirect(
     path: str,
 ) -> None:
     response = api_client.get(f"{bridge_url}{path}")
-    assert response.status_code in {301, 302, 303, 307, 308}, (
+    assert response.status_code in REDIRECT_STATUS_CODES, (
         f"MinIO SSO bridge {path} did not redirect to Keycloak: {response.status_code}"
     )
-    location = response.headers.get("location", "")
+    location = response.headers.get("Location", "")
     assert location, f"MinIO SSO bridge {path} redirect is missing location header"
 
     parsed = urlparse(location)
@@ -177,5 +180,5 @@ def test_minio_sso_bridge_start_redirects_to_keycloak(
     write_log("minio-sso-bridge-healthz", health.text)
     assert health.status_code == 200, f"MinIO SSO bridge health check failed: {health.status_code}"
 
-    _assert_minio_bridge_redirect(api_client=api_client, bridge_url=bridge_url, path="/start")
-    _assert_minio_bridge_redirect(api_client=api_client, bridge_url=bridge_url, path="/login")
+    for path in MINIO_SSO_BRIDGE_ENTRYPOINT_PATHS:
+        _assert_minio_bridge_redirect(api_client=api_client, bridge_url=bridge_url, path=path)
