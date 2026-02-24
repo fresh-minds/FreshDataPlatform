@@ -11,7 +11,13 @@ from superset.security import SupersetSecurityManager
 
 ROW_LIMIT = 5000
 SECRET_KEY = os.getenv("SUPERSET_SECRET_KEY", "change_me_superset_secret_key")
-WTF_CSRF_ENABLED = False
+
+
+def _env_flag(name: str, default: str = "false") -> bool:
+    return os.getenv(name, default).strip().lower() in {"1", "true", "yes", "on"}
+
+
+WTF_CSRF_ENABLED = _env_flag("SUPERSET_WTF_CSRF_ENABLED", "true")
 # Allow data upload for testing
 CSV_EXTENSIONS = {"csv"}
 ALLOWED_EXTENSIONS = {"csv"}
@@ -31,6 +37,8 @@ def _sanitize_authorize_url(value: str) -> str:
         return stripped
 
     parts = urlsplit(stripped)
+    # Superset/FAB can append its own auth prompt behavior; removing `prompt`
+    # from the configured base URL avoids contradictory prompt directives.
     query_params = [(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True) if k.lower() != "prompt"]
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query_params), parts.fragment))
 
@@ -58,7 +66,12 @@ KEYCLOAK_OIDC_SUPERSET_BROWSER_AUTHORIZE_URL = _sanitize_authorize_url(
 
 AUTH_TYPE = AUTH_OAUTH
 AUTH_USER_REGISTRATION = True
-AUTH_USER_REGISTRATION_ROLE = os.getenv("SUPERSET_OAUTH_DEFAULT_ROLE", "Admin")
+AUTH_USER_REGISTRATION_ROLE = os.getenv("SUPERSET_OAUTH_DEFAULT_ROLE", "Gamma")
+if AUTH_USER_REGISTRATION_ROLE.lower() == "admin" and not _env_flag("SUPERSET_ALLOW_AUTO_ADMIN_ROLE", "false"):
+    raise RuntimeError(
+        "SUPERSET_OAUTH_DEFAULT_ROLE=Admin is blocked by default. "
+        "Set SUPERSET_ALLOW_AUTO_ADMIN_ROLE=true only for controlled demo environments."
+    )
 AUTH_ROLES_SYNC_AT_LOGIN = True
 ENABLE_PROXY_FIX = os.getenv("SUPERSET_ENABLE_PROXY_FIX", "true").lower() == "true"
 PREFERRED_URL_SCHEME = os.getenv("SUPERSET_PREFERRED_URL_SCHEME", "http")

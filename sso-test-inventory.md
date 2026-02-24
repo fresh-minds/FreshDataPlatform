@@ -55,10 +55,10 @@ Additional notes:
   - MFA-enabled test identity
 
 ## 6) Expected Roles / Groups / Scopes Per App
-- Airflow default FAB role mapping: env `AIRFLOW_OAUTH_DEFAULT_ROLE` (default `Admin`).
+- Airflow default FAB role mapping: env `AIRFLOW_OAUTH_DEFAULT_ROLE` (default `Viewer`).
 - Airflow OIDC scopes: `openid profile email`.
-- Superset default FAB role mapping: env `SUPERSET_OAUTH_DEFAULT_ROLE` (default `Admin`).
-- Superset OIDC scopes: `profile email` (browser uses Keycloak authorize endpoint and callback token exchange via Superset backend).
+- Superset default FAB role mapping: env `SUPERSET_OAUTH_DEFAULT_ROLE` (default `Gamma`).
+- Superset OIDC scopes: `openid profile email` (browser uses Keycloak authorize endpoint and callback token exchange via Superset backend).
 - MinIO expects claim `policy` (`consoleAdmin`) from Keycloak mapper.
 - DataHub role/group expectation not explicitly declared in repo.
 - Required role/group matrix for least-privilege validation is missing and must be provided or added to test realm.

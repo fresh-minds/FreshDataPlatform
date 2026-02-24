@@ -41,6 +41,9 @@ spec:
                 secretKeyRef:
                   name: odp-env
                   key: AIRFLOW_DB_NAME
+            # Intentionally permissive for dev-like bootstrap reliability.
+            # Security requirement: keep this Service cluster-internal only and never expose it publicly.
+            # For stricter environments, replace with scram/md5 auth plus explicit pg_hba controls.
             - name: POSTGRES_HOST_AUTH_METHOD
               value: trust
           readinessProbe:

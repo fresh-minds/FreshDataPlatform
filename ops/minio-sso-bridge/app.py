@@ -8,13 +8,13 @@ import logging
 import os
 import secrets
 import time
-import xml.etree.ElementTree as ET
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlencode
 
 import requests
+from defusedxml import ElementTree as ET
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import PlainTextResponse, RedirectResponse
 
@@ -52,10 +52,7 @@ class BridgeSettings:
 
 SETTINGS = BridgeSettings(
     bridge_base_url=_env("BRIDGE_BASE_URL", "http://localhost:9011"),
-    session_secret=_env(
-        "MINIO_SSO_BRIDGE_SESSION_SECRET",
-        "change_me_minio_sso_bridge_session_secret",
-    ),
+    session_secret=_env("MINIO_SSO_BRIDGE_SESSION_SECRET", required=True),
     state_ttl_seconds=int(_env("MINIO_SSO_BRIDGE_STATE_TTL_SECONDS", "300")),
     keycloak_browser_base_url=_env("KEYCLOAK_BROWSER_BASE_URL", "http://localhost:8090"),
     keycloak_internal_base_url=_env("KEYCLOAK_INTERNAL_BASE_URL", "http://keycloak:8090"),
@@ -69,6 +66,13 @@ SETTINGS = BridgeSettings(
     minio_console_internal_url=_env("MINIO_CONSOLE_INTERNAL_URL", "http://minio:9001"),
     minio_api_internal_url=_env("MINIO_API_INTERNAL_URL", "http://minio:9000"),
 )
+
+if SETTINGS.state_ttl_seconds <= 0:
+    raise RuntimeError("MINIO_SSO_BRIDGE_STATE_TTL_SECONDS must be > 0")
+if SETTINGS.session_secret.lower().startswith("change_me") or len(SETTINGS.session_secret) < 32:
+    raise RuntimeError(
+        "MINIO_SSO_BRIDGE_SESSION_SECRET must be a non-placeholder secret with at least 32 characters."
+    )
 
 logging.basicConfig(level=_env("LOG_LEVEL", "INFO").upper())
 LOG = logging.getLogger("minio_sso_bridge")

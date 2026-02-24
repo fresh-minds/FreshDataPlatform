@@ -146,6 +146,16 @@ Verification:
 ### Shared SSO Gateway on kind
 To front multiple UIs with one Keycloak-backed login session:
 
+Prerequisite:
+- `KEYCLOAK_GATEWAY_CLIENT_SECRET` must be set to a non-placeholder value in `.env` (the gateway setup now fails fast if it is missing or still `change_me*`).
+
+Verify before enabling the gateway:
+
+```bash
+grep '^KEYCLOAK_GATEWAY_CLIENT_SECRET=' .env
+kubectl -n odp-dev get secret odp-env -o jsonpath='{.data.KEYCLOAK_GATEWAY_CLIENT_SECRET}' | base64 --decode; echo
+```
+
 ```bash
 make k8s-sso-gateway-up
 make k8s-sso-gateway-forward
@@ -218,7 +228,7 @@ This process handles:
   - Airflow webserver and scheduler deployments set `revisionHistoryLimit=3` so old ReplicaSets are auto-pruned and rollout history does not accumulate indefinitely
   - Airflow scheduler liveness probe is tuned for AKS node variability (`initialDelay=120s`, `period=60s`, `timeout=60s`, `failureThreshold=5`) to avoid false restarts and stale scheduler heartbeat warnings
   - Airflow webserver deployment is recreated before apply to avoid historical `env.value`/`env.valueFrom` merge conflicts that can block reruns
-  - Airflow OAuth auto-registration defaults to role `Op` (DAG trigger permissions) for AKS deploys; if `AIRFLOW_OAUTH_DEFAULT_ROLE` is missing in `.env`, `k8s-aks-up` patches `odp-env` with `Op` and backfills that value to AKS Key Vault when Key Vault sync is enabled
+  - Airflow OAuth auto-registration defaults to role `Viewer` (least privilege) for AKS deploys; if `AIRFLOW_OAUTH_DEFAULT_ROLE` is missing in `.env`, `k8s-aks-up` patches `odp-env` with `Viewer` and backfills that value to AKS Key Vault when Key Vault sync is enabled
   - Airflow init job wait timeout is independently configurable via `AIRFLOW_INIT_JOB_TIMEOUT` (default `960s`) so slower metadata migrations do not fail the full AKS rollout when global `WAIT_TIMEOUT` stays lower for normal deployment checks
   - AKS job waits re-check Kubernetes Job success/Complete state after a timeout response, so late-completing jobs (such as `airflow-init`) are not failed due to a `kubectl wait` race
   - Airflow webserver/scheduler rollout wait timeout is independently configurable via `AIRFLOW_DEPLOYMENT_TIMEOUT` (default `600s`) so startup probe warmup windows do not get cut off by a shorter global `WAIT_TIMEOUT`
@@ -235,7 +245,7 @@ This process handles:
   - DataHub Kafka Service is generated with `publishNotReadyAddresses=true` so broker self-connect via service DNS works during startup (prevents readiness deadlocks)
   - Kompose post-processing enforces DataHub MySQL startup/readiness/liveness probes with a longer startup budget, preventing liveness flapping that can block DataHub setup jobs
   - Kompose post-processing aligns DataHub Kafka listeners on AKS to in-cluster `PLAINTEXT://datahub-kafka:29092` only (no localhost-advertised listener), avoiding metadata resolution failures in `datahub-kafka-setup`
-  - If `datahub-gms` rollout fails with MySQL host-auth errors (`Host 'x.x.x.x' is not allowed to connect`), AKS deploy applies a one-time in-cluster MySQL grant self-heal (`root@'%'`) and retries `datahub-gms`
+  - If `datahub-gms` rollout fails with MySQL host-auth errors (`Host 'x.x.x.x' is not allowed to connect`), AKS deploy applies a one-time in-cluster MySQL grant self-heal (`root@'%'` with secret-backed password) and retries `datahub-gms`; keep MySQL service cluster-internal and protected with namespace/network controls
   - If `datahub-gms` rollout fails with MySQL schema errors (`Unknown database 'datahub'`), AKS deploy applies a one-time in-cluster schema self-heal (creates `datahub` database, reapplies grants), reruns DataHub setup jobs, and retries `datahub-gms`
   - Kompose post-processing enforces DataHub GMS `startupProbe` + `readinessProbe` + relaxed `livenessProbe` with an extended cold-start budget (30 minutes + initial delay) to prevent premature restarts and transient OIDC callback failures (`Failed to provision user ...`) while GMS is still booting
   - DataHub uses a dedicated AKS ingress (`datahub-ingress.yaml`) with larger proxy response header buffers (`proxy-buffer-size=32k`, `proxy-buffers-number=8`) to prevent intermittent OIDC `/authenticate` `502` errors (`upstream sent too big header`) without changing buffer settings for other hosts
@@ -371,6 +381,11 @@ Optional destructive flags (via script env vars):
 
 ## Environment and Secrets
 All deployment modes depend on environment variables in `.env`.
+
+Security-sensitive requirements:
+- `MINIO_SSO_BRIDGE_SESSION_SECRET` is required and must be a strong non-placeholder secret (32+ chars).
+- `SUPERSET_OAUTH_DEFAULT_ROLE` defaults to least privilege (`Gamma`).
+- Setting `SUPERSET_OAUTH_DEFAULT_ROLE=Admin` now also requires `SUPERSET_ALLOW_AUTO_ADMIN_ROLE=true`.
 
 AKS default secret flow:
 - `make k8s-aks-up` seeds Azure Key Vault from `.env`.

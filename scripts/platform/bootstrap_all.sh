@@ -180,6 +180,20 @@ ensure_env_secrets() {
     upsert_env "DATAHUB_FRONTEND_SECRET" "$(generate_secret)"
   fi
 
+  local keycloak_gateway_secret
+  keycloak_gateway_secret="${KEYCLOAK_GATEWAY_CLIENT_SECRET:-}"
+  if [[ -z "$keycloak_gateway_secret" || "$keycloak_gateway_secret" == change_me_* ]]; then
+    log "Generating KEYCLOAK_GATEWAY_CLIENT_SECRET..."
+    upsert_env "KEYCLOAK_GATEWAY_CLIENT_SECRET" "$(generate_secret)"
+  fi
+
+  local minio_sso_bridge_secret
+  minio_sso_bridge_secret="${MINIO_SSO_BRIDGE_SESSION_SECRET:-}"
+  if [[ -z "$minio_sso_bridge_secret" || "$minio_sso_bridge_secret" == change_me_* || "${#minio_sso_bridge_secret}" -lt 32 ]]; then
+    log "Generating MINIO_SSO_BRIDGE_SESSION_SECRET..."
+    upsert_env "MINIO_SSO_BRIDGE_SESSION_SECRET" "$(generate_secret)"
+  fi
+
   local minio_user
   minio_user="${MINIO_ROOT_USER:-}"
   if [[ -z "$minio_user" || "$minio_user" == change_me_* || "${#minio_user}" -lt 3 ]]; then

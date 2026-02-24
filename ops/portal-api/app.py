@@ -6,24 +6,27 @@ import time
 from dataclasses import dataclass
 from typing import Literal
 
+import jwt
 import requests
 from azure.ai.projects import AIProjectClient
+from azure.core.credentials import TokenCredential
 from azure.core.exceptions import HttpResponseError
-from azure.identity import DefaultAzureCredential
+from azure.identity import ChainedTokenCredential, ClientSecretCredential, DefaultAzureCredential
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
-from jose import JWTError, jwt
+from jwt import InvalidTokenError, PyJWK
 from pydantic import BaseModel, Field
 
 
 def _strip_wrapping_quotes(value: str) -> str:
+    """Trim outer whitespace and remove one matching wrapping quote pair."""
     stripped = value.strip()
     if len(stripped) >= 2 and (
         (stripped.startswith("'") and stripped.endswith("'"))
         or (stripped.startswith('"') and stripped.endswith('"'))
     ):
-        return stripped[1:-1].strip()
+        return stripped[1:-1]
     return stripped
 
 
@@ -98,7 +101,7 @@ LOG = logging.getLogger("portal_api")
 
 _foundry_project_client: AIProjectClient | None = None
 _foundry_openai_client = None
-_foundry_default_credential: DefaultAzureCredential | None = None
+_foundry_default_credential: TokenCredential | None = None
 
 app = FastAPI(title="Portal API")
 
@@ -175,7 +178,7 @@ def _find_key(kid: str) -> dict | None:
 def _verify_portal_token(token: str) -> dict:
     try:
         unverified_header = jwt.get_unverified_header(token)
-    except JWTError as exc:
+    except InvalidTokenError as exc:
         LOG.warning("Invalid token header: %s", exc)
         raise HTTPException(status_code=401, detail="Invalid token header") from exc
 
@@ -188,13 +191,19 @@ def _verify_portal_token(token: str) -> dict:
         raise HTTPException(status_code=401, detail="Unknown signing key")
 
     try:
+        signing_key = PyJWK.from_dict(key).key
+    except Exception as exc:
+        LOG.warning("Invalid JWK for token kid=%s", kid)
+        raise HTTPException(status_code=401, detail="Invalid signing key") from exc
+
+    try:
         # Decode and verify signature and audience, but allow issuer hostname differences
         claims = jwt.decode(
             token,
-            key,
+            signing_key,
             algorithms=["RS256"],
             audience=SETTINGS.portal_client_id,
-            options={"verify_at_hash": False, "verify_iss": False},
+            options={"verify_iss": False},
         )
         # Accept any issuer that ends with the expected realm path to allow host/hostname differences
         expected_suffix = f"/realms/{SETTINGS.keycloak_realm}"
@@ -203,7 +212,7 @@ def _verify_portal_token(token: str) -> dict:
             LOG.warning("Token issuer mismatch: got=%s expected_suffix=%s", iss, expected_suffix)
             raise HTTPException(status_code=401, detail="Invalid issuer")
         return claims
-    except JWTError as exc:
+    except InvalidTokenError as exc:
         LOG.warning("JWT validation failed: %s", exc)
         LOG.debug("Expected audience=%s issuerSuffix=%s", SETTINGS.portal_client_id, f"/realms/{SETTINGS.keycloak_realm}")
         raise HTTPException(status_code=401, detail="Token validation failed") from exc
@@ -371,19 +380,32 @@ def _raise_foundry_provider_http_exception(claims: dict, status_code: int, provi
     )
 
 
-def _get_foundry_default_credential() -> DefaultAzureCredential:
+def _get_foundry_default_credential() -> TokenCredential:
     global _foundry_default_credential
     if _foundry_default_credential is None:
-        for env_name in ("AZURE_TENANT_ID", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET"):
-            env_value = os.getenv(env_name)
-            if env_value is None:
-                continue
-            normalised_value = _strip_wrapping_quotes(env_value)
-            if not normalised_value:
-                os.environ.pop(env_name, None)
-                continue
-            os.environ[env_name] = normalised_value
-        _foundry_default_credential = DefaultAzureCredential(exclude_interactive_browser_credential=True)
+        tenant_id = _strip_wrapping_quotes(os.getenv("AZURE_TENANT_ID", ""))
+        client_id = _strip_wrapping_quotes(os.getenv("AZURE_CLIENT_ID", ""))
+        client_secret = _strip_wrapping_quotes(os.getenv("AZURE_CLIENT_SECRET", ""))
+
+        if tenant_id and client_id and client_secret:
+            _foundry_default_credential = ChainedTokenCredential(
+                ClientSecretCredential(
+                    tenant_id=tenant_id,
+                    client_id=client_id,
+                    client_secret=client_secret,
+                ),
+                DefaultAzureCredential(
+                    exclude_environment_credential=True,
+                    exclude_interactive_browser_credential=True,
+                ),
+            )
+        else:
+            if any((tenant_id, client_id, client_secret)):
+                LOG.warning(
+                    "Incomplete Azure service principal credential env vars; "
+                    "falling back to non-environment DefaultAzureCredential chain."
+                )
+            _foundry_default_credential = DefaultAzureCredential(exclude_interactive_browser_credential=True)
     return _foundry_default_credential
 
 
@@ -434,11 +456,7 @@ def _call_foundry_agent_with_default_credential(messages: list[dict], agent_ref:
         LOG.exception("portal_chat_foundry_default_credential_failed subject=%s", claims.get("sub"))
         raise HTTPException(
             status_code=502,
-            detail=(
-                "Foundry credential flow failed. Configure DefaultAzureCredential for portal-api "
-                "(for example AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET) "
-                "or set AZURE_FOUNDRY_API_KEY."
-            ),
+            detail="Chat provider authentication failed. Verify credential configuration.",
         ) from exc
 
     reply = _extract_reply_from_sdk_response(response)
@@ -551,4 +569,3 @@ def chat(request: Request, payload: ChatRequest) -> ChatResponse:
         _claim_username(claims),
     )
     return ChatResponse(reply=reply)
-

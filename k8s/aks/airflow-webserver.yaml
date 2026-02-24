@@ -9,6 +9,9 @@ spec:
   replicas: 1
   revisionHistoryLimit: 3
   strategy:
+    # Recreate keeps a single webserver pod during rollout.
+    # Trade-off: brief downtime during updates in exchange for simpler, more
+    # reliable AKS rollouts on constrained dev-like clusters.
     type: Recreate
   selector:
     matchLabels:

@@ -15,11 +15,17 @@ This document outlines security best practices for this repository to prevent ac
 ### 2. **Credential Sources**
 Use **one of these methods** for credentials:
 
+Mandatory runtime secret requirements:
+- `MINIO_SSO_BRIDGE_SESSION_SECRET` must be set to a strong non-placeholder value (32+ chars).
+- `KEYCLOAK_GATEWAY_CLIENT_SECRET` must be set before enabling the kind shared SSO gateway.
+
 ### 2.1 **Demo Auth Bypass Guardrail**
 - `VITE_DEMO_AUTO_ADMIN=true` is strictly for controlled demos and local showcase environments.
 - Never enable `VITE_DEMO_AUTO_ADMIN` in production.
 - Demo mode must still authenticate against Keycloak; use `VITE_DEMO_USERNAME` only as a login hint and not as a secret store.
-- `KEYCLOAK_DEMO_AUTO_LOGIN=true` enables automatic credential submission in the Keycloak login theme and must remain disabled outside isolated demo environments.
+- `KEYCLOAK_DEMO_AUTO_LOGIN` is `false` by default. Setting it to `true` enables automatic credential submission in the Keycloak login theme and must remain disabled outside isolated demo environments.
+- `SUPERSET_OAUTH_DEFAULT_ROLE` defaults to `Gamma`; using OAuth auto-registration with `Admin` now requires explicit opt-in (`SUPERSET_ALLOW_AUTO_ADMIN_ROLE=true`).
+- Airflow metadata Postgres manifests currently set `POSTGRES_HOST_AUTH_METHOD=trust` for dev-like bootstrap reliability; do not expose this Service externally and replace with stricter auth (`scram/md5` + `pg_hba`) for production.
 
 #### Option A: Local `.env` File (Development)
 ```bash
@@ -204,11 +210,11 @@ git secrets --scan
 ## Dependency Vulnerability Baselines
 
 ### Portal API JWT library
-- `ops/portal-api/requirements.txt` must keep `python-jose[cryptography]` at `>=3.4.0`.
-- Reason: CVE-2024-33664 affects `python-jose` versions `<3.4.0` and is flagged by Trivy/code scanning.
+- `ops/portal-api/requirements.txt` uses `PyJWT[crypto]` for token verification.
+- Avoid reintroducing `python-jose[cryptography]` unless there is a documented exception and risk acceptance.
 - Verification:
   - Build/scan target image after dependency changes.
-  - Confirm no open findings for `CVE-2024-33664` in the portal API artifact.
+  - Confirm no open findings for `CVE-2024-23342` / `ecdsa` in the portal API artifact dependency graph.
 
 ## Team Policies
 

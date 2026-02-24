@@ -27,6 +27,32 @@ AKS modular helpers:
 - Put domain-specific scripts in the matching subfolder.
 - If relocating an existing script, update Makefile/CI/docs references in the same change.
 
+## Security-sensitive script behavior
+
+### Bootstrap env auto-fill
+
+`./scripts/platform/bootstrap_all.sh --auto-fill-env` now auto-generates missing or placeholder values for:
+
+- `KEYCLOAK_GATEWAY_CLIENT_SECRET`
+- `MINIO_SSO_BRIDGE_SESSION_SECRET`
+
+Verification:
+
+```bash
+grep -E '^(KEYCLOAK_GATEWAY_CLIENT_SECRET|MINIO_SSO_BRIDGE_SESSION_SECRET)=' .env
+```
+
+### kind shared SSO gateway setup
+
+`./scripts/k8s/k8s_enable_sso_gateway.sh` now fails fast when `KEYCLOAK_GATEWAY_CLIENT_SECRET` is missing or still a placeholder (`change_me*`).
+
+Verification before running:
+
+```bash
+grep '^KEYCLOAK_GATEWAY_CLIENT_SECRET=' .env
+kubectl -n odp-dev get secret odp-env -o jsonpath='{.data.KEYCLOAK_GATEWAY_CLIENT_SECRET}' | base64 --decode; echo
+```
+
 ## dbt docs auto-regeneration watcher
 
 For dbt lineage/docs development, run:
