@@ -17,6 +17,9 @@ from tests.sso.browser_utils import (
 )
 from tests.sso.settings import SSOApp, SSOSettings
 
+MINIO_SSO_BRIDGE_LOGIN_PATH = "/login"
+MINIO_BROWSER_REDIRECT_TIMEOUT_SECONDS = 30
+
 
 def _is_reauth_required(page: object, app: SSOApp, keycloak_base_url: str) -> bool:
     current_url = page.url
@@ -127,8 +130,7 @@ def test_minio_sso_bridge_login_flow(
     context = browser_context_factory(f"{browser_name}-minio-bridge-login")
     page = context.new_page()
 
-    page.goto(f"{bridge_url}/", wait_until="domcontentloaded")
-    page.locator("a:has-text('Sign in with Keycloak')").first.click()
+    page.goto(f"{bridge_url}{MINIO_SSO_BRIDGE_LOGIN_PATH}", wait_until="domcontentloaded")
 
     assert is_keycloak_auth_url(page.url, sso_settings.keycloak_base_url), (
         "MinIO SSO bridge did not redirect to Keycloak authorize endpoint"
@@ -137,7 +139,7 @@ def test_minio_sso_bridge_login_flow(
     perform_keycloak_login(page, sso_settings.basic_user.username, sso_settings.basic_user.password)
 
     start = time.time()
-    while time.time() - start <= 30:
+    while time.time() - start <= MINIO_BROWSER_REDIRECT_TIMEOUT_SECONDS:
         current = urlparse(page.url)
         if current.netloc.lower() == minio_host and current.path.startswith("/browser"):
             break

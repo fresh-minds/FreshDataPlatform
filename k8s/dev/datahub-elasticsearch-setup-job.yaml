@@ -25,3 +25,5 @@ spec:
               value: "9200"
             - name: ELASTICSEARCH_PROTOCOL
               value: http
+            - name: DATAHUB_ANALYTICS_ENABLED
+              value: "false"

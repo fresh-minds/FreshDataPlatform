@@ -74,10 +74,19 @@ Service links are resolved via:
 - Fallback localhost endpoints in `frontend/src/config/serviceUrls.js`
 
 Homepage assistant note:
+- On `/`, a diagonal `Demo` ribbon is pinned to the top-left corner of the page.
+- Toggle the ribbon with `VITE_SHOW_DEMO_RIBBON=true|false` (default `true`).
+- Enable demo SSO bootstrap with `VITE_DEMO_AUTO_ADMIN=true` (forces real Keycloak login flow and uses demo username hint for SSO).
+- Set the demo username hint with `VITE_DEMO_USERNAME` (default `odp-admin`).
+- For fully automatic SSO with no Keycloak login screen, keep `KEYCLOAK_DEMO_AUTO_LOGIN=true` and set `KEYCLOAK_DEMO_AUTOLOGIN_USERNAME` (default `odp-admin`).
 - On `/`, clicking the hero image opens a chat panel on the right.
 - The panel calls `portal-api` endpoint `POST /api/chat` (authenticated with the Keycloak bearer token).
-- Preferred backend env vars (Azure AI Foundry Agent): `AZURE_FOUNDRY_AGENT_ENDPOINT` and either `AZURE_FOUNDRY_AGENT_ID` or `AZURE_FOUNDRY_AGENT_NAME`, plus `AZURE_FOUNDRY_API_KEY`.
-- Optional agent auth alternative: `AZURE_FOUNDRY_BEARER_TOKEN` (when using Entra bearer token instead of API key).
+- Preferred backend env vars (Azure AI Foundry Agent): `AZURE_EXISTING_AIPROJECT_ENDPOINT` and either `AZURE_EXISTING_AGENT_ID` or `AZURE_EXISTING_AGENT_NAME`.
+- Backward compatibility: `AZURE_FOUNDRY_AGENT_ENDPOINT` / `AZURE_FOUNDRY_AGENT_ID` / `AZURE_FOUNDRY_AGENT_NAME` are still accepted as legacy aliases.
+- Foundry auth for `portal-api` supports two modes:
+  - API key mode: set `AZURE_FOUNDRY_API_KEY`.
+  - DefaultAzureCredential mode: leave `AZURE_FOUNDRY_API_KEY` empty and provide `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` (or another valid DefaultAzureCredential source).
+- In containerized local runs, Azure CLI login on host is not used automatically by `portal-api`; prefer service principal env vars for DefaultAzureCredential mode.
 - If chat returns a Foundry `403 Forbidden`, assign the calling identity permission for `Microsoft.MachineLearningServices/workspaces/agents/action` on the target AI Foundry project/workspace.
 - OpenAI fallback is removed; homepage chat uses Foundry agent only.
 
@@ -85,15 +94,29 @@ Platform dashboard note:
 - `/platform` keeps "Overview" at the top, followed by ordered destinations (Orchestration, Storage, Analytics + Notebook workspace row, Catalog & lineage).
 - The "People" section is shown in a separate box, only visible to admins, and rendered at the very bottom.
 - `/platform` includes a dedicated "Logging, monitoring and tracing" section with links to Grafana, Prometheus, and Alertmanager.
+- `/platform` includes a dedicated "docs and horizontal technical lineage" section with a `dbt docs & lineage` link.
 - Optional frontend overrides: `VITE_GRAFANA_URL`, `VITE_PROMETHEUS_URL`, `VITE_ALERTMANAGER_URL`.
+- Optional frontend override for dbt docs: `VITE_DBT_DOCS_URL`.
 - `/architecture` and `/services` expose the same observability links for consistent navigation.
 - In `/architecture`, the observability nodes in the SVG diagram (Grafana, Prometheus, Alertmanager) are also directly clickable.
 - The `/architecture` diagram also reflects active runtime components from Compose, including Jupyter (`:8888`) and tracing/log backends (Loki `:3100`, Tempo `:3200`).
+
+dbt docs + lineage workflow:
+- Generate docs artifacts: `make dbt-docs-generate`
+- Generate and (re)start static docs host: `make dbt-docs-refresh`
+- Keep docs auto-updated while developing dbt logic: `make dbt-docs-watch`
+- Open docs UI directly at `http://localhost:8089` or via `/platform` -> "docs and horizontal technical lineage".
 
 ## Useful Make Targets
 - `make help`: list available targets
 - `make run-job-connectors`: run RSS/Sitemap connector runner
 - `make observability-verify`: validate Compose logs/metrics/traces ingestion path (Grafana/Loki/Prometheus/Tempo); supports strict trace-volume mode (`OBS_REQUIRE_TRACE_VOLUME=true`) and ambient-only mode (`OBS_TRACE_VOLUME_MODE=ambient`)
+- `make k8s-aks-smoke`: run in-cluster AKS smoke checks (observability + core service endpoints); HTTP checks retry for short warm-up windows (~60s max per endpoint) and then fail on RED checks
+- `make k8s-aks-up`: runs AKS smoke checks by default after deploy (`AKS_SMOKE_AFTER_UP` unset/empty = `true`) and uses Azure Key Vault as the default AKS secret source; reruns safely skip Key Vault provider re-enable when already active and can enforce minimum System nodepool capacity via `AKS_NODE_COUNT` (set `AKS_SMOKE_AFTER_UP=false` to skip smoke; set `AKS_USE_KEY_VAULT=false` to use direct `.env` -> Kubernetes secret)
+- `make k8s-aks-update-images`: build/push selected app images and patch existing AKS deployments only (faster inner loop; no infra/parity apply)
+- `make dbt-docs-generate`: generate dbt docs site artifacts in `dbt_parallel/target/`
+- `make dbt-docs-refresh`: regenerate dbt docs and ensure static docs service is running
+- `make dbt-docs-watch`: auto-regenerate dbt docs whenever files in `dbt_parallel/models|macros|snapshots|seeds|tests` change
 - `make schema-validate`: validate DBML conventions
 - `make schema-drift-check`: compare warehouse to `schema/warehouse.dbml`
 - `make governance-validate`: validate governance metadata completeness

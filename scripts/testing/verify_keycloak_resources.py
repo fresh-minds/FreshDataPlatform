@@ -36,6 +36,11 @@ class OIDCClientConfig:
     redirect_uri: str
 
 
+REDIRECT_STATUS_CODES = {301, 302, 303, 307, 308}
+MINIO_SSO_BRIDGE_ENTRYPOINT_PATHS = ("/start", "/login")
+MINIO_SSO_BRIDGE_STATE_COOKIE_PREFIX = "minio_sso_bridge_state="
+
+
 def _env(name: str, default: str | None = None) -> str | None:
     raw = os.getenv(name)
     if raw is None:
@@ -89,6 +94,32 @@ def _equivalent_keycloak_authorize_prefixes(url: str) -> tuple[str, ...]:
         prefixes.append(urlunparse(parsed._replace(netloc=candidate_netloc)).rstrip("/"))
 
     return tuple(prefixes)
+
+
+def _require_redirect_response(
+    *,
+    response: requests.Response,
+    url: str,
+    context: str,
+) -> None:
+    if response.status_code not in REDIRECT_STATUS_CODES:
+        raise RuntimeError(f"{context} did not redirect (status={response.status_code}, url={url})")
+
+
+def _assert_redirect_targets_keycloak_authorize(
+    *,
+    location: str,
+    expected_prefix: str,
+    context: str,
+) -> None:
+    allowed_prefixes = _equivalent_keycloak_authorize_prefixes(expected_prefix)
+    if any(location.startswith(prefix) for prefix in allowed_prefixes):
+        return
+
+    raise RuntimeError(
+        f"{context} does not point to browser-reachable Keycloak authorize endpoint "
+        f"(expected one of={allowed_prefixes}, got={location})",
+    )
 
 
 def resolve_keycloak_base_and_realm() -> tuple[str, str]:
@@ -171,11 +202,7 @@ def verify_airflow_redirect(
     next_url = quote(f"{base}/home", safe="")
     login_url = f"{base}/login/keycloak?next={next_url}"
     response = requests.get(login_url, allow_redirects=False, timeout=timeout_s)
-
-    if response.status_code not in {301, 302, 303, 307, 308}:
-        raise RuntimeError(
-            f"Airflow Keycloak login did not redirect (status={response.status_code}, url={login_url})",
-        )
+    _require_redirect_response(response=response, url=login_url, context="Airflow Keycloak login")
 
     location = response.headers.get("Location", "")
     expected_prefix = (
@@ -183,13 +210,11 @@ def verify_airflow_redirect(
         or f"{keycloak_base_url.rstrip('/')}/realms/{keycloak_realm}/protocol/openid-connect/auth"
     )
     expected_prefix = _prefer_reachable_localhost(expected_prefix.rstrip("/"))
-    allowed_prefixes = _equivalent_keycloak_authorize_prefixes(expected_prefix)
-
-    if not any(location.startswith(prefix) for prefix in allowed_prefixes):
-        raise RuntimeError(
-            "Airflow redirect does not point to browser-reachable Keycloak authorize endpoint "
-            f"(expected one of={allowed_prefixes}, got={location})",
-        )
+    _assert_redirect_targets_keycloak_authorize(
+        location=location,
+        expected_prefix=expected_prefix,
+        context="Airflow redirect",
+    )
 
 
 def verify_superset_redirect(
@@ -202,11 +227,7 @@ def verify_superset_redirect(
     base = superset_base_url.rstrip("/")
     login_url = f"{base}/login/keycloak"
     response = requests.get(login_url, allow_redirects=False, timeout=timeout_s)
-
-    if response.status_code not in {301, 302, 303, 307, 308}:
-        raise RuntimeError(
-            f"Superset Keycloak login did not redirect (status={response.status_code}, url={login_url})",
-        )
+    _require_redirect_response(response=response, url=login_url, context="Superset Keycloak login")
 
     location = response.headers.get("Location", "")
     expected_prefix = (
@@ -215,29 +236,28 @@ def verify_superset_redirect(
         or f"{keycloak_base_url.rstrip('/')}/realms/{keycloak_realm}/protocol/openid-connect/auth"
     )
     expected_prefix = _prefer_reachable_localhost(expected_prefix.rstrip("/"))
-    allowed_prefixes = _equivalent_keycloak_authorize_prefixes(expected_prefix)
-
-    if not any(location.startswith(prefix) for prefix in allowed_prefixes):
-        raise RuntimeError(
-            "Superset redirect does not point to browser-reachable Keycloak authorize endpoint "
-            f"(expected one of={allowed_prefixes}, got={location})",
-        )
+    _assert_redirect_targets_keycloak_authorize(
+        location=location,
+        expected_prefix=expected_prefix,
+        context="Superset redirect",
+    )
 
 
-def verify_minio_sso_bridge_start(
+def _verify_minio_sso_bridge_entrypoint(
     *,
     minio_sso_bridge_url: str,
     keycloak_base_url: str,
     keycloak_realm: str,
     timeout_s: float,
+    path: str,
 ) -> None:
-    start_url = f"{minio_sso_bridge_url.rstrip('/')}/start"
-    response = requests.get(start_url, allow_redirects=False, timeout=timeout_s)
-
-    if response.status_code not in {301, 302, 303, 307, 308}:
-        raise RuntimeError(
-            f"MinIO SSO bridge start did not redirect (status={response.status_code}, url={start_url})",
-        )
+    entrypoint_url = f"{minio_sso_bridge_url.rstrip('/')}{path}"
+    response = requests.get(entrypoint_url, allow_redirects=False, timeout=timeout_s)
+    _require_redirect_response(
+        response=response,
+        url=entrypoint_url,
+        context="MinIO SSO bridge entrypoint",
+    )
 
     location = response.headers.get("Location", "")
     expected_prefix = (
@@ -249,16 +269,35 @@ def verify_minio_sso_bridge_start(
         expected_prefix = f"{expected_prefix}/realms/{keycloak_realm}/protocol/openid-connect/auth"
 
     expected_prefix = _prefer_reachable_localhost(expected_prefix)
-    allowed_prefixes = _equivalent_keycloak_authorize_prefixes(expected_prefix)
-    if not any(location.startswith(prefix) for prefix in allowed_prefixes):
-        raise RuntimeError(
-            "MinIO SSO bridge redirect does not point to browser-reachable Keycloak authorize endpoint "
-            f"(expected one of={allowed_prefixes}, got={location})",
-        )
+    _assert_redirect_targets_keycloak_authorize(
+        location=location,
+        expected_prefix=expected_prefix,
+        context="MinIO SSO bridge redirect",
+    )
 
     set_cookie = response.headers.get("Set-Cookie", "")
-    if "minio_sso_bridge_state=" not in set_cookie:
-        raise RuntimeError("MinIO SSO bridge start did not set state cookie")
+    if MINIO_SSO_BRIDGE_STATE_COOKIE_PREFIX not in set_cookie:
+        raise RuntimeError(
+            "MinIO SSO bridge entrypoint did not set state cookie "
+            f"(url={entrypoint_url})",
+        )
+
+
+def verify_minio_sso_bridge_start(
+    *,
+    minio_sso_bridge_url: str,
+    keycloak_base_url: str,
+    keycloak_realm: str,
+    timeout_s: float,
+) -> None:
+    for path in MINIO_SSO_BRIDGE_ENTRYPOINT_PATHS:
+        _verify_minio_sso_bridge_entrypoint(
+            minio_sso_bridge_url=minio_sso_bridge_url,
+            keycloak_base_url=keycloak_base_url,
+            keycloak_realm=keycloak_realm,
+            timeout_s=timeout_s,
+            path=path,
+        )
 
 
 def verify_clients(

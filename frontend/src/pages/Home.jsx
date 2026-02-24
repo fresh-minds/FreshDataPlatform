@@ -12,6 +12,7 @@ function Home() {
     const [draft, setDraft] = useState('');
     const [isSending, setIsSending] = useState(false);
     const [chatError, setChatError] = useState('');
+    const showDemoRibbon = (import.meta.env.VITE_SHOW_DEMO_RIBBON ?? 'true').toLowerCase() === 'true';
 
     const canSend = useMemo(() => draft.trim().length > 0 && !isSending, [draft, isSending]);
 
@@ -76,6 +77,11 @@ function Home() {
 
     return (
         <main className="home-page">
+            {showDemoRibbon ? (
+                <div className="home-demo-ribbon" aria-label="Demo environment">
+                    Demo
+                </div>
+            ) : null}
             {user && (
                 <div className="home-user-bar">
                     <span className="home-user-name">{user.fullName || user.username}</span>

@@ -16,6 +16,9 @@ from scripts.sso.oidc import (
 )
 from tests.sso.settings import SSOSettings
 
+REDIRECT_STATUS_CODES = {301, 302, 303, 307, 308}
+MINIO_SSO_BRIDGE_ENTRYPOINT_PATHS = ("/start", "/login")
+
 
 @pytest.mark.e2e
 def test_openid_configuration_reachable_for_each_realm(
@@ -137,6 +140,31 @@ def _env_bool(name: str, default: bool) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _assert_minio_bridge_redirect(
+    *,
+    api_client: object,
+    bridge_url: str,
+    path: str,
+) -> None:
+    response = api_client.get(f"{bridge_url}{path}")
+    assert response.status_code in REDIRECT_STATUS_CODES, (
+        f"MinIO SSO bridge {path} did not redirect to Keycloak: {response.status_code}"
+    )
+    location = response.headers.get("Location", "")
+    assert location, f"MinIO SSO bridge {path} redirect is missing location header"
+
+    parsed = urlparse(location)
+    query = parse_qs(parsed.query)
+    assert "/protocol/openid-connect/auth" in parsed.path, f"Bridge {path} redirect did not target OIDC auth endpoint"
+    assert query.get("client_id", [None])[0] == os.getenv("KEYCLOAK_MINIO_CLIENT_ID", "minio"), (
+        f"Bridge {path} redirect used unexpected client_id"
+    )
+    assert query.get("redirect_uri", [None])[0] == f"{bridge_url}/callback", (
+        f"Bridge {path} redirect URI does not point back to bridge callback"
+    )
+    assert query.get("response_type", [None])[0] == "code", f"Bridge {path} redirect did not use auth code flow"
+
+
 @pytest.mark.e2e
 def test_minio_sso_bridge_start_redirects_to_keycloak(
     sso_settings: SSOSettings,
@@ -152,20 +180,5 @@ def test_minio_sso_bridge_start_redirects_to_keycloak(
     write_log("minio-sso-bridge-healthz", health.text)
     assert health.status_code == 200, f"MinIO SSO bridge health check failed: {health.status_code}"
 
-    response = api_client.get(f"{bridge_url}/start")
-    assert response.status_code in {301, 302, 303, 307, 308}, (
-        f"MinIO SSO bridge did not redirect to Keycloak: {response.status_code}"
-    )
-    location = response.headers.get("location", "")
-    assert location, "MinIO SSO bridge redirect is missing location header"
-
-    parsed = urlparse(location)
-    query = parse_qs(parsed.query)
-    assert "/protocol/openid-connect/auth" in parsed.path, "Bridge redirect did not target OIDC auth endpoint"
-    assert query.get("client_id", [None])[0] == os.getenv("KEYCLOAK_MINIO_CLIENT_ID", "minio"), (
-        "Bridge redirect used unexpected client_id"
-    )
-    assert query.get("redirect_uri", [None])[0] == f"{bridge_url}/callback", (
-        "Bridge redirect URI does not point back to bridge callback"
-    )
-    assert query.get("response_type", [None])[0] == "code", "Bridge redirect did not use auth code flow"
+    for path in MINIO_SSO_BRIDGE_ENTRYPOINT_PATHS:
+        _assert_minio_bridge_redirect(api_client=api_client, bridge_url=bridge_url, path=path)

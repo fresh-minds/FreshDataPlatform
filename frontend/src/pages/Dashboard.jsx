@@ -18,6 +18,10 @@ const OBSERVABILITY_LINKS = [
     { label: 'Alertmanager', href: serviceUrls.alertmanager }
 ].filter((link) => hasServiceUrl(link.href));
 
+const DBT_DOCS_LINKS = [
+    { label: 'dbt docs & lineage', href: serviceUrls.dbtDocs }
+].filter((link) => hasServiceUrl(link.href));
+
 const OVERVIEW_ACTION = { label: 'One-screen overview', href: '/overview', icon: Eye };
 const DIRECTORY_ACTION = { label: 'User directory', href: '/directory', icon: Users };
 
@@ -178,6 +182,29 @@ function Dashboard() {
                                     ) : (
                                         <div className="launchpad-empty">
                                             No observability links are configured yet.
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="launchpad-section">
+                                    <p className="launchpad-section-title">docs and horizontal technical lineage</p>
+                                    {DBT_DOCS_LINKS.length ? (
+                                        <div className="launchpad-list">
+                                            {DBT_DOCS_LINKS.map((link) => (
+                                                <LaunchpadListItem
+                                                    key={link.label}
+                                                    item={{
+                                                        label: link.label,
+                                                        href: link.href,
+                                                        subject: 'docs and horizontal technical lineage',
+                                                        detail: link.label,
+                                                        icon: Database
+                                                    }}
+                                                />
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="launchpad-empty">
+                                            No dbt docs link is configured yet.
                                         </div>
                                     )}
                                 </div>

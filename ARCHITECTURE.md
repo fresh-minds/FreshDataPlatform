@@ -43,6 +43,7 @@ flowchart LR
 ### Operator Plane
 - `frontend/`: React launchpad linking all platform surfaces
 - `/platform` launchpad section "Logging, monitoring and tracing" links Grafana, Prometheus, and Alertmanager
+- `/platform` launchpad section "docs and horizontal technical lineage" links the dbt docs UI for model docs and lineage exploration
 - `/architecture` and `/services` pages expose the same observability links for consistent operator access
 - Airflow UI: DAG operations and task-level monitoring
 - DataHub UI: metadata catalog and lineage exploration
@@ -65,6 +66,7 @@ flowchart LR
 ### Supporting Plane
 - Observability stack in `ops/observability/`
 - Keycloak realm and SSO config in `ops/keycloak/`
+- AKS secret manager path via Azure Key Vault + Secrets Store CSI sync (`scripts/aks/aks_up.sh`, `k8s/aks/keyvault-sync.yaml`)
 
 ## Runtime Data Flow
 The primary domain flow implemented today is `job_market_nl`.
@@ -106,7 +108,7 @@ flowchart LR
 - Local Kubernetes dev-like:
   - kind cluster via `scripts/k8s/k8s_dev_up.sh`
 - Cloud dev-like:
-  - AKS provisioning/deploy via `scripts/aks/aks_up.sh`
+  - AKS provisioning/deploy via `scripts/aks/aks_up.sh` with Key Vault-backed `odp-env` secret sync by default
 
 More detail: [DEPLOYMENT.md](DEPLOYMENT.md)
 

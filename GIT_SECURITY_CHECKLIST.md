@@ -9,6 +9,7 @@ Before running `git commit`, verify:
 - [ ] No `secrets.json` or credential files staged
 - [ ] All sensitive data uses `${VARIABLE_NAME}` placeholders instead
 - [ ] Only `.env.template` is staged (not `.env`)
+- [ ] AKS Key Vault settings in scripts/docs use variable references, not literal secret values
 - [ ] Pre-commit hook runs without errors
 
 ## Pre-Push Checklist

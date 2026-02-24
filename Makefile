@@ -1,5 +1,5 @@
 # Open Data Platform - Development Commands
-.PHONY: install dev-install test lint format format-check run clean help schema-validate schema-drift-check dbt-debug dbt-build-seed e2e-test test-e2e test-sso qa-test warehouse-security observability-verify bootstrap-all bootstrap_all k8s-dev-up k8s-dev-up-full k8s-dev-down k8s-sso-gateway-up k8s-sso-gateway-forward k8s-sso-gateway-forward-stop k8s-aks-up k8s-aks-down
+.PHONY: install dev-install test lint format format-check run clean help schema-validate schema-drift-check dbt-debug dbt-build-seed dbt-docs-generate dbt-docs-refresh dbt-docs-watch e2e-test test-e2e test-sso qa-test warehouse-security observability-verify k8s-aks-smoke bootstrap-all bootstrap_all k8s-dev-up k8s-dev-up-full k8s-dev-down k8s-sso-gateway-up k8s-sso-gateway-forward k8s-sso-gateway-forward-stop k8s-aks-up k8s-aks-update-images k8s-aks-down
 
 # Default Python
 PYTHON := python3
@@ -80,6 +80,18 @@ dbt-build-seed:  ## Build parallel dbt project using seed data
 	.venv/bin/dbt snapshot --project-dir dbt_parallel --profiles-dir dbt_parallel --vars '{use_seed_data: true}'
 	.venv/bin/dbt test --project-dir dbt_parallel --profiles-dir dbt_parallel --vars '{use_seed_data: true}'
 
+dbt-docs-generate:  ## Generate dbt docs artifacts for local lineage UI
+	.venv/bin/dbt deps --project-dir dbt_parallel --profiles-dir dbt_parallel
+	.venv/bin/dbt docs generate --project-dir dbt_parallel --profiles-dir dbt_parallel --vars '{use_seed_data: true}'
+
+dbt-docs-refresh:  ## Regenerate dbt docs and (re)start static dbt docs service
+	$(MAKE) dbt-docs-generate
+	docker compose up -d dbt-docs
+
+dbt-docs-watch:  ## Watch dbt project changes and auto-regenerate docs + lineage
+	docker compose up -d warehouse dbt-docs
+	.venv/bin/python scripts/platform/watch_dbt_docs.py --project-dir dbt_parallel --profiles-dir dbt_parallel
+
 e2e-test:  ## Run end-to-end platform test suite with evidence capture
 	./scripts/testing/run_e2e_tests.sh
 
@@ -96,6 +108,9 @@ warehouse-security:  ## Apply warehouse RBAC/RLS/masking baseline
 
 observability-verify:  ## Verify Docker Compose observability ingestion end-to-end
 	./scripts/testing/verify_compose_observability.sh
+
+k8s-aks-smoke:  ## Run in-cluster AKS smoke checks (observability + core platform services)
+	./scripts/testing/verify_aks_smoke.sh
 
 bootstrap-all:  ## Start docker stack + seed MinIO/Superset/DataHub/warehouse in one go
 	./scripts/platform/bootstrap_all.sh
@@ -120,10 +135,19 @@ k8s-sso-gateway-forward:  ## Start ingress-nginx port-forward for SSO gateway on
 k8s-sso-gateway-forward-stop:  ## Stop ingress-nginx port-forward for SSO gateway
 	./scripts/k8s/k8s_port_forward_ingress.sh stop
 
-k8s-aks-up:  ## Provision AKS + deploy dev-like Kubernetes Phase A stack
+k8s-aks-up:  ## Provision AKS + deploy stack (Key Vault-backed secrets by default), then run AKS smoke checks (set AKS_SMOKE_AFTER_UP=false to skip)
 	./scripts/aks/aks_up.sh
+	@if [ "$${AKS_SMOKE_AFTER_UP:-true}" = "true" ]; then \
+		echo "Running post-deploy AKS smoke checks (AKS_SMOKE_AFTER_UP=true)"; \
+		./scripts/testing/verify_aks_smoke.sh; \
+	else \
+		echo "Skipping post-deploy AKS smoke checks (AKS_SMOKE_AFTER_UP=$${AKS_SMOKE_AFTER_UP})"; \
+	fi
 
-k8s-aks-down:  ## Tear down AKS workloads (and optionally infra) created by k8s-aks-up
+k8s-aks-update-images:  ## Build/push selected app images and patch existing AKS deployments only (no infra/parity reapply)
+	./scripts/aks/aks_update_images.sh
+
+k8s-aks-down:  ## Tear down AKS workloads (and optionally infra/Key Vault) created by k8s-aks-up
 	./scripts/aks/aks_down.sh
 
 setup:  ## Initial setup (create venv, install deps, copy .env)

@@ -93,7 +93,9 @@ kompose_remove_phase_a() {
     "$KOMPOSE_OUT_DIR"/warehouse-service.yaml \
     "$KOMPOSE_OUT_DIR"/datahub-*-setup-*.yaml \
     "$KOMPOSE_OUT_DIR"/datahub-upgrade-*.yaml \
-    "$KOMPOSE_OUT_DIR"/airflow-init-*.yaml
+    "$KOMPOSE_OUT_DIR"/airflow-init-*.yaml \
+    "$KOMPOSE_OUT_DIR"/dbt-docs-deployment.yaml \
+    "$KOMPOSE_OUT_DIR"/dbt-docs-service.yaml
 
   if [[ "${SKIP_MSTEAMS:-false}" == "true" ]]; then
     rm -f \
@@ -130,6 +132,12 @@ kompose_normalise_services() {
     ]' "$KOMPOSE_OUT_DIR/otel-collector-service.yaml"
   fi
 
+  # DataHub Kafka advertises the service DNS name and needs to be able to
+  # resolve itself before readiness flips true.
+  if [[ -f "$KOMPOSE_OUT_DIR/datahub-kafka-service.yaml" ]]; then
+    yq -i '.spec.publishNotReadyAddresses = true' "$KOMPOSE_OUT_DIR/datahub-kafka-service.yaml"
+  fi
+
   kompose_log_event "INFO" "kompose_normalise_services" "success" "Normalized ${changed_count} service manifests."
 }
 
@@ -158,6 +166,460 @@ kompose_fix_deployments() {
       "-c",
       "pip install --no-cache-dir authlib && superset fab create-admin --username admin --firstname Superset --lastname Admin --email admin@superset.com --password admin || true && superset db upgrade && superset init && /usr/bin/run-server.sh & SERVER_PID=$! && echo [Superset] Waiting for /health... && for i in $(seq 1 60); do curl -sSf http://localhost:8088/health >/dev/null && break || sleep 2; done && python /app/scripts/superset/superset_bootstrap_job_market.py || true && wait $SERVER_PID"
     ]' "$KOMPOSE_OUT_DIR/superset-deployment.yaml"
+  fi
+
+  # Alertmanager needs a concrete config file mount in AKS.
+  if [[ -f "$KOMPOSE_OUT_DIR/alertmanager-deployment.yaml" ]]; then
+    yq -i '.spec.template.spec.containers[0].volumeMounts = [
+      {
+        "name": "alertmanager-config",
+        "mountPath": "/etc/alertmanager/alertmanager.yml",
+        "subPath": "alertmanager.yml"
+      },
+      {
+        "name": "alertmanager-data",
+        "mountPath": "/alertmanager"
+      }
+    ]' "$KOMPOSE_OUT_DIR/alertmanager-deployment.yaml"
+
+    yq -i '.spec.template.spec.volumes = [
+      {
+        "name": "alertmanager-config",
+        "configMap": {
+          "name": "alertmanager-config",
+          "items": [
+            {
+              "key": "alertmanager.yml",
+              "path": "alertmanager.yml"
+            }
+          ]
+        }
+      },
+      {
+        "name": "alertmanager-data",
+        "emptyDir": {}
+      }
+    ]' "$KOMPOSE_OUT_DIR/alertmanager-deployment.yaml"
+  fi
+
+  # Observability services mount single config files in Compose. In AKS,
+  # bind those as ConfigMap file mounts (subPath) instead of emptyDir dirs.
+  if [[ -f "$KOMPOSE_OUT_DIR/loki-deployment.yaml" ]]; then
+    yq -i '.spec.template.spec.containers[0].volumeMounts = [
+      {
+        "name": "loki-config",
+        "mountPath": "/etc/loki/local-config.yaml",
+        "subPath": "local-config.yaml"
+      },
+      {
+        "name": "loki-data",
+        "mountPath": "/loki"
+      }
+    ]' "$KOMPOSE_OUT_DIR/loki-deployment.yaml"
+    yq -i '.spec.template.spec.volumes = [
+      {
+        "name": "loki-config",
+        "configMap": {
+          "name": "loki-config",
+          "items": [
+            {
+              "key": "local-config.yaml",
+              "path": "local-config.yaml"
+            }
+          ]
+        }
+      },
+      {
+        "name": "loki-data",
+        "emptyDir": {}
+      }
+    ]' "$KOMPOSE_OUT_DIR/loki-deployment.yaml"
+  fi
+
+  if [[ -f "$KOMPOSE_OUT_DIR/prometheus-deployment.yaml" ]]; then
+    yq -i '.spec.template.spec.containers[0].volumeMounts = [
+      {
+        "name": "prometheus-config",
+        "mountPath": "/etc/prometheus/prometheus.yml",
+        "subPath": "prometheus.yml"
+      },
+      {
+        "name": "prometheus-config",
+        "mountPath": "/etc/prometheus/alerts.yml",
+        "subPath": "alerts.yml"
+      },
+      {
+        "name": "prometheus-data",
+        "mountPath": "/prometheus"
+      }
+    ]' "$KOMPOSE_OUT_DIR/prometheus-deployment.yaml"
+    yq -i '.spec.template.spec.volumes = [
+      {
+        "name": "prometheus-config",
+        "configMap": {
+          "name": "prometheus-config",
+          "items": [
+            {
+              "key": "prometheus.yml",
+              "path": "prometheus.yml"
+            },
+            {
+              "key": "alerts.yml",
+              "path": "alerts.yml"
+            }
+          ]
+        }
+      },
+      {
+        "name": "prometheus-data",
+        "emptyDir": {}
+      }
+    ]' "$KOMPOSE_OUT_DIR/prometheus-deployment.yaml"
+  fi
+
+  if [[ -f "$KOMPOSE_OUT_DIR/promtail-deployment.yaml" ]]; then
+    yq -i '.spec.template.spec.containers[0].volumeMounts = [
+      {
+        "name": "promtail-config",
+        "mountPath": "/etc/promtail/config.yml",
+        "subPath": "config.yml"
+      }
+    ]' "$KOMPOSE_OUT_DIR/promtail-deployment.yaml"
+    yq -i '.spec.template.spec.volumes = [
+      {
+        "name": "promtail-config",
+        "configMap": {
+          "name": "promtail-config",
+          "items": [
+            {
+              "key": "config.yml",
+              "path": "config.yml"
+            }
+          ]
+        }
+      }
+    ]' "$KOMPOSE_OUT_DIR/promtail-deployment.yaml"
+  fi
+
+  if [[ -f "$KOMPOSE_OUT_DIR/tempo-deployment.yaml" ]]; then
+    yq -i '.spec.template.spec.containers[0].volumeMounts = [
+      {
+        "name": "tempo-config",
+        "mountPath": "/etc/tempo.yml",
+        "subPath": "tempo.yml"
+      },
+      {
+        "name": "tempo-data",
+        "mountPath": "/var/tempo"
+      }
+    ]' "$KOMPOSE_OUT_DIR/tempo-deployment.yaml"
+    yq -i '.spec.template.spec.volumes = [
+      {
+        "name": "tempo-config",
+        "configMap": {
+          "name": "tempo-config",
+          "items": [
+            {
+              "key": "tempo.yml",
+              "path": "tempo.yml"
+            }
+          ]
+        }
+      },
+      {
+        "name": "tempo-data",
+        "emptyDir": {}
+      }
+    ]' "$KOMPOSE_OUT_DIR/tempo-deployment.yaml"
+  fi
+
+  if [[ -f "$KOMPOSE_OUT_DIR/otel-collector-deployment.yaml" ]]; then
+    yq -i '.spec.template.spec.containers[0].volumeMounts = [
+      {
+        "name": "otel-collector-config",
+        "mountPath": "/etc/otel-collector.yml",
+        "subPath": "otel-collector.yml"
+      }
+    ]' "$KOMPOSE_OUT_DIR/otel-collector-deployment.yaml"
+    yq -i '.spec.template.spec.volumes = [
+      {
+        "name": "otel-collector-config",
+        "configMap": {
+          "name": "otel-collector-config",
+          "items": [
+            {
+              "key": "otel-collector.yml",
+              "path": "otel-collector.yml"
+            }
+          ]
+        }
+      }
+    ]' "$KOMPOSE_OUT_DIR/otel-collector-deployment.yaml"
+  fi
+
+  if [[ -f "$KOMPOSE_OUT_DIR/grafana-deployment.yaml" ]]; then
+    yq -i '.spec.template.spec.containers[0].volumeMounts = [
+      {
+        "name": "grafana-data",
+        "mountPath": "/var/lib/grafana"
+      },
+      {
+        "name": "grafana-config",
+        "mountPath": "/etc/grafana/provisioning/datasources/datasources.yml",
+        "subPath": "datasources.yml"
+      },
+      {
+        "name": "grafana-config",
+        "mountPath": "/etc/grafana/provisioning/dashboards/dashboards.yml",
+        "subPath": "dashboards.yml"
+      },
+      {
+        "name": "grafana-dashboards",
+        "mountPath": "/var/lib/grafana/dashboards"
+      }
+    ]' "$KOMPOSE_OUT_DIR/grafana-deployment.yaml"
+    yq -i '.spec.template.spec.volumes = [
+      {
+        "name": "grafana-data",
+        "emptyDir": {}
+      },
+      {
+        "name": "grafana-config",
+        "configMap": {
+          "name": "grafana-config",
+          "items": [
+            {
+              "key": "datasources.yml",
+              "path": "datasources.yml"
+            },
+            {
+              "key": "dashboards.yml",
+              "path": "dashboards.yml"
+            }
+          ]
+        }
+      },
+      {
+        "name": "grafana-dashboards",
+        "configMap": {
+          "name": "grafana-dashboards"
+        }
+      }
+    ]' "$KOMPOSE_OUT_DIR/grafana-deployment.yaml"
+  fi
+
+  # DataHub GMS can require a long cold start (upgrades/index checks).
+  # Ensure startup has a dedicated budget and only expose endpoint when healthy.
+  if [[ -f "$KOMPOSE_OUT_DIR/datahub-gms-deployment.yaml" ]]; then
+    local gms_startup_initial_delay_seconds="${DATAHUB_GMS_STARTUP_INITIAL_DELAY_SECONDS:-60}"
+    local gms_startup_period_seconds="${DATAHUB_GMS_STARTUP_PERIOD_SECONDS:-10}"
+    local gms_startup_timeout_seconds="${DATAHUB_GMS_STARTUP_TIMEOUT_SECONDS:-5}"
+    local gms_startup_failure_threshold="${DATAHUB_GMS_STARTUP_FAILURE_THRESHOLD:-240}"
+    local gms_readiness_initial_delay_seconds="${DATAHUB_GMS_READINESS_INITIAL_DELAY_SECONDS:-30}"
+    local gms_readiness_period_seconds="${DATAHUB_GMS_READINESS_PERIOD_SECONDS:-15}"
+    local gms_readiness_timeout_seconds="${DATAHUB_GMS_READINESS_TIMEOUT_SECONDS:-10}"
+    local gms_readiness_failure_threshold="${DATAHUB_GMS_READINESS_FAILURE_THRESHOLD:-6}"
+    local gms_liveness_initial_delay_seconds="${DATAHUB_GMS_LIVENESS_INITIAL_DELAY_SECONDS:-600}"
+    local gms_liveness_period_seconds="${DATAHUB_GMS_LIVENESS_PERIOD_SECONDS:-30}"
+    local gms_liveness_timeout_seconds="${DATAHUB_GMS_LIVENESS_TIMEOUT_SECONDS:-10}"
+    local gms_liveness_failure_threshold="${DATAHUB_GMS_LIVENESS_FAILURE_THRESHOLD:-10}"
+
+    local gms_cpu_request="${DATAHUB_GMS_CPU_REQUEST:-300m}"
+    local gms_memory_request="${DATAHUB_GMS_MEMORY_REQUEST:-1Gi}"
+    local gms_cpu_limit="${DATAHUB_GMS_CPU_LIMIT:-1500m}"
+    local gms_memory_limit="${DATAHUB_GMS_MEMORY_LIMIT:-2Gi}"
+
+    # Use a socket startup probe so cold-start bootstrap doesn't require full /health.
+    yq -i ".spec.template.spec.containers[0].startupProbe = {
+      \"tcpSocket\": {
+        \"port\": 8080
+      },
+      \"initialDelaySeconds\": ${gms_startup_initial_delay_seconds},
+      \"periodSeconds\": ${gms_startup_period_seconds},
+      \"timeoutSeconds\": ${gms_startup_timeout_seconds},
+      \"failureThreshold\": ${gms_startup_failure_threshold},
+      \"successThreshold\": 1
+    }" "$KOMPOSE_OUT_DIR/datahub-gms-deployment.yaml"
+    yq -i ".spec.template.spec.containers[0].readinessProbe = {
+      \"exec\": {
+        \"command\": [\"sh\", \"-c\", \"curl -sS --fail http://localhost:8080/health\"]
+      },
+      \"initialDelaySeconds\": ${gms_readiness_initial_delay_seconds},
+      \"periodSeconds\": ${gms_readiness_period_seconds},
+      \"timeoutSeconds\": ${gms_readiness_timeout_seconds},
+      \"failureThreshold\": ${gms_readiness_failure_threshold},
+      \"successThreshold\": 1
+    }" "$KOMPOSE_OUT_DIR/datahub-gms-deployment.yaml"
+    yq -i ".spec.template.spec.containers[0].livenessProbe = {
+      \"exec\": {
+        \"command\": [\"sh\", \"-c\", \"curl -sS --fail http://localhost:8080/health\"]
+      },
+      \"initialDelaySeconds\": ${gms_liveness_initial_delay_seconds},
+      \"periodSeconds\": ${gms_liveness_period_seconds},
+      \"timeoutSeconds\": ${gms_liveness_timeout_seconds},
+      \"failureThreshold\": ${gms_liveness_failure_threshold},
+      \"successThreshold\": 1
+    }" "$KOMPOSE_OUT_DIR/datahub-gms-deployment.yaml"
+    yq -i ".spec.template.spec.containers[0].resources = {
+      \"requests\": {
+        \"cpu\": \"${gms_cpu_request}\",
+        \"memory\": \"${gms_memory_request}\"
+      },
+      \"limits\": {
+        \"cpu\": \"${gms_cpu_limit}\",
+        \"memory\": \"${gms_memory_limit}\"
+      }
+    }" "$KOMPOSE_OUT_DIR/datahub-gms-deployment.yaml"
+  fi
+
+  # DataHub MySQL can take time to initialize system tables on ephemeral disks.
+  # Use startup/readiness gating and avoid aggressive early liveness restarts.
+  if [[ -f "$KOMPOSE_OUT_DIR/datahub-elasticsearch-deployment.yaml" ]]; then
+    yq -i '.spec.template.spec.containers[0].startupProbe = {
+      "httpGet": {
+        "path": "/",
+        "port": 9200,
+        "scheme": "HTTP"
+      },
+      "initialDelaySeconds": 20,
+      "periodSeconds": 10,
+      "timeoutSeconds": 5,
+      "failureThreshold": 60,
+      "successThreshold": 1
+    }' "$KOMPOSE_OUT_DIR/datahub-elasticsearch-deployment.yaml"
+    yq -i '.spec.template.spec.containers[0].readinessProbe = {
+      "httpGet": {
+        "path": "/",
+        "port": 9200,
+        "scheme": "HTTP"
+      },
+      "initialDelaySeconds": 10,
+      "periodSeconds": 10,
+      "timeoutSeconds": 5,
+      "failureThreshold": 12,
+      "successThreshold": 1
+    }' "$KOMPOSE_OUT_DIR/datahub-elasticsearch-deployment.yaml"
+    yq -i '.spec.template.spec.containers[0].livenessProbe = {
+      "httpGet": {
+        "path": "/",
+        "port": 9200,
+        "scheme": "HTTP"
+      },
+      "initialDelaySeconds": 120,
+      "periodSeconds": 15,
+      "timeoutSeconds": 5,
+      "failureThreshold": 10,
+      "successThreshold": 1
+    }' "$KOMPOSE_OUT_DIR/datahub-elasticsearch-deployment.yaml"
+  fi
+
+  # DataHub MySQL can take time to initialize system tables on ephemeral disks.
+  # Use startup/readiness gating and avoid aggressive early liveness restarts.
+  if [[ -f "$KOMPOSE_OUT_DIR/datahub-mysql-deployment.yaml" ]]; then
+    yq -i '.spec.template.spec.containers[0].startupProbe = {
+      "exec": {
+        "command": ["sh", "-c", "mysqladmin ping -h 127.0.0.1 -uroot --password=$MYSQL_ROOT_PASSWORD"]
+      },
+      "initialDelaySeconds": 30,
+      "periodSeconds": 10,
+      "timeoutSeconds": 5,
+      "failureThreshold": 60,
+      "successThreshold": 1
+    }' "$KOMPOSE_OUT_DIR/datahub-mysql-deployment.yaml"
+    yq -i '.spec.template.spec.containers[0].readinessProbe = {
+      "exec": {
+        "command": ["sh", "-c", "mysqladmin ping -h 127.0.0.1 -uroot --password=$MYSQL_ROOT_PASSWORD"]
+      },
+      "initialDelaySeconds": 20,
+      "periodSeconds": 10,
+      "timeoutSeconds": 5,
+      "failureThreshold": 12,
+      "successThreshold": 1
+    }' "$KOMPOSE_OUT_DIR/datahub-mysql-deployment.yaml"
+    yq -i '.spec.template.spec.containers[0].livenessProbe = {
+      "exec": {
+        "command": ["sh", "-c", "mysqladmin ping -h 127.0.0.1 -uroot --password=$MYSQL_ROOT_PASSWORD"]
+      },
+      "initialDelaySeconds": 120,
+      "periodSeconds": 15,
+      "timeoutSeconds": 5,
+      "failureThreshold": 10,
+      "successThreshold": 1
+    }' "$KOMPOSE_OUT_DIR/datahub-mysql-deployment.yaml"
+  fi
+
+  # DataHub Kafka can accept TCP before broker metadata is fully available.
+  # Gate startup/readiness on broker API metadata checks to avoid setup-job races.
+  if [[ -f "$KOMPOSE_OUT_DIR/datahub-kafka-deployment.yaml" ]]; then
+    local kafka_startup_initial_delay_seconds=40
+    local kafka_startup_timeout_seconds=10
+    local kafka_startup_failure_threshold=60
+    local kafka_readiness_initial_delay_seconds=20
+    local kafka_readiness_timeout_seconds=10
+    local kafka_readiness_failure_threshold=24
+    local kafka_liveness_initial_delay_seconds=60
+
+    if [[ "${KOMPOSE_LOG_SOURCE:-}" == "aks-up" ]]; then
+      kafka_startup_initial_delay_seconds=60
+      kafka_startup_timeout_seconds=30
+      kafka_startup_failure_threshold=90
+      kafka_readiness_initial_delay_seconds=30
+      kafka_readiness_timeout_seconds=30
+      kafka_readiness_failure_threshold=36
+      kafka_liveness_initial_delay_seconds=90
+    fi
+
+    yq -i '.spec.strategy = {
+      "type": "Recreate"
+    }' "$KOMPOSE_OUT_DIR/datahub-kafka-deployment.yaml"
+    yq -i '(.spec.template.spec.containers[0].env[] | select(.name == "KAFKA_LISTENER_SECURITY_PROTOCOL_MAP") | .value) = "PLAINTEXT:PLAINTEXT"' "$KOMPOSE_OUT_DIR/datahub-kafka-deployment.yaml"
+    yq -i '(.spec.template.spec.containers[0].env[] | select(.name == "KAFKA_ADVERTISED_LISTENERS") | .value) = "PLAINTEXT://datahub-kafka:29092"' "$KOMPOSE_OUT_DIR/datahub-kafka-deployment.yaml"
+    yq -i '(.spec.template.spec.containers[0].env[] | select(.name == "KAFKA_LISTENERS") | .value) = "PLAINTEXT://0.0.0.0:29092"' "$KOMPOSE_OUT_DIR/datahub-kafka-deployment.yaml"
+    yq -i '(.spec.template.spec.containers[0].env[] | select(.name == "KAFKA_INTER_BROKER_LISTENER_NAME") | .value) = "PLAINTEXT"' "$KOMPOSE_OUT_DIR/datahub-kafka-deployment.yaml"
+    yq -i ".spec.template.spec.containers[0].startupProbe = {
+      \"exec\": {
+        \"command\": [\"sh\", \"-c\", \"kafka-broker-api-versions --bootstrap-server localhost:29092 >/dev/null 2>&1\"]
+      },
+      \"initialDelaySeconds\": ${kafka_startup_initial_delay_seconds},
+      \"periodSeconds\": 10,
+      \"timeoutSeconds\": ${kafka_startup_timeout_seconds},
+      \"failureThreshold\": ${kafka_startup_failure_threshold},
+      \"successThreshold\": 1
+    }" "$KOMPOSE_OUT_DIR/datahub-kafka-deployment.yaml"
+    yq -i ".spec.template.spec.containers[0].readinessProbe = {
+      \"exec\": {
+        \"command\": [\"sh\", \"-c\", \"kafka-broker-api-versions --bootstrap-server localhost:29092 >/dev/null 2>&1\"]
+      },
+      \"initialDelaySeconds\": ${kafka_readiness_initial_delay_seconds},
+      \"periodSeconds\": 10,
+      \"timeoutSeconds\": ${kafka_readiness_timeout_seconds},
+      \"failureThreshold\": ${kafka_readiness_failure_threshold},
+      \"successThreshold\": 1
+    }" "$KOMPOSE_OUT_DIR/datahub-kafka-deployment.yaml"
+    yq -i ".spec.template.spec.containers[0].livenessProbe = {
+      \"tcpSocket\": {
+        \"port\": 29092
+      },
+      \"initialDelaySeconds\": ${kafka_liveness_initial_delay_seconds},
+      \"periodSeconds\": 10,
+      \"timeoutSeconds\": 5,
+      \"failureThreshold\": 10,
+      \"successThreshold\": 1
+    }" "$KOMPOSE_OUT_DIR/datahub-kafka-deployment.yaml"
+
+    if [[ "${KOMPOSE_LOG_SOURCE:-}" == "aks-up" ]]; then
+      # AKS needs explicit Kafka resources to avoid memory-pressure evictions.
+      yq -i '.spec.template.spec.containers[0].resources = {
+        "requests": {
+          "cpu": "300m",
+          "memory": "1200Mi"
+        },
+        "limits": {
+          "cpu": "1000m",
+          "memory": "2048Mi"
+        }
+      }' "$KOMPOSE_OUT_DIR/datahub-kafka-deployment.yaml"
+    fi
   fi
 
   kompose_log_event "INFO" "kompose_fix_deployments" "success" "Updated ${changed_count} deployment manifests."
@@ -221,11 +683,136 @@ kompose_postprocess_local() {
 
 # ---------------------------------------------------------------------------
 # kompose_postprocess_aks – AKS-specific: remove hostPaths, replace images
-#   Required: ACR_NAME, PORTAL_API_IMAGE, MINIO_SSO_BRIDGE_IMAGE, JUPYTER_IMAGE
+#   Required: ACR_NAME, FRONTEND_IMAGE, PORTAL_API_IMAGE, MINIO_SSO_BRIDGE_IMAGE, JUPYTER_IMAGE
 # ---------------------------------------------------------------------------
 kompose_postprocess_aks() {
   kompose_log_event "INFO" "kompose_postprocess_aks" "start" "Applying AKS-specific manifest rewrites."
   local manifest
+  local keycloak_public_url="https://keycloak.${FRONTEND_DOMAIN}"
+  local portal_api_public_url="https://portal-api.${FRONTEND_DOMAIN}"
+  local dbt_docs_public_url="https://dbt-docs.${FRONTEND_DOMAIN}"
+  local minio_public_url="https://minio.${FRONTEND_DOMAIN}"
+  local grafana_public_url="https://grafana.${FRONTEND_DOMAIN}"
+  local superset_auth_url="${keycloak_public_url}/realms/odp/protocol/openid-connect/auth"
+  local datahub_public_url="https://datahub.${FRONTEND_DOMAIN}"
+  local keycloak_discovery_url="${keycloak_public_url}/realms/odp/.well-known/openid-configuration"
+  local superset_config_file="$ROOT_DIR/scripts/superset/superset_config.py"
+  local superset_bootstrap_file="$ROOT_DIR/scripts/superset/superset_bootstrap_job_market.py"
+
+  set_or_add_env_var() {
+    local target_manifest="$1"
+    local env_name="$2"
+    local env_value="$3"
+    ENV_NAME="$env_name" ENV_VALUE="$env_value" yq -i '
+      .spec.template.spec.containers[0].env = (
+        (.spec.template.spec.containers[0].env // [])
+        | map(select(.name != strenv(ENV_NAME)))
+        + [{"name": strenv(ENV_NAME), "value": strenv(ENV_VALUE)}]
+      )
+    ' "$target_manifest"
+  }
+
+  set_or_add_env_vars() {
+    local target_manifest="$1"
+    shift
+    while [[ "$#" -ge 2 ]]; do
+      set_or_add_env_var "$target_manifest" "$1" "$2"
+      shift 2
+    done
+  }
+
+  set_or_add_env_var_from_secret() {
+    local target_manifest="$1"
+    local env_name="$2"
+    local secret_name="$3"
+    local secret_key="$4"
+    ENV_NAME="$env_name" SECRET_NAME="$secret_name" SECRET_KEY="$secret_key" yq -i '
+      .spec.template.spec.containers[0].env = (
+        (.spec.template.spec.containers[0].env // [])
+        | map(select(.name != strenv(ENV_NAME)))
+        + [{
+            "name": strenv(ENV_NAME),
+            "valueFrom": {
+              "secretKeyRef": {
+                "name": strenv(SECRET_NAME),
+                "key": strenv(SECRET_KEY)
+              }
+            }
+          }]
+      )
+    ' "$target_manifest"
+  }
+
+  set_or_add_env_var_from_secret_optional() {
+    local target_manifest="$1"
+    local env_name="$2"
+    local secret_name="$3"
+    local secret_key="$4"
+    ENV_NAME="$env_name" SECRET_NAME="$secret_name" SECRET_KEY="$secret_key" yq -i '
+      .spec.template.spec.containers[0].env = (
+        (.spec.template.spec.containers[0].env // [])
+        | map(select(.name != strenv(ENV_NAME)))
+        + [{
+            "name": strenv(ENV_NAME),
+            "valueFrom": {
+              "secretKeyRef": {
+                "name": strenv(SECRET_NAME),
+                "key": strenv(SECRET_KEY),
+                "optional": true
+              }
+            }
+          }]
+      )
+    ' "$target_manifest"
+  }
+
+  set_or_add_env_vars_from_secret() {
+    local target_manifest="$1"
+    local secret_name="$2"
+    shift 2
+
+    local env_name
+    for env_name in "$@"; do
+      set_or_add_env_var_from_secret "$target_manifest" "$env_name" "$secret_name" "$env_name"
+    done
+  }
+
+  set_or_add_env_vars_from_secret_optional() {
+    local target_manifest="$1"
+    local secret_name="$2"
+    shift 2
+
+    local env_name
+    for env_name in "$@"; do
+      set_or_add_env_var_from_secret_optional "$target_manifest" "$env_name" "$secret_name" "$env_name"
+    done
+  }
+
+  render_configmap_from_file() {
+    local configmap_name="$1"
+    local key_name="$2"
+    local source_file="$3"
+    local output_file="$4"
+    local target_namespace="${NAMESPACE:-odp-dev}"
+
+    [[ -f "$source_file" ]] || return 0
+
+    {
+      cat <<EOF
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ${configmap_name}
+  namespace: ${target_namespace}
+data:
+  ${key_name}: |-
+EOF
+      sed 's/^/    /' "$source_file"
+    } > "$output_file"
+  }
+
+  render_configmap_from_file "superset-config" "superset_config.py" "$superset_config_file" "$KOMPOSE_OUT_DIR/superset-config-configmap.yaml"
+  render_configmap_from_file "superset-bootstrap" "superset_bootstrap_job_market.py" "$superset_bootstrap_file" "$KOMPOSE_OUT_DIR/superset-bootstrap-configmap.yaml"
 
   for manifest in "$KOMPOSE_OUT_DIR"/*-deployment.yaml; do
     [[ -f "$manifest" ]] || continue
@@ -243,22 +830,120 @@ kompose_postprocess_aks() {
   done
 
   # Replace locally-built image references with ACR images
-  if [[ -f "$KOMPOSE_OUT_DIR/portal-deployment.yaml" ]]; then
-    yq -i ".spec.template.spec.containers[0].image = \"${PORTAL_API_IMAGE:-}\"" "$KOMPOSE_OUT_DIR/portal-deployment.yaml" 2>/dev/null || true
-    # portal uses the frontend image pushed by the Phase A part of aks_up.sh
+  if [[ -f "$KOMPOSE_OUT_DIR/portal-deployment.yaml" && -n "${FRONTEND_IMAGE:-}" ]]; then
+    yq -i ".spec.template.spec.containers[0].image = \"${FRONTEND_IMAGE}\"" "$KOMPOSE_OUT_DIR/portal-deployment.yaml"
+    yq -i '.spec.template.spec.containers[0].ports = [{"containerPort": 80, "protocol": "TCP"}]' "$KOMPOSE_OUT_DIR/portal-deployment.yaml"
+    set_or_add_env_vars "$KOMPOSE_OUT_DIR/portal-deployment.yaml" \
+      "VITE_KEYCLOAK_URL" "$keycloak_public_url" \
+      "VITE_PORTAL_API_URL" "$portal_api_public_url" \
+      "VITE_DBT_DOCS_URL" "$dbt_docs_public_url" \
+      "VITE_KEYCLOAK_REALM" "odp" \
+      "VITE_KEYCLOAK_CLIENT_ID" "portal"
+  fi
+  if [[ -f "$KOMPOSE_OUT_DIR/portal-service.yaml" ]]; then
+    yq -i '.spec.ports = [{"name":"http","port": 80, "targetPort": 80, "protocol": "TCP"}]' "$KOMPOSE_OUT_DIR/portal-service.yaml"
   fi
   if [[ -f "$KOMPOSE_OUT_DIR/portal-api-deployment.yaml" && -n "${PORTAL_API_IMAGE:-}" ]]; then
     yq -i ".spec.template.spec.containers[0].image = \"${PORTAL_API_IMAGE}\"" "$KOMPOSE_OUT_DIR/portal-api-deployment.yaml"
+    set_or_add_env_var "$KOMPOSE_OUT_DIR/portal-api-deployment.yaml" "PORTAL_CORS_ORIGINS" "https://${FRONTEND_DOMAIN},https://www.${FRONTEND_DOMAIN}"
+    # Primary path: use AZURE_EXISTING_* values from odp-env.
+    # Backward compatibility: still accept AZURE_FOUNDRY_* when present.
+    set_or_add_env_vars_from_secret "$KOMPOSE_OUT_DIR/portal-api-deployment.yaml" "odp-env" \
+      "AZURE_EXISTING_AIPROJECT_ENDPOINT" \
+      "AZURE_EXISTING_AGENT_ID"
+    set_or_add_env_vars_from_secret_optional "$KOMPOSE_OUT_DIR/portal-api-deployment.yaml" "odp-env" \
+      "AZURE_EXISTING_AGENT_NAME" \
+      "AZURE_EXISTING_AIPROJECT_RESOURCE_ID" \
+      "AZURE_EXISTING_RESOURCE_ID" \
+      "AZURE_FOUNDRY_AGENT_ENDPOINT" \
+      "AZURE_FOUNDRY_AGENT_ID" \
+      "AZURE_FOUNDRY_AGENT_NAME" \
+      "AZURE_FOUNDRY_API_KEY" \
+      "AZURE_TENANT_ID" \
+      "AZURE_CLIENT_ID" \
+      "AZURE_CLIENT_SECRET"
   fi
   if [[ -f "$KOMPOSE_OUT_DIR/minio-sso-bridge-deployment.yaml" && -n "${MINIO_SSO_BRIDGE_IMAGE:-}" ]]; then
     yq -i ".spec.template.spec.containers[0].image = \"${MINIO_SSO_BRIDGE_IMAGE}\"" "$KOMPOSE_OUT_DIR/minio-sso-bridge-deployment.yaml"
+    set_or_add_env_vars "$KOMPOSE_OUT_DIR/minio-sso-bridge-deployment.yaml" \
+      "KEYCLOAK_BROWSER_BASE_URL" "$keycloak_public_url" \
+      "BRIDGE_BASE_URL" "$minio_public_url" \
+      "MINIO_CONSOLE_PUBLIC_URL" "$minio_public_url"
   fi
   if [[ -f "$KOMPOSE_OUT_DIR/jupyter-deployment.yaml" && -n "${JUPYTER_IMAGE:-}" ]]; then
     yq -i ".spec.template.spec.containers[0].image = \"${JUPYTER_IMAGE}\"" "$KOMPOSE_OUT_DIR/jupyter-deployment.yaml"
     yq -i '(.spec.template.spec.containers[0].env[]? | select(.name == "JUPYTER_WORKDIR").value) = "/workspace"' "$KOMPOSE_OUT_DIR/jupyter-deployment.yaml"
   fi
+  if [[ -f "$KOMPOSE_OUT_DIR/grafana-deployment.yaml" ]]; then
+    set_or_add_env_vars "$KOMPOSE_OUT_DIR/grafana-deployment.yaml" \
+      "GF_AUTH_GENERIC_OAUTH_AUTH_URL" "$superset_auth_url" \
+      "GF_SERVER_ROOT_URL" "$grafana_public_url"
+  fi
+  if [[ -f "$KOMPOSE_OUT_DIR/superset-deployment.yaml" ]]; then
+    set_or_add_env_vars "$KOMPOSE_OUT_DIR/superset-deployment.yaml" \
+      "KEYCLOAK_OIDC_SUPERSET_BROWSER_AUTHORIZE_URL" "$superset_auth_url" \
+      "SUPERSET_CONFIG_PATH" "/app/pythonpath/superset_config.py"
+    yq -i '.spec.template.spec.containers[0].volumeMounts = [
+      {
+        "name": "superset-config",
+        "mountPath": "/app/pythonpath/superset_config.py",
+        "subPath": "superset_config.py"
+      },
+      {
+        "name": "superset-bootstrap",
+        "mountPath": "/app/scripts/superset/superset_bootstrap_job_market.py",
+        "subPath": "superset_bootstrap_job_market.py"
+      }
+    ]' "$KOMPOSE_OUT_DIR/superset-deployment.yaml"
+    yq -i '.spec.template.spec.volumes = [
+      {
+        "name": "superset-config",
+        "configMap": {
+          "name": "superset-config",
+          "items": [
+            {
+              "key": "superset_config.py",
+              "path": "superset_config.py"
+            }
+          ]
+        }
+      },
+      {
+        "name": "superset-bootstrap",
+        "configMap": {
+          "name": "superset-bootstrap",
+          "items": [
+            {
+              "key": "superset_bootstrap_job_market.py",
+              "path": "superset_bootstrap_job_market.py"
+            }
+          ]
+        }
+      }
+    ]' "$KOMPOSE_OUT_DIR/superset-deployment.yaml"
+  fi
+  if [[ -f "$KOMPOSE_OUT_DIR/datahub-frontend-deployment.yaml" ]]; then
+    set_or_add_env_vars "$KOMPOSE_OUT_DIR/datahub-frontend-deployment.yaml" \
+      "AUTH_OIDC_BASE_URL" "$datahub_public_url" \
+      "AUTH_OIDC_DISCOVERY_URI" "$keycloak_discovery_url"
+  fi
+
+  if [[ -f "$KOMPOSE_OUT_DIR/datahub-kafka-deployment.yaml" ]]; then
+    set_or_add_env_vars "$KOMPOSE_OUT_DIR/datahub-kafka-deployment.yaml" \
+      "KAFKA_LISTENER_SECURITY_PROTOCOL_MAP" "PLAINTEXT:PLAINTEXT" \
+      "KAFKA_ADVERTISED_LISTENERS" "PLAINTEXT://datahub-kafka:29092" \
+      "KAFKA_LISTENERS" "PLAINTEXT://0.0.0.0:29092" \
+      "KAFKA_INTER_BROKER_LISTENER_NAME" "PLAINTEXT"
+  fi
 
   kompose_log_event "INFO" "kompose_postprocess_aks" "success" "Completed AKS-specific post-processing."
+}
+
+# ---------------------------------------------------------------------------
+# se_postprocess_aks – backward-compatible alias for older aks_up.sh hooks
+# ---------------------------------------------------------------------------
+se_postprocess_aks() {
+  kompose_postprocess_aks "$@"
 }
 
 # ---------------------------------------------------------------------------
