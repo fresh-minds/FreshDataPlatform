@@ -143,6 +143,22 @@ env_key_to_key_vault_secret_name() {
   printf '%s' "$kv_secret_name"
 }
 
+normalise_env_assignment_value() {
+  local raw_value="$1"
+  local normalised_value
+
+  normalised_value="$(echo "$raw_value" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+  if [[ ${#normalised_value} -ge 2 ]]; then
+    if [[ "$normalised_value" == \"*\" && "$normalised_value" == *\" ]]; then
+      normalised_value="${normalised_value:1:${#normalised_value}-2}"
+    elif [[ "$normalised_value" == \'*\' && "$normalised_value" == *\' ]]; then
+      normalised_value="${normalised_value:1:${#normalised_value}-2}"
+    fi
+  fi
+
+  printf '%s' "$normalised_value"
+}
+
 load_env_entries_for_key_vault() {
   local line
   local key
@@ -171,6 +187,7 @@ load_env_entries_for_key_vault() {
     value="${line#*=}"
     key="$(echo "$key" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
     key="${key#export }"
+    value="$(normalise_env_assignment_value "$value")"
     [[ -z "$key" ]] && continue
 
     kv_secret_name="$(env_key_to_key_vault_secret_name "$key")"

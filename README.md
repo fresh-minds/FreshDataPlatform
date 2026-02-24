@@ -224,6 +224,7 @@ AKS_KEY_VAULT_NAME=aitrialkv1234abcd make k8s-aks-up
 If the AKS Key Vault provider add-on is already enabled, `make k8s-aks-up` now detects that state and continues without failing.
 For Key Vault RBAC-enabled vaults, the signed-in Azure principal needs Key Vault secret write access (`Key Vault Secrets Officer` or `Key Vault Administrator`) to seed secrets.
 Empty `.env` values are skipped for Key Vault sync because Azure Key Vault does not accept empty secret values.
+AKS `.env` parsing strips one wrapping quote pair from values before Key Vault sync (for example `'uuid'` -> `uuid`).
 Use `AKS_NODE_COUNT` to enforce minimum AKS System nodepool capacity during reruns (recommended `4` for full parity stack stability).
 
 Disable Key Vault secret sync (fallback to direct `.env` -> Kubernetes secret):

@@ -119,6 +119,7 @@ Defaults:
 - When Key Vault RBAC is enabled, the script attempts to grant the signed-in principal `Key Vault Secrets Officer` if missing (requires role-assignment permission at Key Vault scope).
 - Key Vault secret writes retry on RBAC propagation delays (`AKS_KEY_VAULT_SECRET_SET_RETRIES`, `AKS_KEY_VAULT_SECRET_SET_RETRY_DELAY_SECONDS`).
 - Empty `.env` values are skipped during Key Vault sync because Azure Key Vault does not allow empty secret values.
+- AKS `.env` parsing strips one wrapping quote pair before Key Vault sync (for example `'tenant-id'` -> `tenant-id`) to avoid quoted credential regressions.
 - `AKS_NODE_COUNT` is enforced as minimum System nodepool capacity on reruns (direct scale for fixed nodepools; autoscaler min-count update for autoscaled nodepools).
 
 Key Vault override example:

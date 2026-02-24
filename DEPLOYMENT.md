@@ -294,6 +294,7 @@ Portal assistant Foundry auth (AKS recommendation):
 - If `AZURE_FOUNDRY_API_KEY` is empty, `portal-api` uses `DefaultAzureCredential`.
 - For containerized local runs with `DefaultAzureCredential`, provide service principal env vars (`AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`).
 - For AKS parity deploys, portal-api reads these values from Kubernetes secret `odp-env` (synced from AKS Key Vault by default; fallback is direct `.env` -> Kubernetes secret when `AKS_USE_KEY_VAULT=false`).
+- `portal-api` and AKS Key Vault sync both normalize one wrapping quote pair for these credentials, so values like `'tenant-guid'` are treated as `tenant-guid`.
 - After changing these values in `.env`, rerun `make k8s-aks-up` or recreate portal-api pods so new secret-backed env values are picked up.
 
 Example:

@@ -17,12 +17,34 @@ from jose import JWTError, jwt
 from pydantic import BaseModel, Field
 
 
-def _env(name: str, default: str | None = None, *, required: bool = False) -> str:
+def _strip_wrapping_quotes(value: str) -> str:
+    stripped = value.strip()
+    if len(stripped) >= 2 and (
+        (stripped.startswith("'") and stripped.endswith("'"))
+        or (stripped.startswith('"') and stripped.endswith('"'))
+    ):
+        return stripped[1:-1].strip()
+    return stripped
+
+
+def _env(
+    name: str,
+    default: str | None = None,
+    *,
+    required: bool = False,
+    strip_wrapping_quotes: bool = False,
+) -> str:
     value = os.getenv(name, default)
     if value is None or value == "":
         if required:
             raise RuntimeError(f"Missing required environment variable: {name}")
         return ""
+    if strip_wrapping_quotes:
+        value = _strip_wrapping_quotes(value)
+        if value == "":
+            if required:
+                raise RuntimeError(f"Missing required environment variable: {name}")
+            return ""
     return value
 
 
@@ -48,10 +70,22 @@ SETTINGS = ApiSettings(
     keycloak_admin_password=_env("KEYCLOAK_ADMIN_PASSWORD", required=True),
     keycloak_admin_realm=_env("KEYCLOAK_ADMIN_REALM", "master"),
     portal_client_id=_env("PORTAL_CLIENT_ID", "portal"),
-    azure_foundry_agent_endpoint=_env("AZURE_EXISTING_AIPROJECT_ENDPOINT", _env("AZURE_FOUNDRY_AGENT_ENDPOINT", "")),
-    azure_foundry_agent_id=_env("AZURE_EXISTING_AGENT_ID", _env("AZURE_FOUNDRY_AGENT_ID", "")),
-    azure_foundry_agent_name=_env("AZURE_EXISTING_AGENT_NAME", _env("AZURE_FOUNDRY_AGENT_NAME", "")),
-    azure_foundry_api_key=_env("AZURE_FOUNDRY_API_KEY", ""),
+    azure_foundry_agent_endpoint=_env(
+        "AZURE_EXISTING_AIPROJECT_ENDPOINT",
+        _env("AZURE_FOUNDRY_AGENT_ENDPOINT", "", strip_wrapping_quotes=True),
+        strip_wrapping_quotes=True,
+    ),
+    azure_foundry_agent_id=_env(
+        "AZURE_EXISTING_AGENT_ID",
+        _env("AZURE_FOUNDRY_AGENT_ID", "", strip_wrapping_quotes=True),
+        strip_wrapping_quotes=True,
+    ),
+    azure_foundry_agent_name=_env(
+        "AZURE_EXISTING_AGENT_NAME",
+        _env("AZURE_FOUNDRY_AGENT_NAME", "", strip_wrapping_quotes=True),
+        strip_wrapping_quotes=True,
+    ),
+    azure_foundry_api_key=_env("AZURE_FOUNDRY_API_KEY", "", strip_wrapping_quotes=True),
     cors_origins=[
         origin.strip()
         for origin in _env("PORTAL_CORS_ORIGINS", "http://localhost:3000").split(",")
@@ -342,8 +376,13 @@ def _get_foundry_default_credential() -> DefaultAzureCredential:
     if _foundry_default_credential is None:
         for env_name in ("AZURE_TENANT_ID", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET"):
             env_value = os.getenv(env_name)
-            if env_value is not None and not env_value.strip():
+            if env_value is None:
+                continue
+            normalised_value = _strip_wrapping_quotes(env_value)
+            if not normalised_value:
                 os.environ.pop(env_name, None)
+                continue
+            os.environ[env_name] = normalised_value
         _foundry_default_credential = DefaultAzureCredential(exclude_interactive_browser_credential=True)
     return _foundry_default_credential
 
@@ -512,5 +551,4 @@ def chat(request: Request, payload: ChatRequest) -> ChatResponse:
         _claim_username(claims),
     )
     return ChatResponse(reply=reply)
-
 
