@@ -648,7 +648,9 @@ run_datahub_setup_jobs() {
 
 self_heal_datahub_mysql_host_auth() {
   local mysql_pod
-  local mysql_password_b64
+  local app_user_b64
+  local app_password_b64
+  local app_database_b64
 
   mysql_pod="$(kubectl_ctx -n "$NAMESPACE" get pods -l io.kompose.service=datahub-mysql --field-selector=status.phase=Running -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
   if [[ -z "$mysql_pod" ]]; then
@@ -656,16 +658,18 @@ self_heal_datahub_mysql_host_auth() {
     return 1
   fi
 
-  mysql_password_b64="$(kubectl_ctx -n "$NAMESPACE" get secret "$AKS_KEY_VAULT_SECRET_NAME" -o jsonpath='{.data.DATAHUB_MYSQL_ROOT_PASSWORD}' 2>/dev/null || true)"
-  if [[ -z "$mysql_password_b64" ]]; then
-    echo "[aks-up] ERROR: DATAHUB_MYSQL_ROOT_PASSWORD not found in '$AKS_KEY_VAULT_SECRET_NAME' secret; cannot self-heal DataHub MySQL host grants." >&2
+  app_user_b64="$(kubectl_ctx -n "$NAMESPACE" get secret "$AKS_KEY_VAULT_SECRET_NAME" -o jsonpath='{.data.DATAHUB_MYSQL_USER}' 2>/dev/null || true)"
+  app_password_b64="$(kubectl_ctx -n "$NAMESPACE" get secret "$AKS_KEY_VAULT_SECRET_NAME" -o jsonpath='{.data.DATAHUB_MYSQL_PASSWORD}' 2>/dev/null || true)"
+  app_database_b64="$(kubectl_ctx -n "$NAMESPACE" get secret "$AKS_KEY_VAULT_SECRET_NAME" -o jsonpath='{.data.DATAHUB_MYSQL_DATABASE}' 2>/dev/null || true)"
+  if [[ -z "$app_user_b64" || -z "$app_password_b64" || -z "$app_database_b64" ]]; then
+    echo "[aks-up] ERROR: DATAHUB_MYSQL_USER/DATAHUB_MYSQL_PASSWORD/DATAHUB_MYSQL_DATABASE missing in '$AKS_KEY_VAULT_SECRET_NAME' secret; cannot self-heal DataHub MySQL host grants." >&2
     return 1
   fi
 
-  log "Applying DataHub MySQL host-auth self-heal (creating/updating root@'%' grant) ..."
-  # Build CREATE/ALTER statements dynamically with QUOTE(@pw) so passwords with
-  # special characters remain valid and do not break SQL syntax.
-  kubectl_ctx -n "$NAMESPACE" exec "pod/${mysql_pod}" -- sh -lc "mysql -uroot -e \"SET @pw = CAST(FROM_BASE64('${mysql_password_b64}') AS CHAR); SET @create_stmt = CONCAT('CREATE USER IF NOT EXISTS ''root''@''%'' IDENTIFIED WITH mysql_native_password BY ', QUOTE(@pw)); PREPARE stmt FROM @create_stmt; EXECUTE stmt; DEALLOCATE PREPARE stmt; SET @alter_stmt = CONCAT('ALTER USER ''root''@''%'' IDENTIFIED WITH mysql_native_password BY ', QUOTE(@pw)); PREPARE stmt FROM @alter_stmt; EXECUTE stmt; DEALLOCATE PREPARE stmt; GRANT ALL PRIVILEGES ON *.* TO ''root''@''%'' WITH GRANT OPTION; FLUSH PRIVILEGES;\""
+  log "Applying DataHub MySQL host-auth self-heal (creating/updating app-user grant for DataHub schema) ..."
+  # Build CREATE/ALTER/GRANT dynamically with QUOTE(...) and escaped schema
+  # identifiers so secret values with special characters remain safe.
+  kubectl_ctx -n "$NAMESPACE" exec "pod/${mysql_pod}" -- sh -lc "mysql -uroot -e \"SET @app_user = CAST(FROM_BASE64('${app_user_b64}') AS CHAR); SET @app_pw = CAST(FROM_BASE64('${app_password_b64}') AS CHAR); SET @app_db = CAST(FROM_BASE64('${app_database_b64}') AS CHAR); SET @app_host = '%'; SET @escaped_db = REPLACE(@app_db, CHAR(96), CONCAT(CHAR(96), CHAR(96))); SET @create_stmt = CONCAT('CREATE USER IF NOT EXISTS ', QUOTE(@app_user), '@', QUOTE(@app_host), ' IDENTIFIED WITH mysql_native_password BY ', QUOTE(@app_pw)); PREPARE stmt FROM @create_stmt; EXECUTE stmt; DEALLOCATE PREPARE stmt; SET @alter_stmt = CONCAT('ALTER USER ', QUOTE(@app_user), '@', QUOTE(@app_host), ' IDENTIFIED WITH mysql_native_password BY ', QUOTE(@app_pw)); PREPARE stmt FROM @alter_stmt; EXECUTE stmt; DEALLOCATE PREPARE stmt; SET @grant_stmt = CONCAT('GRANT ALL PRIVILEGES ON ', CHAR(96), @escaped_db, CHAR(96), '.* TO ', QUOTE(@app_user), '@', QUOTE(@app_host)); PREPARE stmt FROM @grant_stmt; EXECUTE stmt; DEALLOCATE PREPARE stmt; FLUSH PRIVILEGES;\""
 
   log "Restarting datahub-gms deployment after MySQL host-auth self-heal..."
   kubectl_ctx -n "$NAMESPACE" rollout restart deployment/datahub-gms
@@ -674,7 +678,9 @@ self_heal_datahub_mysql_host_auth() {
 
 self_heal_datahub_mysql_missing_database() {
   local mysql_pod
-  local mysql_password_b64
+  local app_user_b64
+  local app_password_b64
+  local app_database_b64
 
   mysql_pod="$(kubectl_ctx -n "$NAMESPACE" get pods -l io.kompose.service=datahub-mysql --field-selector=status.phase=Running -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
   if [[ -z "$mysql_pod" ]]; then
@@ -682,16 +688,18 @@ self_heal_datahub_mysql_missing_database() {
     return 1
   fi
 
-  mysql_password_b64="$(kubectl_ctx -n "$NAMESPACE" get secret "$AKS_KEY_VAULT_SECRET_NAME" -o jsonpath='{.data.DATAHUB_MYSQL_ROOT_PASSWORD}' 2>/dev/null || true)"
-  if [[ -z "$mysql_password_b64" ]]; then
-    echo "[aks-up] ERROR: DATAHUB_MYSQL_ROOT_PASSWORD not found in '$AKS_KEY_VAULT_SECRET_NAME' secret; cannot self-heal missing DataHub database." >&2
+  app_user_b64="$(kubectl_ctx -n "$NAMESPACE" get secret "$AKS_KEY_VAULT_SECRET_NAME" -o jsonpath='{.data.DATAHUB_MYSQL_USER}' 2>/dev/null || true)"
+  app_password_b64="$(kubectl_ctx -n "$NAMESPACE" get secret "$AKS_KEY_VAULT_SECRET_NAME" -o jsonpath='{.data.DATAHUB_MYSQL_PASSWORD}' 2>/dev/null || true)"
+  app_database_b64="$(kubectl_ctx -n "$NAMESPACE" get secret "$AKS_KEY_VAULT_SECRET_NAME" -o jsonpath='{.data.DATAHUB_MYSQL_DATABASE}' 2>/dev/null || true)"
+  if [[ -z "$app_user_b64" || -z "$app_password_b64" || -z "$app_database_b64" ]]; then
+    echo "[aks-up] ERROR: DATAHUB_MYSQL_USER/DATAHUB_MYSQL_PASSWORD/DATAHUB_MYSQL_DATABASE missing in '$AKS_KEY_VAULT_SECRET_NAME' secret; cannot self-heal missing DataHub database." >&2
     return 1
   fi
 
-  log "Applying DataHub MySQL missing-database self-heal (create schema + root@'%' grant with secret-backed password) ..."
-  # Build CREATE/ALTER statements dynamically with QUOTE(@pw) so passwords with
-  # special characters remain valid and do not break SQL syntax.
-  kubectl_ctx -n "$NAMESPACE" exec "pod/${mysql_pod}" -- sh -lc "mysql -uroot -e \"SET @pw = CAST(FROM_BASE64('${mysql_password_b64}') AS CHAR); CREATE DATABASE IF NOT EXISTS datahub CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; SET @create_stmt = CONCAT('CREATE USER IF NOT EXISTS ''root''@''%'' IDENTIFIED WITH mysql_native_password BY ', QUOTE(@pw)); PREPARE stmt FROM @create_stmt; EXECUTE stmt; DEALLOCATE PREPARE stmt; SET @alter_stmt = CONCAT('ALTER USER ''root''@''%'' IDENTIFIED WITH mysql_native_password BY ', QUOTE(@pw)); PREPARE stmt FROM @alter_stmt; EXECUTE stmt; DEALLOCATE PREPARE stmt; GRANT ALL PRIVILEGES ON *.* TO ''root''@''%'' WITH GRANT OPTION; FLUSH PRIVILEGES;\""
+  log "Applying DataHub MySQL missing-database self-heal (create schema + app-user grant with secret-backed credentials) ..."
+  # Build CREATE DATABASE/USER/GRANT dynamically with escaped schema
+  # identifiers and QUOTE(...) so special characters remain safe.
+  kubectl_ctx -n "$NAMESPACE" exec "pod/${mysql_pod}" -- sh -lc "mysql -uroot -e \"SET @app_user = CAST(FROM_BASE64('${app_user_b64}') AS CHAR); SET @app_pw = CAST(FROM_BASE64('${app_password_b64}') AS CHAR); SET @app_db = CAST(FROM_BASE64('${app_database_b64}') AS CHAR); SET @app_host = '%'; SET @escaped_db = REPLACE(@app_db, CHAR(96), CONCAT(CHAR(96), CHAR(96))); SET @create_db_stmt = CONCAT('CREATE DATABASE IF NOT EXISTS ', CHAR(96), @escaped_db, CHAR(96), ' CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci'); PREPARE stmt FROM @create_db_stmt; EXECUTE stmt; DEALLOCATE PREPARE stmt; SET @create_user_stmt = CONCAT('CREATE USER IF NOT EXISTS ', QUOTE(@app_user), '@', QUOTE(@app_host), ' IDENTIFIED WITH mysql_native_password BY ', QUOTE(@app_pw)); PREPARE stmt FROM @create_user_stmt; EXECUTE stmt; DEALLOCATE PREPARE stmt; SET @alter_user_stmt = CONCAT('ALTER USER ', QUOTE(@app_user), '@', QUOTE(@app_host), ' IDENTIFIED WITH mysql_native_password BY ', QUOTE(@app_pw)); PREPARE stmt FROM @alter_user_stmt; EXECUTE stmt; DEALLOCATE PREPARE stmt; SET @grant_stmt = CONCAT('GRANT ALL PRIVILEGES ON ', CHAR(96), @escaped_db, CHAR(96), '.* TO ', QUOTE(@app_user), '@', QUOTE(@app_host)); PREPARE stmt FROM @grant_stmt; EXECUTE stmt; DEALLOCATE PREPARE stmt; FLUSH PRIVILEGES;\""
 
   run_datahub_setup_jobs "Re-running DataHub setup jobs after MySQL schema self-heal..."
 

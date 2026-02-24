@@ -53,6 +53,20 @@ grep '^KEYCLOAK_GATEWAY_CLIENT_SECRET=' .env
 kubectl -n odp-dev get secret odp-env -o jsonpath='{.data.KEYCLOAK_GATEWAY_CLIENT_SECRET}' | base64 --decode; echo
 ```
 
+### AKS DataHub MySQL self-heal safety
+
+`./scripts/aks/aks_up.sh` self-heal paths for DataHub MySQL host auth / missing schema now:
+
+- grant the DataHub app user from secret keys (`DATAHUB_MYSQL_USER`, `DATAHUB_MYSQL_PASSWORD`)
+- scope privileges to `DATAHUB_MYSQL_DATABASE`
+- avoid creating or altering remote `root@'%'` grants
+
+Verify required secret keys before AKS deploy:
+
+```bash
+grep -E '^(DATAHUB_MYSQL_USER|DATAHUB_MYSQL_PASSWORD|DATAHUB_MYSQL_DATABASE)=' .env
+```
+
 ## dbt docs auto-regeneration watcher
 
 For dbt lineage/docs development, run:

@@ -330,6 +330,7 @@ AKS:
   Expect a `302` redirect to Keycloak (`/protocol/openid-connect/auth`).
 - Realm self-registration is disabled by default in bundled manifests (`registrationAllowed: false`).
 - Keep `AIRFLOW_OAUTH_DEFAULT_ROLE` at least privilege (`Viewer`) unless you have a controlled admin onboarding flow.
+- Airflow metadata Postgres manifests use `POSTGRES_HOST_AUTH_METHOD=scram-sha-256` (password-based host auth).
 
 ## AKS Ingress + TLS (Custom Domain)
 

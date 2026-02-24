@@ -429,8 +429,8 @@ services:
       - -u
       - SystemUpdate
     environment:
-      - EBEAN_DATASOURCE_USERNAME=root
-      - EBEAN_DATASOURCE_PASSWORD=${DATAHUB_MYSQL_ROOT_PASSWORD:?Set DATAHUB_MYSQL_ROOT_PASSWORD}
+      - EBEAN_DATASOURCE_USERNAME=${DATAHUB_MYSQL_USER:?Set DATAHUB_MYSQL_USER}
+      - EBEAN_DATASOURCE_PASSWORD=${DATAHUB_MYSQL_PASSWORD:?Set DATAHUB_MYSQL_PASSWORD}
       - EBEAN_DATASOURCE_HOST=datahub-mysql:3306
       - EBEAN_DATASOURCE_URL=jdbc:mysql://datahub-mysql:3306/${DATAHUB_MYSQL_DATABASE:-datahub}?verifyServerCertificate=false&useSSL=true&useUnicode=yes&characterEncoding=UTF-8
       - EBEAN_DATASOURCE_DRIVER=com.mysql.jdbc.Driver
@@ -457,9 +457,9 @@ services:
       - DATAHUB_SERVER_TYPE=quickstart
       - EBEAN_DATASOURCE_DRIVER=com.mysql.jdbc.Driver
       - EBEAN_DATASOURCE_HOST=datahub-mysql:3306
-      - EBEAN_DATASOURCE_PASSWORD=${DATAHUB_MYSQL_ROOT_PASSWORD:?Set DATAHUB_MYSQL_ROOT_PASSWORD}
+      - EBEAN_DATASOURCE_PASSWORD=${DATAHUB_MYSQL_PASSWORD:?Set DATAHUB_MYSQL_PASSWORD}
       - EBEAN_DATASOURCE_URL=jdbc:mysql://datahub-mysql:3306/${DATAHUB_MYSQL_DATABASE:-datahub}?verifyServerCertificate=false&useSSL=true&useUnicode=yes&characterEncoding=UTF-8
-      - EBEAN_DATASOURCE_USERNAME=root
+      - EBEAN_DATASOURCE_USERNAME=${DATAHUB_MYSQL_USER:?Set DATAHUB_MYSQL_USER}
       - ELASTICSEARCH_HOST=datahub-elasticsearch
       - ELASTICSEARCH_PORT=9200
       - GRAPH_SERVICE_IMPL=elasticsearch

@@ -2,6 +2,8 @@
 
 An open, developer-first data platform that combines orchestration, lakehouse processing, governance, BI, and observability in one stack.
 
+![Open Data Platform](docs/odp_image.png)
+
 ## What This Project Is
 Open Data Platform is a reference implementation for running analytics workloads end to end:
 

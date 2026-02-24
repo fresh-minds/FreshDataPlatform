@@ -25,7 +25,8 @@ Mandatory runtime secret requirements:
 - Demo mode must still authenticate against Keycloak; use `VITE_DEMO_USERNAME` only as a login hint and not as a secret store.
 - `KEYCLOAK_DEMO_AUTO_LOGIN` is `false` by default. Setting it to `true` enables automatic credential submission in the Keycloak login theme and must remain disabled outside isolated demo environments.
 - `SUPERSET_OAUTH_DEFAULT_ROLE` defaults to `Gamma`; using OAuth auto-registration with `Admin` now requires explicit opt-in (`SUPERSET_ALLOW_AUTO_ADMIN_ROLE=true`).
-- Airflow metadata Postgres manifests currently set `POSTGRES_HOST_AUTH_METHOD=trust` for dev-like bootstrap reliability; do not expose this Service externally and replace with stricter auth (`scram/md5` + `pg_hba`) for production.
+- Airflow metadata Postgres manifests use `POSTGRES_HOST_AUTH_METHOD=scram-sha-256`; keep the Service cluster-internal and add explicit `pg_hba`/network policy controls for production.
+- DataHub runtime components authenticate with `DATAHUB_MYSQL_USER` / `DATAHUB_MYSQL_PASSWORD`; avoid remote MySQL root access for app traffic.
 
 #### Option A: Local `.env` File (Development)
 ```bash

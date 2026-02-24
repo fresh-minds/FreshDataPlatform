@@ -217,7 +217,7 @@ This process handles:
   - Warehouse Postgres self-heal on rerun (`rollout restart`) to recover from stale/corrupt ephemeral pod state
 
 - **Airflow reliability hardening**
-  - Airflow metadata Postgres uses permissive host auth (`POSTGRES_HOST_AUTH_METHOD=trust`) in AKS/dev manifests to avoid pod-network `pg_hba` rejections during `airflow-init` and scheduler bootstrap
+  - Airflow metadata Postgres uses password-based host auth (`POSTGRES_HOST_AUTH_METHOD=scram-sha-256`) in AKS/dev manifests
   - Airflow metadata Postgres uses tuned startup/readiness/liveness probes to avoid transient probe timeouts causing endpoint flapping and Airflow UI `503` responses during restarts
   - If Airflow webserver rollout detects an uninitialized metadata DB (`airflow db init` required), AKS deploy reruns `airflow-init` once and retries webserver/scheduler rollout
   - Airflow webserver uses a generous startup probe window to avoid premature liveness restarts while Gunicorn initializes on constrained AKS nodes
@@ -245,7 +245,8 @@ This process handles:
   - DataHub Kafka Service is generated with `publishNotReadyAddresses=true` so broker self-connect via service DNS works during startup (prevents readiness deadlocks)
   - Kompose post-processing enforces DataHub MySQL startup/readiness/liveness probes with a longer startup budget, preventing liveness flapping that can block DataHub setup jobs
   - Kompose post-processing aligns DataHub Kafka listeners on AKS to in-cluster `PLAINTEXT://datahub-kafka:29092` only (no localhost-advertised listener), avoiding metadata resolution failures in `datahub-kafka-setup`
-  - If `datahub-gms` rollout fails with MySQL host-auth errors (`Host 'x.x.x.x' is not allowed to connect`), AKS deploy applies a one-time in-cluster MySQL grant self-heal (`root@'%'` with secret-backed password) and retries `datahub-gms`; keep MySQL service cluster-internal and protected with namespace/network controls
+  - DataHub runtime components (`datahub-gms`, `datahub-upgrade`) use `DATAHUB_MYSQL_USER` / `DATAHUB_MYSQL_PASSWORD` instead of remote MySQL root credentials
+  - If `datahub-gms` rollout fails with MySQL host-auth errors (`Host 'x.x.x.x' is not allowed to connect`), AKS deploy applies a one-time in-cluster MySQL grant self-heal for the DataHub app user on the DataHub schema and retries `datahub-gms`
   - If `datahub-gms` rollout fails with MySQL schema errors (`Unknown database 'datahub'`), AKS deploy applies a one-time in-cluster schema self-heal (creates `datahub` database, reapplies grants), reruns DataHub setup jobs, and retries `datahub-gms`
   - Kompose post-processing enforces DataHub GMS `startupProbe` + `readinessProbe` + relaxed `livenessProbe` with an extended cold-start budget (30 minutes + initial delay) to prevent premature restarts and transient OIDC callback failures (`Failed to provision user ...`) while GMS is still booting
   - DataHub uses a dedicated AKS ingress (`datahub-ingress.yaml`) with larger proxy response header buffers (`proxy-buffer-size=32k`, `proxy-buffers-number=8`) to prevent intermittent OIDC `/authenticate` `502` errors (`upstream sent too big header`) without changing buffer settings for other hosts
