@@ -1,5 +1,5 @@
 # Open Data Platform - Development Commands
-.PHONY: install dev-install test lint format format-check run clean help schema-validate schema-drift-check dbt-debug dbt-build-seed dbt-docs-generate dbt-docs-refresh dbt-docs-watch e2e-test test-e2e test-sso qa-test warehouse-security observability-verify k8s-aks-smoke bootstrap-all bootstrap_all k8s-dev-up k8s-dev-up-full k8s-dev-down k8s-sso-gateway-up k8s-sso-gateway-forward k8s-sso-gateway-forward-stop k8s-aks-up k8s-aks-update-images k8s-aks-down
+.PHONY: install dev-install test lint format format-check run clean help schema-validate schema-drift-check dbt-debug dbt-build-seed dbt-docs-generate dbt-docs-refresh dbt-docs-watch e2e-test test-e2e test-sso qa-test warehouse-security observability-verify license-risk-check k8s-aks-smoke bootstrap-all bootstrap_all k8s-dev-up k8s-dev-up-full k8s-dev-down k8s-sso-gateway-up k8s-sso-gateway-forward k8s-sso-gateway-forward-stop k8s-aks-up k8s-aks-update-images k8s-aks-down
 
 # Default Python
 PYTHON := python3
@@ -108,6 +108,9 @@ warehouse-security:  ## Apply warehouse RBAC/RLS/masking baseline
 
 observability-verify:  ## Verify Docker Compose observability ingestion end-to-end
 	./scripts/testing/verify_compose_observability.sh
+
+license-risk-check:  ## Flag potentially restrictive third-party runtime licenses from docker-compose images
+	./scripts/quality/check_license_risk.sh docker-compose.yml
 
 k8s-aks-smoke:  ## Run in-cluster AKS smoke checks (observability + core platform services)
 	./scripts/testing/verify_aks_smoke.sh

@@ -113,3 +113,6 @@ ops/             Keycloak and observability configs
 
 ## License
 This project is licensed under the [MIT License](LICENSE).
+
+Third-party runtime components used by the platform keep their own licenses.
+See [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) for the current inventory and compliance notes.

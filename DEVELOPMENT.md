@@ -153,6 +153,7 @@ dbt docs + lineage workflow:
 - Type checking: MyPy (`make type-check`)
 - Testing: Pytest suites under `tests/`
 - Packaging: `pyproject.toml` + editable install (`pip install -e ".[dev]"`)
+- Third-party runtime license triage: `make license-risk-check`
 
 ## Adding a New Ingestion Source
 

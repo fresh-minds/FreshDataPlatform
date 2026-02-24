@@ -67,6 +67,12 @@ Verify required secret keys before AKS deploy:
 grep -E '^(DATAHUB_MYSQL_USER|DATAHUB_MYSQL_PASSWORD|DATAHUB_MYSQL_DATABASE)=' .env
 ```
 
+### Runtime license risk triage
+
+Use `./scripts/quality/check_license_risk.sh` (or `make license-risk-check`) to flag potentially restrictive image licenses in `docker-compose.yml` (AGPL/GPL/source-available families) for manual legal review.
+
+Use `FAIL_ON_RESTRICTIVE=true` to fail automated checks when high-risk image families are present.
+
 ## dbt docs auto-regeneration watcher
 
 For dbt lineage/docs development, run:
