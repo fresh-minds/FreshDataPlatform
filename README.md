@@ -53,6 +53,8 @@ Key groups:
   - `SP1_*` (required for `source_sp1_vacatures_ingestion`)
 - Security-sensitive controls:
   - `MINIO_SSO_BRIDGE_SESSION_SECRET` must be set to a strong secret (32+ chars)
+  - `SP1_SCRAPING_APPROVED` must be `true` before `source_sp1_vacatures_ingestion` will run
+  - `SP1_ALLOWED_HOSTS` is recommended to restrict Source SP1 automation to approved domains
   - `SUPERSET_OAUTH_DEFAULT_ROLE` defaults to `Gamma` (least privilege)
   - `SUPERSET_ALLOW_AUTO_ADMIN_ROLE=true` is required before allowing OAuth auto-registration into Superset `Admin`
 - SSO/identity:

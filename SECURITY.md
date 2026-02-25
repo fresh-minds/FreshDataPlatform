@@ -27,6 +27,10 @@ Mandatory runtime secret requirements:
 - `SUPERSET_OAUTH_DEFAULT_ROLE` defaults to `Gamma`; using OAuth auto-registration with `Admin` now requires explicit opt-in (`SUPERSET_ALLOW_AUTO_ADMIN_ROLE=true`).
 - Airflow metadata Postgres manifests use `POSTGRES_HOST_AUTH_METHOD=scram-sha-256`; keep the Service cluster-internal and add explicit `pg_hba`/network policy controls for production.
 - DataHub runtime components authenticate with `DATAHUB_MYSQL_USER` / `DATAHUB_MYSQL_PASSWORD`; avoid remote MySQL root access for app traffic.
+- Source SP1 portal automation is fail-closed by default: set `SP1_SCRAPING_APPROVED=true` only when you have explicit permission to automate that portal.
+- Restrict Source SP1 automation with `SP1_ALLOWED_HOSTS` so credentials are not used on unexpected hosts.
+- Keep `SP1_ALLOW_AMBIGUOUS_LOGIN=false` in shared/prod environments to avoid scraping when authentication state is uncertain.
+- Keep `SP1_CAPTURE_HTML_SNAPSHOT=false` unless trace snapshots are strictly required for debugging/compliance evidence.
 
 #### Option A: Local `.env` File (Development)
 ```bash

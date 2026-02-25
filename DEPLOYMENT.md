@@ -10,7 +10,8 @@
 - Docker Engine + Compose plugin
 - `.env` configured from `.env.template`
 - For `source_sp1_vacatures_ingestion`: set
-  `SP1_USERNAME` and `SP1_PASSWORD` in `.env`
+  `SP1_USERNAME`, `SP1_PASSWORD`, and `SP1_SCRAPING_APPROVED=true` in `.env`
+  (recommended: set `SP1_ALLOWED_HOSTS` to approved portal hostnames)
 
 ### Bring up stack
 ```bash

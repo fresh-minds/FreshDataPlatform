@@ -55,8 +55,9 @@ LOCAL_MOCK_PIPELINES=false make run PIPELINE=job_market_nl.bronze_cbs_vacancy_ra
 ```
 
 ### Run Source SP1 portal DAG (Airflow)
-Prerequisite: set `SP1_USERNAME` and
-`SP1_PASSWORD` in `.env`, then refresh Airflow containers.
+Prerequisite: set `SP1_USERNAME`, `SP1_PASSWORD`, and
+`SP1_SCRAPING_APPROVED=true` in `.env`, then refresh Airflow containers.
+Recommended: set `SP1_ALLOWED_HOSTS` to the approved portal host(s).
 
 ```bash
 docker compose up -d airflow-webserver airflow-scheduler

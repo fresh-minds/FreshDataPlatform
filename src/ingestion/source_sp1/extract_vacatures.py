@@ -16,6 +16,12 @@ Rate limiting (HARD RULE):
   - Retries with exponential backoff are handled at the Airflow task level.
   - If the portal returns 403 / 429, the code raises immediately with clear
     guidance rather than retrying in a tight loop.
+
+Raw-capture minimisation:
+  - Optional DOM trace snapshots are disabled by default
+    (SP1_CAPTURE_HTML_SNAPSHOT=false).
+  - Captured XHR JSON payloads can redact obvious credential/session keys
+    (SP1_REDACT_SENSITIVE_XHR_FIELDS=true).
 """
 from __future__ import annotations
 
@@ -35,9 +41,30 @@ log = logging.getLogger(__name__)
 # Configuration
 # ---------------------------------------------------------------------------
 
+def _env_flag(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        log.warning("Invalid %s=%r; using default %d.", name, raw, default)
+        return default
+
+
 _RATE_LIMIT_RPS = float(os.environ.get("RATE_LIMIT_RPS_PER_DOMAIN", "0.2"))
 _MIN_DELAY_S = 1.0 / _RATE_LIMIT_RPS if _RATE_LIMIT_RPS > 0 else 5.0
 _MAX_PAGES = int(os.environ.get("MAX_VACATURE_PAGES", "50"))
+_CAPTURE_HTML_SNAPSHOT = _env_flag("SP1_CAPTURE_HTML_SNAPSHOT", default=False)
+_REDACT_SENSITIVE_XHR_FIELDS = _env_flag("SP1_REDACT_SENSITIVE_XHR_FIELDS", default=True)
+_MAX_XHR_BYTES = _env_int("SP1_MAX_XHR_BYTES", default=0)
 
 # Salesforce Experience Cloud portal — common vacatures path segments
 _VACATURES_PATHS = [
@@ -68,6 +95,10 @@ _PAYLOAD_KEYWORDS = [
     "vacatur", "functie", "titel", "title", "status",
     "publish", "location", "description", "requisiti",
 ]
+_SENSITIVE_KEY_RE = re.compile(
+    r"(password|passwd|secret|token|cookie|session|authorization|api[-_]?key|jwt|xsrf|csrf)",
+    re.IGNORECASE,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -108,9 +139,10 @@ def extract_all(
     """
     artifacts: list[RawArtifact] = []
     captured_xhr: list[dict] = []
+    capture_state: dict[str, Any] = {"blocked_status": None, "blocked_url": ""}
 
     # Register XHR listener before any navigation
-    page.on("response", lambda resp: _capture_xhr_response(resp, captured_xhr))
+    page.on("response", lambda resp: _capture_xhr_response(resp, captured_xhr, capture_state))
 
     # Honour rate limit before the first navigation (login may have just completed)
     _polite_wait()
@@ -118,21 +150,26 @@ def extract_all(
     # Navigate to vacatures listing
     vacatures_url = _navigate_to_vacatures(page, base_url)
     log.info("Vacatures page: %s", vacatures_url)
+    _raise_if_capture_blocked(capture_state)
 
-    # Always capture an HTML snapshot for traceability
-    html_snap = _snapshot_html(page, vacatures_url)
-    if html_snap:
-        artifacts.append(html_snap)
+    if _CAPTURE_HTML_SNAPSHOT:
+        html_snap = _snapshot_html(page, vacatures_url)
+        if html_snap:
+            artifacts.append(html_snap)
+    else:
+        log.debug("SP1_CAPTURE_HTML_SNAPSHOT=false; skipping optional DOM snapshot artifact.")
 
     # --- Strategy 1: look for a download / export button ---
     export_art = _try_export_download(page, vacatures_url, run_id)
     if export_art:
         log.info("Export download succeeded — using as primary artifact.")
         artifacts.append(export_art)
+        _raise_if_capture_blocked(capture_state)
         return artifacts
 
     # --- Strategy 2: collect XHR/JSON responses via pagination ---
-    _paginate_and_scroll(page)
+    _paginate_and_scroll(page, capture_state)
+    _raise_if_capture_blocked(capture_state)
 
     xhr_arts = _package_xhr_artifacts(captured_xhr, run_id)
     if xhr_arts:
@@ -146,7 +183,7 @@ def extract_all(
     if dom_art:
         artifacts.append(dom_art)
 
-    if len(artifacts) == 1 and artifacts[0].extraction_method == "dom_html":
+    if dom_art and all(a.extraction_method in {"dom_html", "dom_html_snapshot"} for a in artifacts):
         log.warning(
             "Only HTML snapshot captured. Parsing will attempt table/card extraction "
             "but results may be incomplete if the page uses heavy client-side rendering."
@@ -276,7 +313,7 @@ def _download_to_bytes(download) -> bytes:
 # Strategy 2 — XHR/JSON capture
 # ---------------------------------------------------------------------------
 
-def _capture_xhr_response(response, captured: list) -> None:
+def _capture_xhr_response(response, captured: list, capture_state: dict[str, Any]) -> None:
     """Playwright response event handler — captures vacancy-related JSON responses.
 
     Safety notes:
@@ -291,23 +328,27 @@ def _capture_xhr_response(response, captured: list) -> None:
         if "json" not in content_type:
             return
 
-        # Check HTTP error codes that signal access problems
-        if response.status == 429:
-            log.error(
-                "HTTP 429 (rate limited) from %s. Halting XHR capture. "
-                "Increase RATE_LIMIT_RPS_PER_DOMAIN delay or contact portal admin.",
-                url,
-            )
-            return
-        if response.status == 403:
-            log.error(
-                "HTTP 403 (forbidden) from %s. Session may have expired or "
-                "the account lacks access to this resource.",
-                url,
-            )
+        if not any(re.search(pat, url, re.IGNORECASE) for pat in _XHR_PATTERNS):
             return
 
-        if not any(re.search(pat, url, re.IGNORECASE) for pat in _XHR_PATTERNS):
+        # Check HTTP error codes that signal access problems on vacature-related API calls.
+        if response.status in {403, 429}:
+            capture_state["blocked_status"] = response.status
+            capture_state["blocked_url"] = url
+            if response.status == 429:
+                log.error(
+                    "HTTP 429 (rate limited) from %s. Extraction will fail fast to avoid tight-loop retries.",
+                    url,
+                )
+            else:
+                log.error(
+                    "HTTP 403 (forbidden) from %s. Extraction will fail fast; "
+                    "session may have expired or account lacks required access.",
+                    url,
+                )
+            return
+
+        if response.status >= 400:
             return
 
         # body() can fail if the response was aborted, redirected, or the
@@ -316,6 +357,15 @@ def _capture_xhr_response(response, captured: list) -> None:
             body = response.body()
         except Exception as body_exc:
             log.debug("Could not read response body from %s: %s", url, body_exc)
+            return
+
+        if _MAX_XHR_BYTES > 0 and len(body) > _MAX_XHR_BYTES:
+            log.warning(
+                "Skipping oversized XHR payload from %s (%d bytes > SP1_MAX_XHR_BYTES=%d).",
+                url,
+                len(body),
+                _MAX_XHR_BYTES,
+            )
             return
 
         if len(body) < 100:
@@ -328,6 +378,10 @@ def _capture_xhr_response(response, captured: list) -> None:
 
         if not _payload_looks_like_vacatures(payload):
             return
+
+        if _REDACT_SENSITIVE_XHR_FIELDS:
+            payload = _redact_sensitive_payload(payload)
+            body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
 
         captured.append({
             "url": url,
@@ -348,7 +402,41 @@ def _payload_looks_like_vacatures(payload: Any) -> bool:
     return hits >= 3
 
 
-def _paginate_and_scroll(page) -> None:
+def _redact_sensitive_payload(value: Any) -> Any:
+    """Recursively redact obvious credential/session fields in captured JSON."""
+    if isinstance(value, dict):
+        sanitized: dict[Any, Any] = {}
+        for key, nested in value.items():
+            if _SENSITIVE_KEY_RE.search(str(key)):
+                sanitized[key] = "__redacted__"
+            else:
+                sanitized[key] = _redact_sensitive_payload(nested)
+        return sanitized
+    if isinstance(value, list):
+        return [_redact_sensitive_payload(item) for item in value]
+    return value
+
+
+def _raise_if_capture_blocked(capture_state: dict[str, Any]) -> None:
+    status = capture_state.get("blocked_status")
+    if status not in {403, 429}:
+        return
+
+    url = capture_state.get("blocked_url", "")
+    if status == 429:
+        raise RuntimeError(
+            "Source SP1 returned HTTP 429 during vacature API capture "
+            f"(url={url}). Failing fast to avoid repeated rate-limited retries. "
+            "Increase RATE_LIMIT_RPS_PER_DOMAIN delay and rerun."
+        )
+
+    raise RuntimeError(
+        "Source SP1 returned HTTP 403 during vacature API capture "
+        f"(url={url}). Session may be expired or account permissions are insufficient."
+    )
+
+
+def _paginate_and_scroll(page, capture_state: dict[str, Any]) -> None:
     """Scroll and paginate to trigger all lazy-loaded XHR responses."""
     _polite_wait()
 
@@ -375,6 +463,13 @@ def _paginate_and_scroll(page) -> None:
     ]
 
     for _page_num in range(_MAX_PAGES):
+        if capture_state.get("blocked_status"):
+            log.warning(
+                "Stopping pagination after access block (HTTP %s from %s).",
+                capture_state.get("blocked_status"),
+                capture_state.get("blocked_url", ""),
+            )
+            break
         _polite_wait()
         clicked = False
         for sel in next_selectors:
