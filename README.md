@@ -102,14 +102,7 @@ ops/             Keycloak and observability configs
 ```
 
 ## Contributing
-1. Create a branch for your change.
-2. Run the default quality gates:
-   - `make lint`
-   - `make test`
-   - `make schema-validate`
-3. For platform-impacting changes, also run:
-   - `make qa-test`
-   - `make test-e2e`
+See [CONTRIBUTING.md](CONTRIBUTING.md) for branch workflow, required checks, DCO sign-off, and third-party license guardrails.
 
 ## License
 This project is licensed under the [MIT License](LICENSE).
