@@ -156,7 +156,6 @@ refresh_dbt_docs_for_airflow() {
   local resolved_init_name="$desired_init_name"
   local init_names
   local init_count
-  local patch_payload
 
   if ! contains_image "airflow"; then
     return 0
@@ -184,21 +183,10 @@ refresh_dbt_docs_for_airflow() {
     fi
   fi
 
-  patch_payload="$(cat <<EOF
-spec:
-  template:
-    metadata:
-      annotations:
-        dbt-docs/build-id: "${DBT_DOCS_BUILD_ID}"
-    spec:
-      initContainers:
-      - name: ${resolved_init_name}
-        image: ${AIRFLOW_IMAGE}
-EOF
-)"
-
   log "Refreshing deployment/$deployment docs generator init container '$resolved_init_name' -> '$AIRFLOW_IMAGE' (build-id=${DBT_DOCS_BUILD_ID})."
-  kubectl_ctx -n "$NAMESPACE" patch deployment "$deployment" --type merge -p "$patch_payload"
+  kubectl_ctx -n "$NAMESPACE" set image "deployment/${deployment}" "${resolved_init_name}=${AIRFLOW_IMAGE}"
+  kubectl_ctx -n "$NAMESPACE" patch deployment "$deployment" --type merge -p \
+    "{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"dbt-docs/build-id\":\"${DBT_DOCS_BUILD_ID}\"}}}}}"
   wait_for_deployment "$deployment" "$AKS_IMAGE_UPDATE_ROLLOUT_TIMEOUT"
 }
 

@@ -216,6 +216,7 @@ When `AKS_IMAGES` includes `airflow`, the script also:
   `airflow/webserver_config.py` before the Airflow deployment rollout, and
 - refreshes `dbt-docs` by patching deployment `dbt-docs` initContainer image
   to the same Airflow image and bumping annotation `dbt-docs/build-id`.
+  The initContainer update preserves existing command/env/volume fields.
 Optional override: set `DBT_DOCS_BUILD_ID=<custom-id>` to control that
 annotation value.
 
