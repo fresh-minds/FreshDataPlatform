@@ -21,6 +21,9 @@ MFA note: if the portal enforces MFA (e.g. Salesforce Authenticator), the
 automated flow will stall after credential submission. In that case, run the
 DAG with headless=False locally to complete the MFA step, then export the
 Playwright storage state (see README_source_sp1.md § MFA fallback).
+
+Fail-closed note: ambiguous post-login states return False by default.
+Set SP1_ALLOW_AMBIGUOUS_LOGIN=true only for controlled debugging.
 """
 from __future__ import annotations
 
@@ -210,14 +213,22 @@ def login(page, creds: PortalCredentials) -> bool:
         return True
 
     # Ambiguous state — could be MFA challenge or slow JS render
-    log.warning(
-        "Post-login state ambiguous. URL: %s — "
-        "If MFA is enforced, see README_source_sp1.md § MFA fallback.",
+    if _env_flag("SP1_ALLOW_AMBIGUOUS_LOGIN", default=False):
+        log.warning(
+            "Post-login state ambiguous. URL: %s — "
+            "Proceeding because SP1_ALLOW_AMBIGUOUS_LOGIN=true. "
+            "If MFA is enforced, see README_source_sp1.md § MFA fallback.",
+            page.url,
+        )
+        return True
+
+    log.error(
+        "Post-login state ambiguous. URL: %s — failing closed. "
+        "If MFA is enforced, complete the MFA fallback flow or set "
+        "SP1_ALLOW_AMBIGUOUS_LOGIN=true for controlled debugging only.",
         page.url,
     )
-    # Return True to let extraction attempt proceed; it will fail cleanly if
-    # the session is genuinely unauthenticated.
-    return True
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -274,3 +285,10 @@ def _get_login_error(page) -> Optional[str]:
         except Exception:
             pass
     return None
+
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}

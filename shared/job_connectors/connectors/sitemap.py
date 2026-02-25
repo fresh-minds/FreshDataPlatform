@@ -5,7 +5,8 @@ import re
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional, Set
 from urllib.parse import urlsplit
-from xml.etree import ElementTree as ET
+
+from defusedxml import ElementTree as ET
 
 from shared.job_connectors.connectors.base import BaseConnector
 from shared.job_connectors.http import FetchError, PoliteHttpClient, RobotsDisallowedError
@@ -18,7 +19,7 @@ def _local(tag: str) -> str:
 
 
 def _sha1(value: str) -> str:
-    return hashlib.sha1(value.encode("utf-8", errors="replace")).hexdigest()
+    return hashlib.sha1(value.encode("utf-8", errors="replace"), usedforsecurity=False).hexdigest()
 
 
 def _host_from_url(url: str) -> str:

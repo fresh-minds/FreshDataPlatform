@@ -78,6 +78,46 @@ existing stack, rebuild the Airflow image:
 docker compose build airflow-webserver airflow-scheduler
 ```
 
+### Security and authorization guardrails
+
+**Summary**
+- Source SP1 scraping is now fail-closed by default.
+- The DAG only runs when `SP1_SCRAPING_APPROVED=true`.
+- Optional host allowlisting (`SP1_ALLOWED_HOSTS`) prevents accidental scraping on unexpected domains.
+
+**Prerequisites**
+- You have explicit permission (contractual/legal + portal owner approval) to automate this portal.
+- You know the exact portal host(s) that are approved for automation.
+
+**Configuration**
+```bash
+# Required to run automated extraction
+export SP1_SCRAPING_APPROVED=true
+
+# Strongly recommended: allowlist approved host(s)
+export SP1_ALLOWED_HOSTS="portal.example.com"
+
+# Keep fail-closed login behavior unless doing controlled MFA debugging
+export SP1_ALLOW_AMBIGUOUS_LOGIN=false
+```
+
+**Verification**
+```bash
+python - <<'PY'
+import os
+from urllib.parse import urlsplit
+
+base_url = os.getenv("SP1_BASE_URL", "")
+host = (urlsplit(base_url).hostname or "").lower()
+allowed = {h.strip().lower() for h in os.getenv("SP1_ALLOWED_HOSTS", "").split(",") if h.strip()}
+
+print("SP1_SCRAPING_APPROVED =", os.getenv("SP1_SCRAPING_APPROVED", "false"))
+print("SP1_BASE_URL host      =", host or "<missing>")
+print("SP1_ALLOWED_HOSTS      =", ", ".join(sorted(allowed)) or "<empty>")
+print("ALLOWLIST_MATCH        =", (not allowed) or (host in allowed))
+PY
+```
+
 ---
 
 ## 3. Configuration — Airflow Connections
@@ -166,6 +206,12 @@ is enough for local DAG runs.
 | `SP1_USERNAME`     | *(required)*                         |
 | `SP1_PASSWORD`     | *(required)*                         |
 | `SP1_BASE_URL`     | `<portal-url>` |
+| `SP1_SCRAPING_APPROVED`           | `false` (must be `true` to run)      |
+| `SP1_ALLOWED_HOSTS`               | *(empty)* (recommended allowlist)    |
+| `SP1_ALLOW_AMBIGUOUS_LOGIN`       | `false` (fail closed on auth ambiguity) |
+| `SP1_CAPTURE_HTML_SNAPSHOT`       | `false` (optional trace artifact)    |
+| `SP1_REDACT_SENSITIVE_XHR_FIELDS` | `true` (redacts obvious secrets)     |
+| `SP1_MAX_XHR_BYTES`               | `0` (size cap disabled; set >0 to enforce) |
 | `MINIO_ENDPOINT`                    | `http://minio:9000`                  |
 | `MINIO_ACCESS_KEY`                  | *(required)*                         |
 | `MINIO_SECRET_KEY`                  | *(required)*                         |
@@ -190,6 +236,8 @@ is enough for local DAG runs.
 # SP1_USERNAME=you@example.com
 # SP1_PASSWORD=yourpassword
 # SP1_BASE_URL=<portal-url>
+# SP1_SCRAPING_APPROVED=true
+# SP1_ALLOWED_HOSTS=portal.example.com
 
 # Start or refresh Airflow services after editing .env
 docker compose up -d
@@ -355,6 +403,12 @@ The pipeline tries three strategies in order:
 The `extraction_method` field in the bronze meta JSON records which strategy
 was used for each artifact.
 
+Raw capture minimisation defaults:
+- `SP1_CAPTURE_HTML_SNAPSHOT=false` skips the extra traceability-only DOM snapshot.
+- Captured `xhr_json` payloads are redacted for obvious credential/session keys when
+  `SP1_REDACT_SENSITIVE_XHR_FIELDS=true`.
+- `SP1_MAX_XHR_BYTES=0` leaves payload size uncapped by default; set a positive value to cap each stored XHR body.
+
 ---
 
 ## 9. MFA fallback
@@ -396,10 +450,13 @@ credential submission.
 
 | Symptom                                | Likely cause                          | Fix                                              |
 |----------------------------------------|---------------------------------------|--------------------------------------------------|
+| `blocked by policy` / `SP1_SCRAPING_APPROVED` error | Scraping approval guardrail not acknowledged | Set `SP1_SCRAPING_APPROVED=true` only after approval |
+| `host ... is not in SP1_ALLOWED_HOSTS` | Portal host not allowlisted           | Add approved host to `SP1_ALLOWED_HOSTS`        |
 | `Authentication failed`                | Wrong credentials                     | Update `AIRFLOW_CONN_SOURCE_SP1`        |
 | Login stalls after credentials         | MFA enforced                          | See §9 MFA fallback                              |
-| `HTTP 403` in XHR capture              | Session expired or insufficient perms | Re-run; check account permissions               |
-| `HTTP 429` in XHR capture             | Rate limited by portal                | Increase `RATE_LIMIT_RPS_PER_DOMAIN` delay       |
+| `Post-login state ambiguous`           | MFA challenge or unstable post-login render | Complete MFA fallback; keep fail-closed default unless controlled debugging |
+| `HTTP 403` in XHR capture (task fails fast) | Session expired or insufficient perms | Re-run; check account permissions               |
+| `HTTP 429` in XHR capture (task fails fast) | Rate limited by portal                | Increase `RATE_LIMIT_RPS_PER_DOMAIN` delay       |
 | `extracted_count = 0`                  | Portal empty, selectors changed       | Run headless=False; inspect DOM; update selectors|
 | Postgres `connection refused`          | Wrong WAREHOUSE_HOST / PORT           | Check env vars; confirm warehouse container up   |
 | MinIO `NoSuchBucket`                   | Bucket not created                    | Preflight task creates it; re-run preflight      |

@@ -79,6 +79,8 @@ def run_dbt_docs_generate(project_dir: Path, profiles_dir: Path, vars_value: str
         vars_value,
     ]
     print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Running: {' '.join(command)}", flush=True)
+    # In watch mode we intentionally continue after failures and retry on the
+    # next file change; `--once` still returns this exit code to callers.
     completed = subprocess.run(command, check=False)
     if completed.returncode == 0:
         print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] dbt docs updated", flush=True)

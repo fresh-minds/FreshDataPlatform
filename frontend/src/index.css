@@ -37,6 +37,10 @@ h1, h2, h3 {
   --home-muted: #596172;
   --home-line: #d6dde7;
   --home-accent: #0f4c81;
+  --home-ribbon-top: 29px;
+  --home-ribbon-left: -68px;
+  --home-ribbon-width: 234px;
+  --home-ribbon-angle: -45deg;
   min-height: 100vh;
   background-color: var(--home-bg);
   color: var(--home-ink);
@@ -49,9 +53,9 @@ h1, h2, h3 {
 
 .home-demo-ribbon {
   position: absolute;
-  top: 29px;
-  left: -68px;
-  width: 234px;
+  top: var(--home-ribbon-top);
+  left: var(--home-ribbon-left);
+  width: var(--home-ribbon-width);
   padding: 10px 0;
   text-align: center;
   text-transform: uppercase;
@@ -61,7 +65,7 @@ h1, h2, h3 {
   color: #f8fbff;
   background: var(--home-accent);
   border: 1px solid var(--home-line);
-  transform: rotate(-45deg);
+  transform: rotate(var(--home-ribbon-angle));
   z-index: 4;
   pointer-events: none;
 }

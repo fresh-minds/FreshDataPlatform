@@ -137,8 +137,8 @@ env_key_to_key_vault_secret_name() {
   local env_key="$1"
   local kv_secret_name
 
-  kv_secret_name="$(echo "$env_key" | tr '[:upper:]' '[:lower:]' | tr '_' '-' | tr -cd 'a-z0-9-')"
-  kv_secret_name="$(echo "$kv_secret_name" | sed -E 's/-+/-/g; s/^-+//; s/-+$//')"
+  kv_secret_name="$(printf '%s' "$env_key" | tr '[:upper:]' '[:lower:]' | tr '_' '-' | tr -cd 'a-z0-9-')"
+  kv_secret_name="$(printf '%s' "$kv_secret_name" | sed -E 's/-+/-/g; s/^-+//; s/-+$//')"
 
   printf '%s' "$kv_secret_name"
 }
@@ -147,7 +147,9 @@ normalise_env_assignment_value() {
   local raw_value="$1"
   local normalised_value
 
-  normalised_value="$(echo "$raw_value" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+  # This normalises .env assignment values (trim + one wrapping quote pair),
+  # not arbitrary shell syntax; quoted inner content is preserved as-is.
+  normalised_value="$(printf '%s' "$raw_value" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
   if [[ ${#normalised_value} -ge 2 ]]; then
     if [[ "$normalised_value" == \"*\" && "$normalised_value" == *\" ]]; then
       normalised_value="${normalised_value:1:${#normalised_value}-2}"
@@ -185,7 +187,7 @@ load_env_entries_for_key_vault() {
 
     key="${line%%=*}"
     value="${line#*=}"
-    key="$(echo "$key" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+    key="$(printf '%s' "$key" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
     key="${key#export }"
     value="$(normalise_env_assignment_value "$value")"
     [[ -z "$key" ]] && continue
@@ -361,6 +363,10 @@ if principal_oid:
     print(principal_oid)
 PY
   )"
+
+  if [[ -n "$access_token" && -z "$principal_object_id" ]]; then
+    log "WARN: could not derive signed-in Azure principal object ID from access token; automatic Key Vault RBAC assignment may be skipped."
+  fi
 
   printf '%s' "$principal_object_id"
 }
@@ -642,22 +648,28 @@ run_datahub_setup_jobs() {
 
 self_heal_datahub_mysql_host_auth() {
   local mysql_pod
-  local mysql_password_b64
+  local app_user_b64
+  local app_password_b64
+  local app_database_b64
 
-  mysql_pod="$(kubectl_ctx -n "$NAMESPACE" get pods -l io.kompose.service=datahub-mysql -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
+  mysql_pod="$(kubectl_ctx -n "$NAMESPACE" get pods -l io.kompose.service=datahub-mysql --field-selector=status.phase=Running -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
   if [[ -z "$mysql_pod" ]]; then
     echo "[aks-up] ERROR: datahub-mysql pod not found; cannot self-heal DataHub MySQL host grants." >&2
     return 1
   fi
 
-  mysql_password_b64="$(kubectl_ctx -n "$NAMESPACE" get secret "$AKS_KEY_VAULT_SECRET_NAME" -o jsonpath='{.data.DATAHUB_MYSQL_ROOT_PASSWORD}' 2>/dev/null || true)"
-  if [[ -z "$mysql_password_b64" ]]; then
-    echo "[aks-up] ERROR: DATAHUB_MYSQL_ROOT_PASSWORD not found in '$AKS_KEY_VAULT_SECRET_NAME' secret; cannot self-heal DataHub MySQL host grants." >&2
+  app_user_b64="$(kubectl_ctx -n "$NAMESPACE" get secret "$AKS_KEY_VAULT_SECRET_NAME" -o jsonpath='{.data.DATAHUB_MYSQL_USER}' 2>/dev/null || true)"
+  app_password_b64="$(kubectl_ctx -n "$NAMESPACE" get secret "$AKS_KEY_VAULT_SECRET_NAME" -o jsonpath='{.data.DATAHUB_MYSQL_PASSWORD}' 2>/dev/null || true)"
+  app_database_b64="$(kubectl_ctx -n "$NAMESPACE" get secret "$AKS_KEY_VAULT_SECRET_NAME" -o jsonpath='{.data.DATAHUB_MYSQL_DATABASE}' 2>/dev/null || true)"
+  if [[ -z "$app_user_b64" || -z "$app_password_b64" || -z "$app_database_b64" ]]; then
+    echo "[aks-up] ERROR: DATAHUB_MYSQL_USER/DATAHUB_MYSQL_PASSWORD/DATAHUB_MYSQL_DATABASE missing in '$AKS_KEY_VAULT_SECRET_NAME' secret; cannot self-heal DataHub MySQL host grants." >&2
     return 1
   fi
 
-  log "Applying DataHub MySQL host-auth self-heal (creating/updating root@'%' grant) ..."
-  kubectl_ctx -n "$NAMESPACE" exec "pod/${mysql_pod}" -- sh -lc "mysql -uroot -e \"SET @pw = CAST(FROM_BASE64('${mysql_password_b64}') AS CHAR); SET @create_stmt = CONCAT('CREATE USER IF NOT EXISTS ''root''@''%'' IDENTIFIED WITH mysql_native_password BY ', QUOTE(@pw)); PREPARE stmt FROM @create_stmt; EXECUTE stmt; DEALLOCATE PREPARE stmt; SET @alter_stmt = CONCAT('ALTER USER ''root''@''%'' IDENTIFIED WITH mysql_native_password BY ', QUOTE(@pw)); PREPARE stmt FROM @alter_stmt; EXECUTE stmt; DEALLOCATE PREPARE stmt; GRANT ALL PRIVILEGES ON *.* TO ''root''@''%'' WITH GRANT OPTION; FLUSH PRIVILEGES;\""
+  log "Applying DataHub MySQL host-auth self-heal (creating/updating app-user grant for DataHub schema) ..."
+  # Build CREATE/ALTER/GRANT dynamically with QUOTE(...) and escaped schema
+  # identifiers so secret values with special characters remain safe.
+  kubectl_ctx -n "$NAMESPACE" exec "pod/${mysql_pod}" -- sh -lc "mysql -uroot -e \"SET @app_user = CAST(FROM_BASE64('${app_user_b64}') AS CHAR); SET @app_pw = CAST(FROM_BASE64('${app_password_b64}') AS CHAR); SET @app_db = CAST(FROM_BASE64('${app_database_b64}') AS CHAR); SET @app_host = '%'; SET @escaped_db = REPLACE(@app_db, CHAR(96), CONCAT(CHAR(96), CHAR(96))); SET @create_stmt = CONCAT('CREATE USER IF NOT EXISTS ', QUOTE(@app_user), '@', QUOTE(@app_host), ' IDENTIFIED WITH mysql_native_password BY ', QUOTE(@app_pw)); PREPARE stmt FROM @create_stmt; EXECUTE stmt; DEALLOCATE PREPARE stmt; SET @alter_stmt = CONCAT('ALTER USER ', QUOTE(@app_user), '@', QUOTE(@app_host), ' IDENTIFIED WITH mysql_native_password BY ', QUOTE(@app_pw)); PREPARE stmt FROM @alter_stmt; EXECUTE stmt; DEALLOCATE PREPARE stmt; SET @grant_stmt = CONCAT('GRANT ALL PRIVILEGES ON ', CHAR(96), @escaped_db, CHAR(96), '.* TO ', QUOTE(@app_user), '@', QUOTE(@app_host)); PREPARE stmt FROM @grant_stmt; EXECUTE stmt; DEALLOCATE PREPARE stmt; FLUSH PRIVILEGES;\""
 
   log "Restarting datahub-gms deployment after MySQL host-auth self-heal..."
   kubectl_ctx -n "$NAMESPACE" rollout restart deployment/datahub-gms
@@ -666,15 +678,28 @@ self_heal_datahub_mysql_host_auth() {
 
 self_heal_datahub_mysql_missing_database() {
   local mysql_pod
+  local app_user_b64
+  local app_password_b64
+  local app_database_b64
 
-  mysql_pod="$(kubectl_ctx -n "$NAMESPACE" get pods -l io.kompose.service=datahub-mysql -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
+  mysql_pod="$(kubectl_ctx -n "$NAMESPACE" get pods -l io.kompose.service=datahub-mysql --field-selector=status.phase=Running -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
   if [[ -z "$mysql_pod" ]]; then
     echo "[aks-up] ERROR: datahub-mysql pod not found; cannot self-heal missing DataHub database." >&2
     return 1
   fi
 
-  log "Applying DataHub MySQL missing-database self-heal (create schema + root@'%' grant) ..."
-  kubectl_ctx -n "$NAMESPACE" exec "pod/${mysql_pod}" -- sh -lc "mysql -uroot -e \"CREATE DATABASE IF NOT EXISTS datahub CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; CREATE USER IF NOT EXISTS 'root'@'%' IDENTIFIED BY ''; ALTER USER 'root'@'%' IDENTIFIED BY ''; GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION; FLUSH PRIVILEGES;\""
+  app_user_b64="$(kubectl_ctx -n "$NAMESPACE" get secret "$AKS_KEY_VAULT_SECRET_NAME" -o jsonpath='{.data.DATAHUB_MYSQL_USER}' 2>/dev/null || true)"
+  app_password_b64="$(kubectl_ctx -n "$NAMESPACE" get secret "$AKS_KEY_VAULT_SECRET_NAME" -o jsonpath='{.data.DATAHUB_MYSQL_PASSWORD}' 2>/dev/null || true)"
+  app_database_b64="$(kubectl_ctx -n "$NAMESPACE" get secret "$AKS_KEY_VAULT_SECRET_NAME" -o jsonpath='{.data.DATAHUB_MYSQL_DATABASE}' 2>/dev/null || true)"
+  if [[ -z "$app_user_b64" || -z "$app_password_b64" || -z "$app_database_b64" ]]; then
+    echo "[aks-up] ERROR: DATAHUB_MYSQL_USER/DATAHUB_MYSQL_PASSWORD/DATAHUB_MYSQL_DATABASE missing in '$AKS_KEY_VAULT_SECRET_NAME' secret; cannot self-heal missing DataHub database." >&2
+    return 1
+  fi
+
+  log "Applying DataHub MySQL missing-database self-heal (create schema + app-user grant with secret-backed credentials) ..."
+  # Build CREATE DATABASE/USER/GRANT dynamically with escaped schema
+  # identifiers and QUOTE(...) so special characters remain safe.
+  kubectl_ctx -n "$NAMESPACE" exec "pod/${mysql_pod}" -- sh -lc "mysql -uroot -e \"SET @app_user = CAST(FROM_BASE64('${app_user_b64}') AS CHAR); SET @app_pw = CAST(FROM_BASE64('${app_password_b64}') AS CHAR); SET @app_db = CAST(FROM_BASE64('${app_database_b64}') AS CHAR); SET @app_host = '%'; SET @escaped_db = REPLACE(@app_db, CHAR(96), CONCAT(CHAR(96), CHAR(96))); SET @create_db_stmt = CONCAT('CREATE DATABASE IF NOT EXISTS ', CHAR(96), @escaped_db, CHAR(96), ' CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci'); PREPARE stmt FROM @create_db_stmt; EXECUTE stmt; DEALLOCATE PREPARE stmt; SET @create_user_stmt = CONCAT('CREATE USER IF NOT EXISTS ', QUOTE(@app_user), '@', QUOTE(@app_host), ' IDENTIFIED WITH mysql_native_password BY ', QUOTE(@app_pw)); PREPARE stmt FROM @create_user_stmt; EXECUTE stmt; DEALLOCATE PREPARE stmt; SET @alter_user_stmt = CONCAT('ALTER USER ', QUOTE(@app_user), '@', QUOTE(@app_host), ' IDENTIFIED WITH mysql_native_password BY ', QUOTE(@app_pw)); PREPARE stmt FROM @alter_user_stmt; EXECUTE stmt; DEALLOCATE PREPARE stmt; SET @grant_stmt = CONCAT('GRANT ALL PRIVILEGES ON ', CHAR(96), @escaped_db, CHAR(96), '.* TO ', QUOTE(@app_user), '@', QUOTE(@app_host)); PREPARE stmt FROM @grant_stmt; EXECUTE stmt; DEALLOCATE PREPARE stmt; FLUSH PRIVILEGES;\""
 
   run_datahub_setup_jobs "Re-running DataHub setup jobs after MySQL schema self-heal..."
 
@@ -1003,13 +1028,13 @@ else
 fi
 
 if [[ -z "$(kubectl_ctx -n "$NAMESPACE" get secret "$AKS_KEY_VAULT_SECRET_NAME" -o jsonpath='{.data.AIRFLOW_OAUTH_DEFAULT_ROLE}' 2>/dev/null || true)" ]]; then
-  log "AIRFLOW_OAUTH_DEFAULT_ROLE missing in .env; defaulting '$AKS_KEY_VAULT_SECRET_NAME' secret value to 'Op' for Airflow DAG trigger permissions."
-  kubectl_ctx -n "$NAMESPACE" patch secret "$AKS_KEY_VAULT_SECRET_NAME" --type merge -p '{"stringData":{"AIRFLOW_OAUTH_DEFAULT_ROLE":"Op"}}'
+  log "AIRFLOW_OAUTH_DEFAULT_ROLE missing in .env; defaulting '$AKS_KEY_VAULT_SECRET_NAME' secret value to 'Viewer' (least privilege)."
+  kubectl_ctx -n "$NAMESPACE" patch secret "$AKS_KEY_VAULT_SECRET_NAME" --type merge -p '{"stringData":{"AIRFLOW_OAUTH_DEFAULT_ROLE":"Viewer"}}'
   if [[ "$AKS_USE_KEY_VAULT" == "true" ]]; then
     set_key_vault_secret_with_retry \
       "$AKS_KEY_VAULT_NAME" \
       "$(env_key_to_key_vault_secret_name AIRFLOW_OAUTH_DEFAULT_ROLE)" \
-      "Op"
+      "Viewer"
   fi
 fi
 

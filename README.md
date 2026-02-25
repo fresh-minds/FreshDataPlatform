@@ -2,6 +2,11 @@
 
 Open Data Platform is a developer-first analytics platform that combines ingestion, transformation, orchestration, governance, BI, and observability in one stack.
 
+![Open Data Platform](docs/odp_image.png)
+
+## What This Project Is
+Open Data Platform is a reference implementation for running analytics workloads end to end:
+
 ## What This Repository Provides
 - End-to-end batch pipelines with medallion layering (`bronze -> silver -> gold`)
 - Airflow orchestration for ingestion and transformation workflows
@@ -38,6 +43,27 @@ make qa-test
 - DataHub: `http://localhost:9002`
 - dbt docs: `http://localhost:8089`
 
+Key groups:
+- Runtime and storage:
+  - `IS_LOCAL`, `USE_MINIO`, `LOCAL_LAKEHOUSE_PATH`
+- Frontend links:
+  - `VITE_DBT_DOCS_URL`, `DBT_DOCS_PUBLIC_URL`, `VITE_SHOW_DEMO_RIBBON`, `VITE_DEMO_AUTO_ADMIN`, `VITE_DEMO_USERNAME`
+- Service credentials:
+  - `AIRFLOW_*`, `WAREHOUSE_*`, `MINIO_*`, `SUPERSET_*`, `DATAHUB_*`
+  - `SP1_*` (required for `source_sp1_vacatures_ingestion`)
+- Security-sensitive controls:
+  - `MINIO_SSO_BRIDGE_SESSION_SECRET` must be set to a strong secret (32+ chars)
+  - `SP1_SCRAPING_APPROVED` must be `true` before `source_sp1_vacatures_ingestion` will run
+  - `SP1_ALLOWED_HOSTS` is recommended to restrict Source SP1 automation to approved domains
+  - `SUPERSET_OAUTH_DEFAULT_ROLE` defaults to `Gamma` (least privilege)
+  - `SUPERSET_ALLOW_AUTO_ADMIN_ROLE=true` is required before allowing OAuth auto-registration into Superset `Admin`
+- SSO/identity:
+  - `KEYCLOAK_*`, `KEYCLOAK_DEMO_AUTO_LOGIN`, `KEYCLOAK_DEMO_AUTOLOGIN_USERNAME`, `MINIO_OIDC_REDIRECT_URI`
+- Observability:
+  - `OTEL_*`, `GRAFANA_ADMIN_*`, `ALERT_TEAMS_WEBHOOK_URL`
+- Connector controls:
+  - `JOB_CONNECTORS_*`, `CONNECTOR_RSS_*`, `CONNECTOR_SITEMAP_*`
+  
 ## Architecture Overview
 The platform is organized into three planes:
 - Operator plane: React launchpad + service UIs (Airflow, Superset, DataHub, Grafana)
@@ -78,14 +104,10 @@ ops/             Keycloak and observability configs
 ```
 
 ## Contributing
-1. Create a branch for your change.
-2. Run the default quality gates:
-   - `make lint`
-   - `make test`
-   - `make schema-validate`
-3. For platform-impacting changes, also run:
-   - `make qa-test`
-   - `make test-e2e`
+See [CONTRIBUTING.md](CONTRIBUTING.md) for branch workflow, required checks, DCO sign-off, and third-party license guardrails.
 
 ## License
 This project is licensed under the [MIT License](LICENSE).
+
+Third-party runtime components used by the platform keep their own licenses.
+See [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) for the current inventory and compliance notes.

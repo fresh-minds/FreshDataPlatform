@@ -69,6 +69,8 @@ export default function KeycloakProvider({ children }) {
         };
 
         kc.init({
+            // Use check-sso so we can supply login hints before redirecting.
+            // We still enforce login immediately when unauthenticated below.
             onLoad: 'check-sso',
             pkceMethod: 'S256',
             checkLoginIframe: false,

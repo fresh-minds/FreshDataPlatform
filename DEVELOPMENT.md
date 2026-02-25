@@ -17,6 +17,31 @@ source .venv/bin/activate
 make dev-install
 ```
 
+Required before `docker compose up -d`:
+- Set `MINIO_SSO_BRIDGE_SESSION_SECRET` in `.env` to a non-placeholder value (32+ chars).
+
+Generate one locally:
+
+```bash
+python3 - <<'PY'
+import base64, os
+print(base64.urlsafe_b64encode(os.urandom(32)).decode())
+PY
+```
+
+Verification:
+
+```bash
+grep '^MINIO_SSO_BRIDGE_SESSION_SECRET=' .env
+```
+
+Superset OAuth security defaults:
+- `SUPERSET_OAUTH_DEFAULT_ROLE=Gamma` (least privilege)
+- `SUPERSET_WTF_CSRF_ENABLED=true`
+- If you intentionally need OAuth auto-admin for a controlled demo, set both:
+  - `SUPERSET_OAUTH_DEFAULT_ROLE=Admin`
+  - `SUPERSET_ALLOW_AUTO_ADMIN_ROLE=true`
+
 ## Daily Workflow
 ### Start core services
 ```bash
@@ -30,8 +55,9 @@ LOCAL_MOCK_PIPELINES=false make run PIPELINE=job_market_nl.bronze_cbs_vacancy_ra
 ```
 
 ### Run Source SP1 portal DAG (Airflow)
-Prerequisite: set `SP1_USERNAME` and
-`SP1_PASSWORD` in `.env`, then refresh Airflow containers.
+Prerequisite: set `SP1_USERNAME`, `SP1_PASSWORD`, and
+`SP1_SCRAPING_APPROVED=true` in `.env`, then refresh Airflow containers.
+Recommended: set `SP1_ALLOWED_HOSTS` to the approved portal host(s).
 
 ```bash
 docker compose up -d airflow-webserver airflow-scheduler
@@ -78,7 +104,8 @@ Homepage assistant note:
 - Toggle the ribbon with `VITE_SHOW_DEMO_RIBBON=true|false` (default `true`).
 - Enable demo SSO bootstrap with `VITE_DEMO_AUTO_ADMIN=true` (forces real Keycloak login flow and uses demo username hint for SSO).
 - Set the demo username hint with `VITE_DEMO_USERNAME` (default `odp-admin`).
-- For fully automatic SSO with no Keycloak login screen, keep `KEYCLOAK_DEMO_AUTO_LOGIN=true` and set `KEYCLOAK_DEMO_AUTOLOGIN_USERNAME` (default `odp-admin`).
+- `KEYCLOAK_DEMO_AUTO_LOGIN` is disabled by default; only set it to `true` for isolated local demos where auto-submitting demo credentials is acceptable.
+- When enabled, set `KEYCLOAK_DEMO_AUTOLOGIN_USERNAME` (default `odp-admin`) and keep Keycloak on a local hostname.
 - On `/`, clicking the hero image opens a chat panel on the right.
 - The panel calls `portal-api` endpoint `POST /api/chat` (authenticated with the Keycloak bearer token).
 - Preferred backend env vars (Azure AI Foundry Agent): `AZURE_EXISTING_AIPROJECT_ENDPOINT` and either `AZURE_EXISTING_AGENT_ID` or `AZURE_EXISTING_AGENT_NAME`.
@@ -127,6 +154,7 @@ dbt docs + lineage workflow:
 - Type checking: MyPy (`make type-check`)
 - Testing: Pytest suites under `tests/`
 - Packaging: `pyproject.toml` + editable install (`pip install -e ".[dev]"`)
+- Third-party runtime license triage: `make license-risk-check`
 
 ## Adding a New Ingestion Source
 

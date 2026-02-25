@@ -14,6 +14,21 @@ if [ "$AUTO_LOGIN" != "true" ]; then
   AUTO_LOGIN="false"
 fi
 
+KC_HOSTNAME_VALUE="${KC_HOSTNAME:-}"
+KC_HOSTNAME_HOST="${KC_HOSTNAME_VALUE#*://}"
+KC_HOSTNAME_HOST="${KC_HOSTNAME_HOST%%/*}"
+KC_HOSTNAME_HOST="${KC_HOSTNAME_HOST%%:*}"
+IS_LOCAL_HOST="false"
+case "$KC_HOSTNAME_HOST" in
+  ""|localhost|127.0.0.1|keycloak|*.localtest.me)
+    IS_LOCAL_HOST="true"
+    ;;
+esac
+if [ "$AUTO_LOGIN" = "true" ] && [ "$IS_LOCAL_HOST" != "true" ]; then
+  echo "[keycloak-demo-theme] WARN: disabling KEYCLOAK_DEMO_AUTO_LOGIN for non-local KC_HOSTNAME='$KC_HOSTNAME_VALUE'." >&2
+  AUTO_LOGIN="false"
+fi
+
 html_escape() {
   printf '%s' "$1" | sed \
     -e 's/&/\&amp;/g' \

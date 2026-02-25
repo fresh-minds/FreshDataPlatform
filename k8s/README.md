@@ -94,6 +94,16 @@ Then:
 
 To enforce one Keycloak login flow across all UIs behind a single auth gateway:
 
+Prerequisite:
+- Set `KEYCLOAK_GATEWAY_CLIENT_SECRET` in `.env` to a non-placeholder value before running `make k8s-sso-gateway-up` (the setup script now fails fast when this secret is missing or still `change_me*`).
+
+Verification:
+
+```bash
+grep '^KEYCLOAK_GATEWAY_CLIENT_SECRET=' .env
+kubectl -n odp-dev get secret odp-env -o jsonpath='{.data.KEYCLOAK_GATEWAY_CLIENT_SECRET}' | base64 --decode; echo
+```
+
 ```bash
 make k8s-sso-gateway-up
 make k8s-sso-gateway-forward
@@ -303,6 +313,7 @@ Public ingress routes after deployment:
 Local kind:
 - Add `127.0.0.1 keycloak` to `/etc/hosts` so the browser can resolve the same hostname the cluster uses.
 - Ensure `.env` includes `KEYCLOAK_*` values and `MINIO_OIDC_REDIRECT_URI=http://localhost:9001/oauth_callback`.
+- Ensure `.env` includes a strong `MINIO_SSO_BRIDGE_SESSION_SECRET` (32+ chars, non-placeholder).
 
 AKS:
 - Set `KEYCLOAK_OIDC_BASE_URL`, `KEYCLOAK_OIDC_AUTHORIZE_URL`, `KEYCLOAK_OIDC_TOKEN_URL`,
@@ -319,6 +330,7 @@ AKS:
   Expect a `302` redirect to Keycloak (`/protocol/openid-connect/auth`).
 - Realm self-registration is disabled by default in bundled manifests (`registrationAllowed: false`).
 - Keep `AIRFLOW_OAUTH_DEFAULT_ROLE` at least privilege (`Viewer`) unless you have a controlled admin onboarding flow.
+- Airflow metadata Postgres manifests use `POSTGRES_HOST_AUTH_METHOD=scram-sha-256` (password-based host auth).
 
 ## AKS Ingress + TLS (Custom Domain)
 

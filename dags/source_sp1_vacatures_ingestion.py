@@ -20,6 +20,8 @@ Configuration (Airflow Connections + Variables / env vars):
 
   Env vars (fallback):
     SP1_USERNAME / SP1_PASSWORD / SP1_BASE_URL
+    SP1_SCRAPING_APPROVED             must be true to run automated portal scraping
+    SP1_ALLOWED_HOSTS                 optional comma-separated allowlist of portal hosts
     MINIO_ENDPOINT / MINIO_ACCESS_KEY / MINIO_SECRET_KEY
     WAREHOUSE_HOST / WAREHOUSE_PORT / WAREHOUSE_DB / WAREHOUSE_USER / WAREHOUSE_PASSWORD
     MINIO_BUCKET                        (default: lakehouse)
@@ -30,16 +32,17 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import timedelta
+from urllib.parse import urlsplit
 
-from airflow import DAG
 from airflow.operators.empty import EmptyOperator
 from airflow.operators.python import PythonOperator
 from airflow.utils.task_group import TaskGroup
 
+from airflow import DAG
 from src.ingestion.common.dag_helpers import (
-    make_default_args,
     make_dbt_run_callable,
+    make_default_args,
     make_emit_metrics_callable,
     make_ensure_bucket_callable,
     make_ensure_ddl_callable,
@@ -47,12 +50,50 @@ from src.ingestion.common.dag_helpers import (
     mime_to_ext,
     try_get_conn,
 )
+from src.ingestion.source_sp1.config import SP1_VACATURES_CONFIG
 
 log = logging.getLogger(__name__)
 
 _SOURCE_NAME = "source_sp1"
 _DATASET = "vacatures"
 _DEFAULT_BUCKET = "lakehouse"
+
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _assert_sp1_scraping_policy(base_url: str) -> None:
+    """Fail closed unless explicit scraping approval is configured."""
+    if not _env_flag("SP1_SCRAPING_APPROVED", default=False):
+        raise RuntimeError(
+            "Source SP1 extraction is blocked by policy. "
+            "Set SP1_SCRAPING_APPROVED=true only after verifying contractual and legal permission."
+        )
+
+    allowed_hosts_raw = os.environ.get("SP1_ALLOWED_HOSTS", "")
+    allowed_hosts = {host.strip().lower() for host in allowed_hosts_raw.split(",") if host.strip()}
+    if not allowed_hosts:
+        log.warning(
+            "SP1_ALLOWED_HOSTS is empty. Configure an explicit host allowlist to reduce "
+            "risk of scraping an unintended domain."
+        )
+        return
+
+    host = (urlsplit(base_url).hostname or "").lower()
+    if not host:
+        raise RuntimeError(
+            "SP1_BASE_URL (or source_sp1 connection extra.base_url) is empty or invalid; "
+            "cannot validate SP1_ALLOWED_HOSTS policy."
+        )
+    if host not in allowed_hosts:
+        raise RuntimeError(
+            f"Source SP1 base host '{host}' is not in SP1_ALLOWED_HOSTS. "
+            "Update SP1_ALLOWED_HOSTS with the approved portal host."
+        )
 
 
 # ===========================================================================
@@ -95,6 +136,7 @@ def _extract_to_bronze(**kwargs):
     minio_conn = try_get_conn("minio")
     portal_conn = try_get_conn("source_sp1")
     creds = get_credentials(portal_conn)
+    _assert_sp1_scraping_policy(creds.base_url)
 
     artifact_summaries: list[dict] = []
     extracted_count = 0
@@ -268,9 +310,6 @@ def _parse_and_load(**kwargs):
 # ===========================================================================
 # DAG definition — uses common helpers for preflight, dbt, observability
 # ===========================================================================
-
-# Import config at module level for the DDL callable builder
-from src.ingestion.source_sp1.config import SP1_VACATURES_CONFIG
 
 with DAG(
     dag_id="source_sp1_vacatures_ingestion",

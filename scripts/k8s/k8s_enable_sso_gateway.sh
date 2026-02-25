@@ -73,9 +73,10 @@ if [[ -z "$KEYCLOAK_GATEWAY_CLIENT_ID" ]]; then
   KEYCLOAK_GATEWAY_CLIENT_ID="platform-gateway"
 fi
 
-if [[ -z "$KEYCLOAK_GATEWAY_CLIENT_SECRET" ]]; then
-  KEYCLOAK_GATEWAY_CLIENT_SECRET="change_me_keycloak_gateway_secret"
-  log "WARN: KEYCLOAK_GATEWAY_CLIENT_SECRET missing; using fallback secret."
+if [[ -z "$KEYCLOAK_GATEWAY_CLIENT_SECRET" || "$KEYCLOAK_GATEWAY_CLIENT_SECRET" == change_me* ]]; then
+  echo "KEYCLOAK_GATEWAY_CLIENT_SECRET is required and must not use a placeholder value." >&2
+  echo "Set it in .env (and sync into odp-env) before running make k8s-sso-gateway-up." >&2
+  exit 1
 fi
 
 if [[ -z "$OAUTH2_PROXY_COOKIE_SECRET" ]]; then

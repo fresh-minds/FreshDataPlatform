@@ -27,6 +27,52 @@ AKS modular helpers:
 - Put domain-specific scripts in the matching subfolder.
 - If relocating an existing script, update Makefile/CI/docs references in the same change.
 
+## Security-sensitive script behavior
+
+### Bootstrap env auto-fill
+
+`./scripts/platform/bootstrap_all.sh --auto-fill-env` now auto-generates missing or placeholder values for:
+
+- `KEYCLOAK_GATEWAY_CLIENT_SECRET`
+- `MINIO_SSO_BRIDGE_SESSION_SECRET`
+
+Verification:
+
+```bash
+grep -E '^(KEYCLOAK_GATEWAY_CLIENT_SECRET|MINIO_SSO_BRIDGE_SESSION_SECRET)=' .env
+```
+
+### kind shared SSO gateway setup
+
+`./scripts/k8s/k8s_enable_sso_gateway.sh` now fails fast when `KEYCLOAK_GATEWAY_CLIENT_SECRET` is missing or still a placeholder (`change_me*`).
+
+Verification before running:
+
+```bash
+grep '^KEYCLOAK_GATEWAY_CLIENT_SECRET=' .env
+kubectl -n odp-dev get secret odp-env -o jsonpath='{.data.KEYCLOAK_GATEWAY_CLIENT_SECRET}' | base64 --decode; echo
+```
+
+### AKS DataHub MySQL self-heal safety
+
+`./scripts/aks/aks_up.sh` self-heal paths for DataHub MySQL host auth / missing schema now:
+
+- grant the DataHub app user from secret keys (`DATAHUB_MYSQL_USER`, `DATAHUB_MYSQL_PASSWORD`)
+- scope privileges to `DATAHUB_MYSQL_DATABASE`
+- avoid creating or altering remote `root@'%'` grants
+
+Verify required secret keys before AKS deploy:
+
+```bash
+grep -E '^(DATAHUB_MYSQL_USER|DATAHUB_MYSQL_PASSWORD|DATAHUB_MYSQL_DATABASE)=' .env
+```
+
+### Runtime license risk triage
+
+Use `./scripts/quality/check_license_risk.sh` (or `make license-risk-check`) to flag potentially restrictive image licenses in `docker-compose.yml` (AGPL/GPL/source-available families) for manual legal review.
+
+Use `FAIL_ON_RESTRICTIVE=true` to fail automated checks when high-risk image families are present.
+
 ## dbt docs auto-regeneration watcher
 
 For dbt lineage/docs development, run:
