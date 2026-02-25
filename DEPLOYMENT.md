@@ -189,6 +189,9 @@ This flow:
 - Fetches AKS credentials and logs into ACR
 - Builds/pushes selected images
 - Patches existing deployments with new tags and waits for rollout
+- When `AKS_IMAGES` includes `airflow`, also refreshes ConfigMap
+  `airflow-webserver-config` from `airflow/webserver_config.py` before Airflow
+  rollout so webserver auth config changes are applied
 - When `AKS_IMAGES` includes `airflow`, also refreshes `dbt-docs` by patching
   its docs-generator initContainer image and bumping `dbt-docs/build-id`
   annotation so docs are regenerated in-cluster
@@ -232,6 +235,7 @@ This process handles:
   - Airflow scheduler liveness probe is tuned for AKS node variability (`initialDelay=120s`, `period=60s`, `timeout=60s`, `failureThreshold=5`) to avoid false restarts and stale scheduler heartbeat warnings
   - Airflow webserver deployment is recreated before apply to avoid historical `env.value`/`env.valueFrom` merge conflicts that can block reruns
   - Airflow OAuth auto-registration defaults to role `Viewer` (least privilege) for AKS deploys; if `AIRFLOW_OAUTH_DEFAULT_ROLE` is missing in `.env`, `k8s-aks-up` patches `odp-env` with `Viewer` and backfills that value to AKS Key Vault when Key Vault sync is enabled
+  - Airflow OAuth maps Keycloak role claims to FAB roles on login (`admin`/`airflow_admin` -> `Admin`, `airflow_op` -> `Op`, `airflow_user` -> `User`, `airflow_viewer` -> `Viewer`) and keeps `AUTH_ROLES_SYNC_AT_LOGIN=true` so permission changes are reconciled at next login
   - Airflow init job wait timeout is independently configurable via `AIRFLOW_INIT_JOB_TIMEOUT` (default `960s`) so slower metadata migrations do not fail the full AKS rollout when global `WAIT_TIMEOUT` stays lower for normal deployment checks
   - AKS job waits re-check Kubernetes Job success/Complete state after a timeout response, so late-completing jobs (such as `airflow-init`) are not failed due to a `kubectl wait` race
   - Airflow webserver/scheduler rollout wait timeout is independently configurable via `AIRFLOW_DEPLOYMENT_TIMEOUT` (default `600s`) so startup probe warmup windows do not get cut off by a shorter global `WAIT_TIMEOUT`
@@ -257,7 +261,10 @@ This process handles:
 
 - **Config safety and URL consistency**
   - Kompose-generated AKS deployments are post-processed to rewrite browser-facing auth/redirect URLs (portal, minio-sso-bridge, grafana, superset, datahub) to `https://*.${FRONTEND_DOMAIN}` instead of localhost defaults
-  - AKS ingress routes MinIO `/login`, `/start`, and `/callback` through `minio-sso-bridge` so an existing Keycloak session can sign users directly into MinIO
+  - AKS MinIO SSO uses Keycloak `odp` realm by default (`KEYCLOAK_REALM_K8S=odp` and `MINIO_KEYCLOAK_OIDC_DISCOVERY_URL_K8S` targeting `/realms/odp/.well-known/openid-configuration`)
+  - AKS ingress routes MinIO `/`, `/login`, `/start`, and `/callback` through `minio-sso-bridge` so an existing Keycloak session can sign users directly into MinIO
+  - MinIO bridge root (`/`) reuses an active MinIO console `token` cookie by redirecting directly to `/browser`; only requests without a valid MinIO session fall back to `/start` and Keycloak
+  - MinIO bridge `/start` performs a silent `prompt=none` authorization attempt first and automatically falls back to interactive login when Keycloak responds `login_required`
   - AKS Keycloak realm import config for client `minio` includes both `https://minio.${FRONTEND_DOMAIN}/oauth_callback` and `https://minio.${FRONTEND_DOMAIN}/callback` redirect URIs so bridge-based SSO remains valid after Keycloak pod restarts
   - Superset custom auth/bootstrap files are injected as Kubernetes ConfigMaps during AKS parity conversion (instead of hostPath bind mounts) so `superset_config.py` is always present and `/login` auto-redirects directly to Keycloak for existing SSO sessions
   - Alertmanager configuration is injected via Kubernetes `alertmanager-config` ConfigMap (`ops/observability/alertmanager.yml`) so AKS parity deploy does not depend on hostPath file mounts
@@ -277,15 +284,19 @@ Prerequisites:
 Commands:
 
 ```bash
+curl -sS -D - -o /dev/null "https://minio.${FRONTEND_DOMAIN}/" | awk '/^location:/I {print $2}' | tr -d '\r'
 auth_url="$(curl -sS -D - -o /dev/null "https://minio.${FRONTEND_DOMAIN}/login" | awk 'tolower($1)==\"location:\" {print $2; exit}' | tr -d '\r')"
+echo "$auth_url"
 curl -sS -D - -o /tmp/minio-kc-auth.html "$auth_url" | head -n 1
 grep -q "Invalid parameter: redirect_uri" /tmp/minio-kc-auth.html && echo "invalid redirect URI in Keycloak client" || echo "bridge callback URI accepted"
 ```
 
 Verification:
-- First command should produce a Keycloak authorize URL.
-- Second command should return HTTP `200` or `302`.
-- Final line should print `bridge callback URI accepted`.
+- First command should print `/start`.
+- Second command should produce a Keycloak authorize URL.
+- Authorize URL should include `/realms/odp/protocol/openid-connect/auth`.
+- Third command should return HTTP `200` or `302`.
+- Last line should print `bridge callback URI accepted`.
 
 ### Common overrides
 ```bash

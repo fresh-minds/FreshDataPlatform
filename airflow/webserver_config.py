@@ -1,6 +1,7 @@
 import os
 from base64 import urlsafe_b64decode
 from json import loads as json_loads
+from typing import List
 
 from flask import redirect, request
 from flask_appbuilder import expose
@@ -10,7 +11,25 @@ from flask_appbuilder.security.views import AuthOAuthView
 
 AUTH_TYPE = AUTH_OAUTH
 AUTH_USER_REGISTRATION = True
-AUTH_USER_REGISTRATION_ROLE = os.getenv("AIRFLOW_OAUTH_DEFAULT_ROLE", "Viewer")
+
+
+def _env_nonempty(name: str, default: str) -> str:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    stripped = value.strip()
+    return stripped or default
+
+
+AUTH_USER_REGISTRATION_ROLE = _env_nonempty("AIRFLOW_OAUTH_DEFAULT_ROLE", "Viewer")
+AUTH_ROLES_SYNC_AT_LOGIN = True
+AUTH_ROLES_MAPPING = {
+    "admin": ["Admin"],
+    "airflow_admin": ["Admin"],
+    "airflow_op": ["Op"],
+    "airflow_user": ["User"],
+    "airflow_viewer": ["Viewer"],
+}
 
 _OAUTH_BASE_URL = os.getenv(
     "AIRFLOW_OAUTH_BASE_URL",
@@ -62,6 +81,7 @@ class AutoRedirectOAuthView(AuthOAuthView):
 
 class KeycloakSecurityManager(AirflowSecurityManager):
     authoauthview = AutoRedirectOAuthView
+
     @staticmethod
     def _decode_access_token_claims(access_token: str) -> dict:
         try:
@@ -72,6 +92,21 @@ class KeycloakSecurityManager(AirflowSecurityManager):
             return json_loads(urlsafe_b64decode(payload).decode("utf-8"))
         except Exception:  # noqa: BLE001
             return {}
+
+    @staticmethod
+    def _extract_claim_roles(claims: dict) -> List[str]:
+        realm_roles = (claims.get("realm_access") or {}).get("roles") or []
+        if not isinstance(realm_roles, list):
+            realm_roles = []
+
+        airflow_client_id = os.getenv("AIRFLOW_OAUTH_CLIENT_ID", "airflow")
+        client_roles = ((claims.get("resource_access") or {}).get(airflow_client_id) or {}).get("roles") or []
+        if not isinstance(client_roles, list):
+            client_roles = []
+
+        role_keys = [str(role) for role in [*realm_roles, *client_roles] if isinstance(role, str) and role]
+        # Keep order stable while removing duplicates.
+        return list(dict.fromkeys(role_keys))
 
     def get_oauth_user_info(self, provider, resp):  # pylint: disable=unused-argument
         if provider != "keycloak":
@@ -92,6 +127,7 @@ class KeycloakSecurityManager(AirflowSecurityManager):
                         "first_name": claims.get("given_name"),
                         "last_name": claims.get("family_name"),
                         "username": username,
+                        "role_keys": self._extract_claim_roles(claims),
                     }
 
         remote_app = self.oauth_remotes.get(provider)
@@ -113,6 +149,7 @@ class KeycloakSecurityManager(AirflowSecurityManager):
             "first_name": userinfo.get("given_name"),
             "last_name": userinfo.get("family_name"),
             "username": username,
+            "role_keys": [],
         }
 
 

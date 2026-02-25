@@ -17,7 +17,7 @@ from scripts.sso.oidc import (
 from tests.sso.settings import SSOSettings
 
 REDIRECT_STATUS_CODES = {301, 302, 303, 307, 308}
-MINIO_SSO_BRIDGE_ENTRYPOINT_PATHS = ("/start", "/login")
+MINIO_SSO_BRIDGE_ENTRYPOINT_PATHS = ("/", "/start", "/login")
 
 
 @pytest.mark.e2e
@@ -153,9 +153,18 @@ def _assert_minio_bridge_redirect(
     location = response.headers.get("Location", "")
     assert location, f"MinIO SSO bridge {path} redirect is missing location header"
 
+    if path == "/":
+        # Root entrypoint intentionally bounces through /start.
+        assert location in {"/start", "/start/"}, "Bridge / did not redirect to /start"
+        return
+
     parsed = urlparse(location)
     query = parse_qs(parsed.query)
+    expected_realm = os.getenv("KEYCLOAK_REALM", "odp")
     assert "/protocol/openid-connect/auth" in parsed.path, f"Bridge {path} redirect did not target OIDC auth endpoint"
+    assert f"/realms/{expected_realm}/protocol/openid-connect/auth" in parsed.path, (
+        f"Bridge {path} redirect did not target expected realm '{expected_realm}'"
+    )
     assert query.get("client_id", [None])[0] == os.getenv("KEYCLOAK_MINIO_CLIENT_ID", "minio"), (
         f"Bridge {path} redirect used unexpected client_id"
     )

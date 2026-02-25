@@ -129,7 +129,7 @@ dbt docs + lineage workflow:
 - `make observability-verify`: validate Compose logs/metrics/traces ingestion path (Grafana/Loki/Prometheus/Tempo); supports strict trace-volume mode (`OBS_REQUIRE_TRACE_VOLUME=true`) and ambient-only mode (`OBS_TRACE_VOLUME_MODE=ambient`)
 - `make k8s-aks-smoke`: run in-cluster AKS smoke checks (observability + core service endpoints); HTTP checks retry for short warm-up windows (~60s max per endpoint) and then fail on RED checks
 - `make k8s-aks-up`: runs AKS smoke checks by default after deploy (`AKS_SMOKE_AFTER_UP` unset/empty = `true`) and uses Azure Key Vault as the default AKS secret source; reruns safely skip Key Vault provider re-enable when already active and can enforce minimum System nodepool capacity via `AKS_NODE_COUNT` (set `AKS_SMOKE_AFTER_UP=false` to skip smoke; set `AKS_USE_KEY_VAULT=false` to use direct `.env` -> Kubernetes secret)
-- `make k8s-aks-update-images`: build/push selected app images and patch existing AKS deployments only (faster inner loop; no infra/parity apply)
+- `make k8s-aks-update-images`: build/push selected app images and patch existing AKS deployments only (faster inner loop; no infra/parity apply); when `AKS_IMAGES` includes `airflow`, also refreshes `airflow-webserver-config` from `airflow/webserver_config.py` and refreshes dbt docs init image
 - `make dbt-docs-generate`: generate dbt docs site artifacts in `dbt_parallel/target/`
 - `make dbt-docs-refresh`: regenerate dbt docs and ensure static docs service is running
 - `make dbt-docs-watch`: auto-regenerate dbt docs whenever files in `dbt_parallel/models|macros|snapshots|seeds|tests` change

@@ -49,6 +49,13 @@ spec:
     - host: minio.__FRONTEND_DOMAIN__
       http:
         paths:
+          - path: /
+            pathType: Exact
+            backend:
+              service:
+                name: minio-sso-bridge
+                port:
+                  number: 9011
           - path: /start
             pathType: Prefix
             backend:

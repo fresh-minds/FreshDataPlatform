@@ -202,6 +202,22 @@ EOF
   wait_for_deployment "$deployment" "$AKS_IMAGE_UPDATE_ROLLOUT_TIMEOUT"
 }
 
+refresh_airflow_webserver_config_for_airflow() {
+  if ! contains_image "airflow"; then
+    return 0
+  fi
+
+  if [[ ! -f "$ROOT_DIR/airflow/webserver_config.py" ]]; then
+    echo "Missing Airflow webserver config file: $ROOT_DIR/airflow/webserver_config.py" >&2
+    return 1
+  fi
+
+  log "Refreshing ConfigMap/airflow-webserver-config from airflow/webserver_config.py."
+  kubectl_ctx -n "$NAMESPACE" create configmap airflow-webserver-config \
+    --from-file=webserver_config.py="$ROOT_DIR/airflow/webserver_config.py" \
+    --dry-run=client -o yaml | kubectl_ctx apply -f -
+}
+
 set_deployment_image_and_wait() {
   local deployment="$1"
   local container="$2"
@@ -234,6 +250,8 @@ set_deployment_image_and_wait() {
 
 log "Building and pushing selected images: ${AKS_IMAGES}"
 run_for_selected_services build_image_for_service
+
+refresh_airflow_webserver_config_for_airflow
 
 log "Updating AKS deployments with latest image tags..."
 run_for_selected_services update_deployment_for_service

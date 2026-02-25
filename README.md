@@ -244,6 +244,10 @@ AKS fast image-only update (no infra/parity re-apply):
 make k8s-aks-update-images
 ```
 
+When `AKS_IMAGES` includes `airflow`, this also refreshes
+`airflow-webserver-config` from `airflow/webserver_config.py` before the
+Airflow rollout and refreshes the `dbt-docs` initContainer image.
+
 Limit to specific services during iteration:
 
 ```bash

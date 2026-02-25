@@ -20,7 +20,7 @@ canonical subfolder paths.
 AKS modular helpers:
 - `scripts/aks/aks_up_lib.sh`: shared helper functions used by `scripts/aks/aks_up.sh`
 	(retryable rollout waits, diagnostics, namespaced apply helper, and image build/push helper).
-- `scripts/aks/aks_update_images.sh`: minimal AKS image-only updater (build/push selected images, patch existing deployments, wait rollout).
+- `scripts/aks/aks_update_images.sh`: minimal AKS image-only updater (build/push selected images, patch existing deployments, wait rollout; refreshes Airflow webserver ConfigMap when `AKS_IMAGES` includes `airflow`).
 
 ## Conventions for new scripts
 
@@ -211,9 +211,11 @@ Use this to iterate faster after an initial `make k8s-aks-up`:
 make k8s-aks-update-images
 ```
 
-When `AKS_IMAGES` includes `airflow`, the script also refreshes `dbt-docs`
-by patching deployment `dbt-docs` initContainer image to the same Airflow
-image and bumping annotation `dbt-docs/build-id`.
+When `AKS_IMAGES` includes `airflow`, the script also:
+- refreshes ConfigMap `airflow-webserver-config` from
+  `airflow/webserver_config.py` before the Airflow deployment rollout, and
+- refreshes `dbt-docs` by patching deployment `dbt-docs` initContainer image
+  to the same Airflow image and bumping annotation `dbt-docs/build-id`.
 Optional override: set `DBT_DOCS_BUILD_ID=<custom-id>` to control that
 annotation value.
 
