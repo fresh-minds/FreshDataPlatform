@@ -9,8 +9,6 @@
 ### Prerequisites
 - Docker Engine + Compose plugin
 - `.env` configured from `.env.template`
-- For `source_sp1_vacatures_ingestion`: set
-  `SP1_USERNAME` and `SP1_PASSWORD` in `.env`
 
 ### Bring up stack
 ```bash
@@ -191,6 +189,11 @@ This flow:
 - Fetches AKS credentials and logs into ACR
 - Builds/pushes selected images
 - Patches existing deployments with new tags and waits for rollout
+- When `AKS_IMAGES` includes `airflow`, also refreshes `dbt-docs` by patching
+  its docs-generator initContainer image and bumping `dbt-docs/build-id`
+  annotation so docs are regenerated in-cluster
+  - Optional override: set `DBT_DOCS_BUILD_ID=<custom-id>` to control the
+    rollout annotation value used for the docs refresh trigger
 
 Constraints:
 - Does **not** provision/update AKS infra, ingress, DNS, or parity manifests
@@ -255,12 +258,34 @@ This process handles:
 - **Config safety and URL consistency**
   - Kompose-generated AKS deployments are post-processed to rewrite browser-facing auth/redirect URLs (portal, minio-sso-bridge, grafana, superset, datahub) to `https://*.${FRONTEND_DOMAIN}` instead of localhost defaults
   - AKS ingress routes MinIO `/login`, `/start`, and `/callback` through `minio-sso-bridge` so an existing Keycloak session can sign users directly into MinIO
+  - AKS Keycloak realm import config for client `minio` includes both `https://minio.${FRONTEND_DOMAIN}/oauth_callback` and `https://minio.${FRONTEND_DOMAIN}/callback` redirect URIs so bridge-based SSO remains valid after Keycloak pod restarts
   - Superset custom auth/bootstrap files are injected as Kubernetes ConfigMaps during AKS parity conversion (instead of hostPath bind mounts) so `superset_config.py` is always present and `/login` auto-redirects directly to Keycloak for existing SSO sessions
   - Alertmanager configuration is injected via Kubernetes `alertmanager-config` ConfigMap (`ops/observability/alertmanager.yml`) so AKS parity deploy does not depend on hostPath file mounts
   - Keycloak is part of the AKS core phase and is reapplied before full-stack parity so realm/client changes (including portal redirect URIs) are continuously reconciled
   - Portal frontend auth fallback is domain-aware: when `VITE_KEYCLOAK_URL` is not present at build-time, it derives `https://keycloak.<current-root-domain>` (while keeping `http://localhost:8090` for local hostnames)
   - AKS manifest rendering validates unresolved placeholders before apply, and job waits fail fast for `InvalidImageName`/image-pull errors to shorten troubleshooting loops
   - Deployment rollout diagnostics now resolve selectors from each Deployment (`spec.selector.matchLabels`) so Kompose-labeled workloads (for example `io.kompose.service=datahub-kafka`) print the correct pod diagnostics on failure
+
+### MinIO bridge redirect URI check
+
+Summary: validate that the MinIO bridge redirect URI is accepted by Keycloak and does not fail with `Invalid parameter: redirect_uri`.
+
+Prerequisites:
+- `FRONTEND_DOMAIN` is set for your environment.
+- Ingress and Keycloak are reachable from your shell.
+
+Commands:
+
+```bash
+auth_url="$(curl -sS -D - -o /dev/null "https://minio.${FRONTEND_DOMAIN}/login" | awk 'tolower($1)==\"location:\" {print $2; exit}' | tr -d '\r')"
+curl -sS -D - -o /tmp/minio-kc-auth.html "$auth_url" | head -n 1
+grep -q "Invalid parameter: redirect_uri" /tmp/minio-kc-auth.html && echo "invalid redirect URI in Keycloak client" || echo "bridge callback URI accepted"
+```
+
+Verification:
+- First command should produce a Keycloak authorize URL.
+- Second command should return HTTP `200` or `302`.
+- Final line should print `bridge callback URI accepted`.
 
 ### Common overrides
 ```bash

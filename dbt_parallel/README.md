@@ -7,7 +7,7 @@ plus the SQL-native transformation layer for ingestion sources.
 
 - Recreates SQL-native transformations for `job_market_nl`.
 - Provides staging, intermediate, and dimensional mart models for ingestion
-  sources (e.g. `source_sp1`).
+  sources.
 - Keeps model outputs aligned with the current warehouse-facing table names.
 - Supports dbt snapshots when SCD2 history tables are enabled.
 - Supports two execution modes:
@@ -20,12 +20,11 @@ plus the SQL-native transformation layer for ingestion sources.
 dbt_parallel/
 ├── models/
 │   ├── staging/
-│   │   └── source_sp1/             stg_source_sp1__vacatures (view)
+│   │   └── <source>/               stg_<source>__<dataset> (view)
 │   ├── intermediate/
-│   │   └── source_sp1/             int_source_sp1__vacatures_enriched (view)
+│   │   └── <source>/               int_<source>__<dataset>_enriched (view)
 │   └── marts/
-│       └── source_sp1/             dim_client, dim_location, dim_category,
-│                                   dim_vacancy_status, fct_vacatures (views)
+│       └── <source>/               dim_* and fct_<dataset> models
 ├── _model_templates/               Templates for adding new sources
 │   ├── staging/                    stg + source YAML templates
 │   ├── intermediate/               int enriched template
@@ -56,9 +55,9 @@ docker compose up -d warehouse
 ### Run ingestion source models only
 
 ```bash
-# Run + test all source_sp1 models (staging through marts)
-.venv/bin/dbt run  --project-dir dbt_parallel --profiles-dir dbt_parallel --select stg_source_sp1__vacatures+
-.venv/bin/dbt test --project-dir dbt_parallel --profiles-dir dbt_parallel --select stg_source_sp1__vacatures+
+# Example: run + test one source graph (staging through marts)
+.venv/bin/dbt run  --project-dir dbt_parallel --profiles-dir dbt_parallel --select stg_<source>__<dataset>+
+.venv/bin/dbt test --project-dir dbt_parallel --profiles-dir dbt_parallel --select stg_<source>__<dataset>+
 ```
 
 ## Adding models for a new ingestion source

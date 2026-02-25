@@ -80,7 +80,8 @@ data:
                 "standardFlowEnabled": true,
                 "directAccessGrantsEnabled": true,
                 "redirectUris": [
-                    "https://minio.__FRONTEND_DOMAIN__/oauth_callback"
+                    "https://minio.__FRONTEND_DOMAIN__/oauth_callback",
+                    "https://minio.__FRONTEND_DOMAIN__/callback"
                 ],
                 "webOrigins": [
                     "https://minio.__FRONTEND_DOMAIN__"

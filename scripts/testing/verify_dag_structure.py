@@ -69,7 +69,6 @@ def _install_airflow_mocks() -> None:
 def _dag_modules(dags_dir: Path) -> list[str]:
     expected_files = [
         "job_market_nl_dag.py",
-        "source_sp1_vacatures_ingestion.py",
     ]
     modules: list[str] = []
     for file_name in expected_files:

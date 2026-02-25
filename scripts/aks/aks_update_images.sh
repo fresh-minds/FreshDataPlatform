@@ -10,6 +10,7 @@ KUBECONFIG_PATH="${KUBECONFIG_PATH:-${KUBECONFIG:-$HOME/.kube/config}}"
 
 AIRFLOW_IMAGE_REPO="${AIRFLOW_IMAGE_REPO:-ai-trial/airflow}"
 AIRFLOW_IMAGE_TAG="${AIRFLOW_IMAGE_TAG:-dev-$(date +%Y%m%d%H%M%S)}"
+DBT_DOCS_BUILD_ID="${DBT_DOCS_BUILD_ID:-${AIRFLOW_IMAGE_TAG}-$(date +%Y%m%d%H%M%S)}"
 FRONTEND_IMAGE_REPO="${FRONTEND_IMAGE_REPO:-ai-trial/frontend}"
 FRONTEND_IMAGE_TAG="${FRONTEND_IMAGE_TAG:-frontend-$(date +%Y%m%d%H%M%S)}"
 PORTAL_API_IMAGE_REPO="${PORTAL_API_IMAGE_REPO:-ai-trial/portal-api}"
@@ -149,6 +150,58 @@ run_for_selected_services() {
   done
 }
 
+refresh_dbt_docs_for_airflow() {
+  local deployment="dbt-docs"
+  local desired_init_name="generate-dbt-docs"
+  local resolved_init_name="$desired_init_name"
+  local init_names
+  local init_count
+  local patch_payload
+
+  if ! contains_image "airflow"; then
+    return 0
+  fi
+
+  if ! kubectl_ctx -n "$NAMESPACE" get deployment "$deployment" >/dev/null 2>&1; then
+    log "Skipping dbt-docs refresh (deployment '$deployment' not found in namespace '$NAMESPACE')."
+    return 0
+  fi
+
+  init_names="$(kubectl_ctx -n "$NAMESPACE" get deployment "$deployment" -o jsonpath='{.spec.template.spec.initContainers[*].name}')"
+  if [[ -z "$init_names" ]]; then
+    log "Skipping dbt-docs refresh (no init containers found on deployment '$deployment')."
+    return 0
+  fi
+
+  if [[ " $init_names " != *" $desired_init_name "* ]]; then
+    init_count="$(wc -w <<<"$init_names" | tr -d ' ')"
+    if [[ "$init_count" == "1" ]]; then
+      resolved_init_name="$init_names"
+      log "Init container '$desired_init_name' not found on deployment/$deployment; using only init container '$resolved_init_name'."
+    else
+      echo "Could not resolve dbt-docs init container '$desired_init_name' on deployment/$deployment. Available init containers: $init_names" >&2
+      return 1
+    fi
+  fi
+
+  patch_payload="$(cat <<EOF
+spec:
+  template:
+    metadata:
+      annotations:
+        dbt-docs/build-id: "${DBT_DOCS_BUILD_ID}"
+    spec:
+      initContainers:
+      - name: ${resolved_init_name}
+        image: ${AIRFLOW_IMAGE}
+EOF
+)"
+
+  log "Refreshing deployment/$deployment docs generator init container '$resolved_init_name' -> '$AIRFLOW_IMAGE' (build-id=${DBT_DOCS_BUILD_ID})."
+  kubectl_ctx -n "$NAMESPACE" patch deployment "$deployment" --type merge -p "$patch_payload"
+  wait_for_deployment "$deployment" "$AKS_IMAGE_UPDATE_ROLLOUT_TIMEOUT"
+}
+
 set_deployment_image_and_wait() {
   local deployment="$1"
   local container="$2"
@@ -184,6 +237,7 @@ run_for_selected_services build_image_for_service
 
 log "Updating AKS deployments with latest image tags..."
 run_for_selected_services update_deployment_for_service
+refresh_dbt_docs_for_airflow
 
 cat <<EOT
 
@@ -197,5 +251,6 @@ Frontend image:  $FRONTEND_IMAGE
 Portal API image:$PORTAL_API_IMAGE
 Jupyter image:   $JUPYTER_IMAGE
 Bridge image:    $MINIO_SSO_BRIDGE_IMAGE
+dbt-docs refresh:$([[ ",${AKS_IMAGES}," == *",airflow,"* ]] && echo "enabled (initContainer uses Airflow image)" || echo "not requested")
 
 EOT

@@ -33,10 +33,6 @@ services:
       - OTEL_SERVICE_NAMESPACE=${OTEL_SERVICE_NAMESPACE:-open-data-platform}
       - ENVIRONMENT=${ENVIRONMENT:-local}
       - PLAYWRIGHT_BROWSERS_PATH=/opt/airflow/playwright
-      # Source SP1 portal credentials for ad hoc/task debug runs
-      - SP1_USERNAME=${SP1_USERNAME:-}
-      - SP1_PASSWORD=${SP1_PASSWORD:-}
-      - SP1_BASE_URL=${SP1_BASE_URL:-}
       - PYTHONPATH=/opt/airflow/project
     volumes:
       - ./dags:/opt/airflow/dags
@@ -95,9 +91,6 @@ services:
       - WAREHOUSE_DB=${WAREHOUSE_DB:-open_data_platform_dw}
       - WAREHOUSE_USER=${WAREHOUSE_USER:?Set WAREHOUSE_USER}
       - WAREHOUSE_PASSWORD=${WAREHOUSE_PASSWORD:?Set WAREHOUSE_PASSWORD}
-      - SP1_USERNAME=${SP1_USERNAME:-}
-      - SP1_PASSWORD=${SP1_PASSWORD:-}
-      - SP1_BASE_URL=${SP1_BASE_URL:-}
     volumes:
       - ./dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs

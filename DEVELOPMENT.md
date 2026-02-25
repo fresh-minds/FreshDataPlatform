@@ -54,16 +54,6 @@ make run-job-market
 LOCAL_MOCK_PIPELINES=false make run PIPELINE=job_market_nl.bronze_cbs_vacancy_rate
 ```
 
-### Run Source SP1 portal DAG (Airflow)
-Prerequisite: set `SP1_USERNAME` and
-`SP1_PASSWORD` in `.env`, then refresh Airflow containers.
-
-```bash
-docker compose up -d airflow-webserver airflow-scheduler
-docker exec airflow-webserver airflow dags trigger source_sp1_vacatures_ingestion
-docker exec airflow-webserver airflow dags list-runs -d source_sp1_vacatures_ingestion --no-backfill
-```
-
 ### Run quality checks
 ```bash
 make lint

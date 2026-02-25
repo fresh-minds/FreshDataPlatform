@@ -211,6 +211,12 @@ Use this to iterate faster after an initial `make k8s-aks-up`:
 make k8s-aks-update-images
 ```
 
+When `AKS_IMAGES` includes `airflow`, the script also refreshes `dbt-docs`
+by patching deployment `dbt-docs` initContainer image to the same Airflow
+image and bumping annotation `dbt-docs/build-id`.
+Optional override: set `DBT_DOCS_BUILD_ID=<custom-id>` to control that
+annotation value.
+
 Update only selected services:
 
 ```bash

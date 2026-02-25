@@ -46,9 +46,9 @@ class SourceTableConfig:
     ----------
     source_name : str
         Snake-case identifier used in MinIO paths, Airflow tags, dbt source
-        names, and StatsD metrics (e.g. ``"source_sp1"``).
+        names, and StatsD metrics (e.g. ``"acme_portal"``).
     dataset : str
-        Dataset within the source (e.g. ``"vacatures"``).  A source can have
+        Dataset within the source (e.g. ``"orders"``).  A source can have
         multiple datasets, each with its own config.
     schema : str
         Postgres schema for the silver table.

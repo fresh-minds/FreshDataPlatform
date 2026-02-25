@@ -80,10 +80,12 @@ data:
                 "standardFlowEnabled": true,
                 "directAccessGrantsEnabled": true,
                 "redirectUris": [
-                    "http://localhost:9001/oauth_callback"
+                    "http://localhost:9001/oauth_callback",
+                    "http://localhost:9011/callback"
                 ],
                 "webOrigins": [
-                    "http://localhost:9001"
+                    "http://localhost:9001",
+                    "http://localhost:9011"
                 ],
                 "protocolMappers": [
                     {

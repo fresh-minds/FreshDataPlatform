@@ -40,10 +40,10 @@ platform.  By following these steps you will create a complete pipeline that:
 
 | Layer          | Prefix    | Example                                    |
 |----------------|-----------|--------------------------------------------|
-| Staging        | `stg_`    | `stg_source_sp1__vacatures`       |
-| Intermediate   | `int_`    | `int_source_sp1__vacatures_enriched` |
-| Dimension      | `dim_`    | `dim_client`                               |
-| Fact           | `fct_`    | `fct_vacatures`                            |
+| Staging        | `stg_`    | `stg_acme_portal__orders`                  |
+| Intermediate   | `int_`    | `int_acme_portal__orders_enriched`         |
+| Dimension      | `dim_`    | `dim_customer`                             |
+| Fact           | `fct_`    | `fct_orders`                               |
 
 ### File Layout
 
@@ -475,8 +475,9 @@ typically nested in:
 context.globalValueProviders[type=$Record].values.records
 ```
 
-**Not** in `actions[].returnValue`.  See `parse_vacatures.py` for the
-`_extract_aura_record_provider()` and `_flatten_aura_record()` pattern.
+**Not** in `actions[].returnValue`.  Implement parser helpers in
+`parse_<dataset>.py` (for example `_extract_aura_record_provider()` and
+`_flatten_aura_record()`) to normalize these payloads.
 
 ### Idempotent Re-runs
 

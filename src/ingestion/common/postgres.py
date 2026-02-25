@@ -1,9 +1,7 @@
 """Postgres warehouse utilities: DDL management, upserts, and ingestion state.
 
 Generic functions (``ensure_source_ddl``, ``upsert_records``) accept a
-``SourceTableConfig`` so any source can reuse this module.  Backward-compatible
-wrappers (``ensure_ddl``, ``upsert_vacatures``) are kept for the existing
-Source SP1 DAG.
+``SourceTableConfig`` so any source can reuse this module.
 
 The ingestion state table lives in schema ``staging``.
 
@@ -230,38 +228,6 @@ def upsert_records(
         affected, len(records), config.fqn,
     )
     return affected
-
-
-# ---------------------------------------------------------------------------
-# Backward-compatible wrappers — used by the existing SP1 DAG
-# ---------------------------------------------------------------------------
-
-def ensure_ddl(conn=None) -> None:
-    """Idempotently create SP1 vacatures table + ingestion state table.
-
-    This is the backward-compatible entry point used by the existing DAG.
-    New sources should call ``ensure_source_ddl(config)`` +
-    ``ensure_state_table()`` directly.
-    """
-    from src.ingestion.source_sp1.config import SP1_VACATURES_CONFIG
-
-    ensure_source_ddl(SP1_VACATURES_CONFIG, conn=conn)
-    ensure_state_table(conn=conn)
-    log.info(
-        "DDL ensured (compat): %s  |  %s.%s",
-        SP1_VACATURES_CONFIG.fqn,
-        _STAGING_SCHEMA, _STATE_TABLE,
-    )
-
-
-def upsert_vacatures(records: list[dict], conn=None) -> int:
-    """Upsert SP1 vacatures — backward-compatible wrapper.
-
-    New sources should call ``upsert_records(records, config)`` directly.
-    """
-    from src.ingestion.source_sp1.config import SP1_VACATURES_CONFIG
-
-    return upsert_records(records, SP1_VACATURES_CONFIG, conn=conn)
 
 
 # ---------------------------------------------------------------------------

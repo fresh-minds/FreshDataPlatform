@@ -164,6 +164,11 @@ For faster incremental app rollouts (without infra/parity re-apply):
 make k8s-aks-update-images
 ```
 
+When `AKS_IMAGES` includes `airflow`, this command also refreshes `dbt-docs`
+by updating the docs-generator initContainer image and bumping the
+`dbt-docs/build-id` annotation.
+You can override the annotation value with `DBT_DOCS_BUILD_ID=<custom-id>`.
+
 To patch only specific services:
 
 ```bash
@@ -320,6 +325,8 @@ AKS:
   and `KEYCLOAK_OIDC_DISCOVERY_URL` to the public Keycloak hostname (for example:
   `https://keycloak.FRONTEND_DOMAIN/realms/odp/protocol/openid-connect`).
 - Set `MINIO_OIDC_REDIRECT_URI=https://minio.FRONTEND_DOMAIN/oauth_callback`.
+- Ensure the Keycloak `minio` client allows both:
+  `https://minio.FRONTEND_DOMAIN/oauth_callback` and `https://minio.FRONTEND_DOMAIN/callback`.
 - MinIO login entrypoints `https://minio.FRONTEND_DOMAIN/login`, `/start`, and `/callback`
   are routed through `minio-sso-bridge`, so users with an existing Keycloak session are
   redirected straight back into the MinIO console.
@@ -328,6 +335,13 @@ AKS:
   curl -sS -D - -o /dev/null "https://minio.${FRONTEND_DOMAIN}/login"
   ```
   Expect a `302` redirect to Keycloak (`/protocol/openid-connect/auth`).
+- Verify Keycloak accepts the bridge callback URI:
+  ```bash
+  auth_url="$(curl -sS -D - -o /dev/null "https://minio.${FRONTEND_DOMAIN}/login" | awk 'tolower($1)==\"location:\" {print $2; exit}' | tr -d '\r')"
+  curl -sS -D - -o /tmp/minio-kc-auth.html "$auth_url" | head -n 1
+  grep -q "Invalid parameter: redirect_uri" /tmp/minio-kc-auth.html && echo "invalid redirect URI in Keycloak client" || echo "bridge callback URI accepted"
+  ```
+  Expect an HTTP `200` or `302`, and no `Invalid parameter: redirect_uri` in the response body.
 - Realm self-registration is disabled by default in bundled manifests (`registrationAllowed: false`).
 - Keep `AIRFLOW_OAUTH_DEFAULT_ROLE` at least privilege (`Viewer`) unless you have a controlled admin onboarding flow.
 - Airflow metadata Postgres manifests use `POSTGRES_HOST_AUTH_METHOD=scram-sha-256` (password-based host auth).

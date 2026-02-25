@@ -98,7 +98,7 @@ dags/                    Orchestration DAGs
 src/ingestion/           Source ingestion framework (common helpers + per-source modules)
   common/                Shared: source_config, postgres, dag_helpers, minio, provenance
   _template/             Python templates for new sources
-  <source>/              Per-source config, extractor, parser (e.g. source_sp1/)
+  <source>/              Per-source config, extractor, parser
 pipelines/               Domain pipeline logic (job_market_nl)
 shared/                  Shared runtime/config/connectors/utilities
 scripts/                 Bootstrap, QA, governance, and ops scripts
@@ -189,7 +189,6 @@ Key groups:
   - `VITE_DBT_DOCS_URL`, `DBT_DOCS_PUBLIC_URL`, `VITE_SHOW_DEMO_RIBBON`, `VITE_DEMO_AUTO_ADMIN`, `VITE_DEMO_USERNAME`
 - Service credentials:
   - `AIRFLOW_*`, `WAREHOUSE_*`, `MINIO_*`, `SUPERSET_*`, `DATAHUB_*`
-  - `SP1_*` (required for `source_sp1_vacatures_ingestion`)
 - Security-sensitive controls:
   - `MINIO_SSO_BRIDGE_SESSION_SECRET` must be set to a strong secret (32+ chars)
   - `SUPERSET_OAUTH_DEFAULT_ROLE` defaults to `Gamma` (least privilege)
