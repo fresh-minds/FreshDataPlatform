@@ -338,6 +338,7 @@ Portal assistant Foundry auth (AKS recommendation):
 
 - Primary agent reference vars: `AZURE_EXISTING_AIPROJECT_ENDPOINT` and `AZURE_EXISTING_AGENT_ID` (or `AZURE_EXISTING_AGENT_NAME`).
 - Legacy aliases remain supported: `AZURE_FOUNDRY_AGENT_ENDPOINT` and `AZURE_FOUNDRY_AGENT_ID` (or `AZURE_FOUNDRY_AGENT_NAME`).
+- `portal-api` sends agent references as `agent_reference` for both API key and `DefaultAzureCredential` auth paths. If logs show `invalid_payload` with `The 'agent' property is deprecated`, roll out the latest `portal-api` image.
 - `portal-api` uses API key auth when `AZURE_FOUNDRY_API_KEY` is set.
 - If `AZURE_FOUNDRY_API_KEY` is empty, `portal-api` uses `DefaultAzureCredential`.
 - For containerized local runs with `DefaultAzureCredential`, provide service principal env vars (`AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`).

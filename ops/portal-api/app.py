@@ -448,11 +448,14 @@ def _call_foundry_agent_with_default_credential(messages: list[dict], agent_ref:
         openai_client = _get_foundry_openai_client()
         response = openai_client.responses.create(
             input=input_messages,
-            extra_body={"agent": agent_ref},
+            extra_body={"agent_reference": agent_ref},
         )
     except HttpResponseError as exc:
         _raise_foundry_provider_http_exception(claims, exc.status_code if isinstance(exc.status_code, int) else 502, str(exc))
     except Exception as exc:
+        status_code = getattr(exc, "status_code", None)
+        if isinstance(status_code, int) and 400 <= status_code <= 599:
+            _raise_foundry_provider_http_exception(claims, status_code, str(exc))
         LOG.exception("portal_chat_foundry_default_credential_failed subject=%s", claims.get("sub"))
         raise HTTPException(
             status_code=502,
