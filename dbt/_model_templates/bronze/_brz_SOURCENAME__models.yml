@@ -1,0 +1,26 @@
+# TEMPLATE — copy and rename to:
+#   dbt/models/bronze/<source_name>/_brz_<source_name>__models.yml
+
+version: 2
+
+sources:
+  - name: SOURCENAME
+    schema: "SOURCENAME"
+    description: "Source-aligned table loaded by ingestion."
+    tables:
+      - name: DATASET
+        description: "Raw-ish dataset for SOURCENAME.DATASET"
+        columns:
+          - name: entity_id
+            tests:
+              - not_null
+              - unique
+
+models:
+  - name: brz_SOURCENAME__DATASET
+    description: "Bronze dbt normalization layer."
+    columns:
+      - name: entity_id
+        tests:
+          - not_null
+          - unique

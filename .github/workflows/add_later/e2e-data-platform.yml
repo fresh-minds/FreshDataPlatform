@@ -12,7 +12,7 @@ on:
       - "tests/configs/**"
       - "tests/fixtures/**"
       - "scripts/testing/run_e2e_tests.sh"
-      - "dbt_parallel/**"
+      - "dbt/**"
       - "dags/**"
       - "pipelines/**"
       - "shared/**"

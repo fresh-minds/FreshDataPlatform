@@ -61,7 +61,7 @@ The Postgres pipeline creates and refreshes these serving tables:
 - `loaded_at` (TIMESTAMPTZ, default `now()`)
 
 ## dbt Parallel Model Layer
-`dbt_parallel/` provides SQL-native models over serving sources:
+`dbt/` provides SQL-native models over serving sources:
 - Model: `job_market_snapshot` <- source `job_market_nl.it_market_snapshot`
 - Model: `job_market_top_skills` <- source `job_market_nl.it_market_top_skills`
 

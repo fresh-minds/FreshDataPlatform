@@ -1,0 +1,13 @@
+# TEMPLATE — copy and rename to:
+#   dbt/models/gold/<source_name>/_gold_<source_name>__models.yml
+
+version: 2
+
+models:
+  - name: fct_DATASET
+    description: "Gold fact model derived from silver layer."
+    columns:
+      - name: entity_id
+        tests:
+          - not_null
+          - unique

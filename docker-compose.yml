@@ -248,6 +248,7 @@ services:
       - SQLALCHEMY_DATABASE_URI=postgresql+psycopg2://${SUPERSET_DB_USER:?Set SUPERSET_DB_USER}:${SUPERSET_DB_PASSWORD:?Set SUPERSET_DB_PASSWORD}@superset-db/${SUPERSET_DB_NAME:-superset}
       - SUPERSET_ADMIN_USER=${SUPERSET_ADMIN_USER:-admin}
       - SUPERSET_ADMIN_PASSWORD=${SUPERSET_ADMIN_PASSWORD:?Set SUPERSET_ADMIN_PASSWORD}
+      - MAPBOX_API_KEY=${MAPBOX_API_KEY:-}
       - KEYCLOAK_SUPERSET_CLIENT_ID=${KEYCLOAK_SUPERSET_CLIENT_ID:-superset}
       - KEYCLOAK_SUPERSET_CLIENT_SECRET=${KEYCLOAK_SUPERSET_CLIENT_SECRET:-change_me_keycloak_superset_secret}
       - KEYCLOAK_OIDC_BASE_URL=${KEYCLOAK_OIDC_BASE_URL:-http://keycloak:8090/realms/odp/protocol/openid-connect}
@@ -527,7 +528,7 @@ services:
     ports:
       - "8089:80"
     volumes:
-      - ./dbt_parallel/target:/usr/share/nginx/html:ro
+      - ./dbt/target:/usr/share/nginx/html:ro
       - ./ops/dbt-docs/nginx.conf:/etc/nginx/conf.d/default.conf:ro
 
   portal-api:

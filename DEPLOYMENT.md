@@ -9,6 +9,7 @@
 ### Prerequisites
 - Docker Engine + Compose plugin
 - `.env` configured from `.env.template`
+- For Superset map dashboards, set `MAPBOX_API_KEY` in `.env`
 
 ### Bring up stack
 ```bash

@@ -18,7 +18,7 @@ Usage: $(basename "$0") [options]
 
 Bootstraps the local Docker stack and (re)populates:
 - MinIO buckets (uploads deterministic fixture files)
-- Warehouse baseline schemas (dbt_parallel + base schemas)
+- Warehouse baseline schemas (dbt + base schemas)
 - Superset (datasets + NL job market dashboard)
 - DataHub (schema/glossary sync + warehouse catalog registration)
 
@@ -505,8 +505,11 @@ else
   log "Skipping dbt step (--skip-dbt)."
 fi
 
-log "Seeding base serving schemas from dbt_parallel outputs..."
+log "Seeding base serving schemas from dbt outputs..."
 "$PYTHON" "$ROOT_DIR/scripts/warehouse/seed_warehouse_base_schemas.py"
+
+log "Ensuring platform metadata schema and tables..."
+"$PYTHON" "$ROOT_DIR/scripts/warehouse/init_platform_metadata.py"
 
 log "Applying warehouse security baseline (roles/grants/RLS/masking)..."
 "$PYTHON" "$ROOT_DIR/scripts/warehouse/apply_warehouse_security.py"

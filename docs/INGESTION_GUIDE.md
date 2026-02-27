@@ -5,9 +5,11 @@ platform.  By following these steps you will create a complete pipeline that:
 
 1. **Extracts** raw data into MinIO bronze (medallion architecture).
 2. **Parses** and **loads** structured records into a Postgres silver table.
-3. **Transforms** the data through dbt staging → intermediate → dimensional
-   marts (facts + dimensions).
+3. **Transforms** the data through dbt bronze → silver → gold
+   (gold can include facts + dimensions).
 4. **Observes** the pipeline with metrics and a success gate.
+5. **Publishes** run, artifact, lineage, and quality metadata into
+   warehouse schema `platform_metadata`.
 
 > **Time estimate:** 2–4 hours for a straightforward API/scrape source.
 
@@ -31,8 +33,8 @@ platform.  By following these steps you will create a complete pipeline that:
                         ┌──────────────────┼──────────────────┐
                         ▼                  ▼                  ▼
                   ┌───────────┐    ┌──────────────┐    ┌───────────┐
-                  │ stg_ view │ →  │ int_ enriched│ →  │ dim_ / fct│
-                  │ (staging) │    │(intermediate)│    │  (marts)  │
+                  │ brz_ view │ →  │ slv_ enriched│ →  │ dim_ / fct│
+                  │  (bronze) │    │   (silver)   │    │  (gold)   │
                   └───────────┘    └──────────────┘    └───────────┘
 ```
 
@@ -40,10 +42,10 @@ platform.  By following these steps you will create a complete pipeline that:
 
 | Layer          | Prefix    | Example                                    |
 |----------------|-----------|--------------------------------------------|
-| Staging        | `stg_`    | `stg_acme_portal__orders`                  |
-| Intermediate   | `int_`    | `int_acme_portal__orders_enriched`         |
-| Dimension      | `dim_`    | `dim_customer`                             |
-| Fact           | `fct_`    | `fct_orders`                               |
+| Bronze         | `brz_`    | `brz_acme_portal__orders`                  |
+| Silver         | `slv_`    | `slv_acme_portal__orders_enriched`         |
+| Gold Dimension | `dim_`    | `dim_customer`                             |
+| Gold Fact      | `fct_`    | `fct_orders`                               |
 
 ### File Layout
 
@@ -68,15 +70,15 @@ project/
 │       ├── config.py
 │       ├── extract_<dataset>.py
 │       └── parse_<dataset>.py
-├── dbt_parallel/
+├── dbt/
 │   ├── _model_templates/                       ← dbt model templates (outside models/)
-│   │   ├── staging/
-│   │   ├── intermediate/
-│   │   └── marts/
+│   │   ├── bronze/
+│   │   ├── silver/
+│   │   └── gold/
 │   └── models/
-│       ├── staging/<source>/
-│       ├── intermediate/<source>/
-│       └── marts/<source>/
+│       ├── bronze/<source>/
+│       ├── silver/<source>/
+│       └── gold/<source>/
 ```
 
 ---
@@ -216,61 +218,61 @@ def parse_artifacts(artifacts: list[dict]) -> list[dict]:
 
 ### Step 4 — Create dbt Models
 
-#### Step 4a — Staging Model
+#### Step 4a — Bronze Model
 
-Create `dbt_parallel/models/staging/<source_name>/`:
+Create `dbt/models/bronze/<source_name>/`:
 
 ```bash
-mkdir -p dbt_parallel/models/staging/<source_name>
+mkdir -p dbt/models/bronze/<source_name>
 ```
 
 Copy the templates:
 
 ```bash
-cp dbt_parallel/_model_templates/staging/stg_SOURCENAME__DATASET.sql \
-   dbt_parallel/models/staging/<source_name>/stg_<source_name>__<dataset>.sql
+cp dbt/_model_templates/bronze/brz_SOURCENAME__DATASET.sql \
+   dbt/models/bronze/<source_name>/brz_<source_name>__<dataset>.sql
 
-cp dbt_parallel/_model_templates/staging/_stg_SOURCENAME__models.yml \
-   dbt_parallel/models/staging/<source_name>/_stg_<source_name>__models.yml
+cp dbt/_model_templates/bronze/_brz_SOURCENAME__models.yml \
+   dbt/models/bronze/<source_name>/_brz_<source_name>__models.yml
 ```
 
-Edit the staging model — it should be a 1:1 view over the source table with
+Edit the bronze model — it should be a 1:1 view over the source table with
 light type-casting and renaming only. No joins or business logic.
 
 Edit the YAML — register the source and model, add `not_null` + `unique` tests
 on the primary key.
 
-#### Step 4b — Intermediate Model
+#### Step 4b — Silver Model
 
-Create `dbt_parallel/models/intermediate/<source_name>/`:
+Create `dbt/models/silver/<source_name>/`:
 
 ```bash
-mkdir -p dbt_parallel/models/intermediate/<source_name>
+mkdir -p dbt/models/silver/<source_name>
 ```
 
-The intermediate model adds computed fields, coalesces NULLs for dimension
-keys, and applies business logic. Reference the staging model with `{{ ref() }}`.
+The silver model adds computed fields, coalesces NULLs for dimension
+keys, and applies business logic. Reference the bronze model with `{{ ref() }}`.
 
 Example computed fields:
 - `days_since_created` = `current_date - created_date`
 - `is_expired` = `closing_date < current_date`
 - `status_clean` = `coalesce(nullif(trim(status), ''), 'Unknown')`
 
-#### Step 4c — Marts (Dimensions + Facts)
+#### Step 4c — Gold (Dimensions + Facts)
 
-Create `dbt_parallel/models/marts/<source_name>/`:
+Create `dbt/models/gold/<source_name>/`:
 
 ```bash
-mkdir -p dbt_parallel/models/marts/<source_name>
+mkdir -p dbt/models/gold/<source_name>
 ```
 
 **Dimensions** — `SELECT DISTINCT` the natural key from the enriched
-intermediate model, with a `{{ hashed_key(['column_name']) }}` surrogate key:
+silver model, with a `{{ hashed_key(['column_name']) }}` surrogate key:
 
 ```sql
 with source as (
     select distinct status_clean as status_name
-    from {{ ref('int_<source_name>__<dataset>_enriched') }}
+    from {{ ref('slv_<source_name>__<dataset>_enriched') }}
 )
 select
     {{ hashed_key(['status_name']) }} as status_sk,
@@ -278,23 +280,23 @@ select
 from source
 ```
 
-**Fact** — join the enriched model to all dimension tables via surrogate keys:
+**Fact** — join the silver model to all dimension tables via surrogate keys:
 
 ```sql
-with enriched as (
-    select * from {{ ref('int_<source_name>__<dataset>_enriched') }}
+with silver as (
+    select * from {{ ref('slv_<source_name>__<dataset>_enriched') }}
 ),
 dim_status as (
     select * from {{ ref('dim_status') }}
 )
 select
     dim_status.status_sk,
-    enriched.entity_id,
-    enriched.amount,
-    enriched.ingested_at
-from enriched
+    silver.entity_id,
+    silver.amount,
+    silver.ingested_at
+from silver
 left join dim_status
-    on enriched.status_clean = dim_status.status_name
+    on silver.status_clean = dim_status.status_name
 ```
 
 **YAML** — add `not_null`/`unique` tests on all surrogate keys, and
@@ -328,7 +330,7 @@ Edit the file:
 4. Wire `make_ensure_ddl_callable(YOUR_CONFIG)` into preflight.
 5. Implement `_extract_to_bronze()` using your extractor.
 6. Implement `_parse_and_load()` using your parser + `upsert_records()`.
-7. Set the dbt selector in `make_dbt_run_callable(select="stg_<source>__<dataset>+")`.
+7. Set the dbt selector in `make_dbt_run_callable(select="brz_<source>__<dataset>+")`.
 8. Add source-specific connections to `make_validate_connections_callable()`.
 
 **Key imports from `dag_helpers`:**
@@ -365,10 +367,12 @@ print(_generate_index_sql(MY_CONFIG))
 
 ```bash
 docker exec -it airflow-worker python3 -c "
+from src.ingestion.common.metadata_store import ensure_metadata_tables
 from src.ingestion.common.postgres import ensure_source_ddl, ensure_state_table, upsert_records
 from src.ingestion.<source_name>.config import MY_CONFIG
 ensure_source_ddl(MY_CONFIG)
 ensure_state_table()
+ensure_metadata_tables()
 print('DDL created for', MY_CONFIG.fqn)
 "
 ```
@@ -377,12 +381,12 @@ print('DDL created for', MY_CONFIG.fqn)
 
 ```bash
 docker exec -it airflow-worker bash -c '
-  dbt run  --project-dir /opt/airflow/project/dbt_parallel \
-           --profiles-dir /opt/airflow/project/dbt_parallel \
-           --select stg_<source_name>__<dataset>+
-  dbt test --project-dir /opt/airflow/project/dbt_parallel \
-           --profiles-dir /opt/airflow/project/dbt_parallel \
-           --select stg_<source_name>__<dataset>+
+  dbt run  --project-dir /opt/airflow/project/dbt \
+           --profiles-dir /opt/airflow/project/dbt \
+           --select brz_<source_name>__<dataset>+
+  dbt test --project-dir /opt/airflow/project/dbt \
+           --profiles-dir /opt/airflow/project/dbt \
+           --select brz_<source_name>__<dataset>+
 '
 ```
 
@@ -415,9 +419,15 @@ for o in objs.get('Contents', []):
 docker exec -it warehouse psql -U airflow -d freshminds_dw -c \
   "SELECT count(*) FROM <source_name>.<dataset>;"
 
-# dbt marts — fact table populated
+# dbt gold — fact table populated
 docker exec -it warehouse psql -U airflow -d freshminds_dw -c \
-  "SELECT count(*) FROM marts.fct_<dataset>;"
+  "SELECT count(*) FROM gold.fct_<dataset>;"
+
+# Metadata registry — run + artifact rows captured
+docker exec -it warehouse psql -U airflow -d freshminds_dw -c \
+  "SELECT count(*) FROM platform_metadata.pipeline_runs WHERE pipeline_name = '<source_name>_<dataset>_ingestion';"
+docker exec -it warehouse psql -U airflow -d freshminds_dw -c \
+  "SELECT count(*) FROM platform_metadata.artifact_inventory WHERE source_name = '<source_name>' AND dataset = '<dataset>';"
 ```
 
 ---
@@ -429,18 +439,18 @@ Use this checklist to track your progress:
 - [ ] `src/ingestion/<source>/config.py` — `SourceTableConfig` defined
 - [ ] `src/ingestion/<source>/extract_<dataset>.py` — extractor implemented
 - [ ] `src/ingestion/<source>/parse_<dataset>.py` — parser implemented
-- [ ] `dbt_parallel/models/staging/<source>/stg_<source>__<dataset>.sql` — staging view
-- [ ] `dbt_parallel/models/staging/<source>/_stg_<source>__models.yml` — source + tests
-- [ ] `dbt_parallel/models/intermediate/<source>/int_<source>__<dataset>_enriched.sql`
-- [ ] `dbt_parallel/models/intermediate/<source>/_int_<source>__models.yml`
-- [ ] `dbt_parallel/models/marts/<source>/dim_*.sql` — dimension tables
-- [ ] `dbt_parallel/models/marts/<source>/fct_<dataset>.sql` — fact table
-- [ ] `dbt_parallel/models/marts/<source>/_marts_<source>__models.yml` — tests + exposures
+- [ ] `dbt/models/bronze/<source>/brz_<source>__<dataset>.sql` — bronze view
+- [ ] `dbt/models/bronze/<source>/_brz_<source>__models.yml` — source + tests
+- [ ] `dbt/models/silver/<source>/slv_<source>__<dataset>_enriched.sql`
+- [ ] `dbt/models/gold/<source>/dim_*.sql` — dimension tables
+- [ ] `dbt/models/gold/fct_<dataset>.sql` — fact table
+- [ ] `dbt/models/gold/_gold_<source>__models.yml` — tests + exposures
 - [ ] `dags/<source>_<dataset>_ingestion.py` — Airflow DAG
 - [ ] DDL verified locally
 - [ ] dbt run + test passes (all tests green)
 - [ ] End-to-end DAG trigger successful
-- [ ] Ingestion state row written to `staging.ingestion_state`
+- [ ] Ingestion state row written to `platform_metadata.ingestion_state`
+- [ ] Metadata rows written to `platform_metadata.pipeline_runs`, `platform_metadata.artifact_inventory`, and lineage/quality tables
 
 ---
 
@@ -504,8 +514,8 @@ touch src/ingestion/<source_name>/__init__.py
 |---------|-------------|-----|
 | `EnvironmentError: Postgres user not set` | Missing `WAREHOUSE_USER` env var or Airflow connection | Check `.env` or add `AIRFLOW_CONN_POSTGRES_WAREHOUSE` |
 | `No primary_key column defined` | `SourceTableConfig` has no `Column(…, primary_key=True)` | Add `primary_key=True` to the natural key column |
-| dbt `source not found` | Source not registered in `_stg_*__models.yml` | Add a `sources:` block with matching name + schema |
+| dbt `source not found` | Source not registered in `_brz_*__models.yml` | Add a `sources:` block with matching name + schema |
 | `0 records parsed` from JSON | Parser not navigating to the correct JSON path | Print the JSON structure; check `_records_from_value()` |
 | Duplicate rows in dimension | Dimension key includes a per-row attribute | Move the attribute to the fact table or derive from the key |
-| `dbt test` relationship failure | FK column has values not in the dimension | Check for NULLs; coalesce to a default in the intermediate model |
+| `dbt test` relationship failure | FK column has values not in the dimension | Check for NULLs; coalesce to a default in the silver model |
 | DAG import error | Module not on `PYTHONPATH` | Verify `PYTHONPATH=/opt/airflow/project` in Dockerfile |

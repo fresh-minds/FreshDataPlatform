@@ -76,8 +76,19 @@ make dbt-docs-watch
 ```
 
 This starts required services and runs `scripts/platform/watch_dbt_docs.py`,
-which regenerates `dbt_parallel/target/` docs artifacts automatically whenever
+which regenerates `dbt/target/` docs artifacts automatically whenever
 dbt project files change.
+
+## dbt bootstrap runner threading
+
+`scripts/pipeline/run_dbt_parallel.sh` now runs dbt commands with
+`DBT_THREADS=1` by default to avoid Postgres DDL deadlocks during bootstrap.
+
+Override when needed:
+
+```bash
+DBT_THREADS=4 scripts/pipeline/run_dbt_parallel.sh
+```
 
 ## Kubernetes script logging
 

@@ -42,6 +42,13 @@ Superset OAuth security defaults:
   - `SUPERSET_OAUTH_DEFAULT_ROLE=Admin`
   - `SUPERSET_ALLOW_AUTO_ADMIN_ROLE=true`
 
+Superset map charts:
+- Set `MAPBOX_API_KEY` in `.env` for Mapbox-backed visualizations (for example `deck_gl_heatmap`).
+- Apply changes:
+  - `docker compose up -d --force-recreate superset`
+- Verify key is available in the running container:
+  - `docker exec open-data-platform-superset sh -lc 'python -c "import os; print(bool(os.getenv(\"MAPBOX_API_KEY\")))"'`
+
 ## Daily Workflow
 ### Start core services
 ```bash
@@ -51,6 +58,7 @@ docker compose up -d
 ### Run pipeline flows
 ```bash
 make run-job-market
+make run-job-market-metadata
 LOCAL_MOCK_PIPELINES=false make run PIPELINE=job_market_nl.bronze_cbs_vacancy_rate
 ```
 
@@ -66,6 +74,10 @@ Governance suite note:
 - `tests/governance/test_governance_controls.py` bootstraps `platform_audit.pipeline_runs`
   with a deterministic seed row when the table is absent, so local and CI runs are
   stable without requiring a prior E2E pipeline execution.
+- Platform-wide metadata registry tables live in schema `platform_metadata`; initialize with:
+  - `make warehouse-metadata-init`
+- `dags/job_market_nl_dag.py` (`job_market_nl_pipeline`) writes run/task/quality/lineage metadata
+  to `platform_metadata` during DAG execution.
 
 ### Run full E2E suites
 ```bash
@@ -121,6 +133,9 @@ dbt docs + lineage workflow:
 - Generate docs artifacts: `make dbt-docs-generate`
 - Generate and (re)start static docs host: `make dbt-docs-refresh`
 - Keep docs auto-updated while developing dbt logic: `make dbt-docs-watch`
+- Bootstrap dbt orchestration (`scripts/pipeline/run_dbt_parallel.sh`) defaults to
+  `DBT_THREADS=1` to avoid local Postgres deadlocks during parallel DDL.
+  Override with `DBT_THREADS=<n>` if needed.
 - Open docs UI directly at `http://localhost:8089` or via `/platform` -> "docs and horizontal technical lineage".
 
 ## Useful Make Targets
@@ -130,9 +145,9 @@ dbt docs + lineage workflow:
 - `make k8s-aks-smoke`: run in-cluster AKS smoke checks (observability + core service endpoints); HTTP checks retry for short warm-up windows (~60s max per endpoint) and then fail on RED checks
 - `make k8s-aks-up`: runs AKS smoke checks by default after deploy (`AKS_SMOKE_AFTER_UP` unset/empty = `true`) and uses Azure Key Vault as the default AKS secret source; reruns safely skip Key Vault provider re-enable when already active and can enforce minimum System nodepool capacity via `AKS_NODE_COUNT` (set `AKS_SMOKE_AFTER_UP=false` to skip smoke; set `AKS_USE_KEY_VAULT=false` to use direct `.env` -> Kubernetes secret)
 - `make k8s-aks-update-images`: build/push selected app images and patch existing AKS deployments only (faster inner loop; no infra/parity apply); when `AKS_IMAGES` includes `airflow`, also refreshes `airflow-webserver-config` from `airflow/webserver_config.py` and refreshes dbt docs init image
-- `make dbt-docs-generate`: generate dbt docs site artifacts in `dbt_parallel/target/`
+- `make dbt-docs-generate`: generate dbt docs site artifacts in `dbt/target/`
 - `make dbt-docs-refresh`: regenerate dbt docs and ensure static docs service is running
-- `make dbt-docs-watch`: auto-regenerate dbt docs whenever files in `dbt_parallel/models|macros|snapshots|seeds|tests` change
+- `make dbt-docs-watch`: auto-regenerate dbt docs whenever files in `dbt/models|macros|snapshots|seeds|tests` change
 - `make schema-validate`: validate DBML conventions
 - `make schema-drift-check`: compare warehouse to `schema/warehouse.dbml`
 - `make governance-validate`: validate governance metadata completeness
@@ -154,7 +169,7 @@ Quick steps:
 1. Copy `src/ingestion/_template/` to `src/ingestion/<source_name>/`.
 2. Define a `SourceTableConfig` in `config.py`.
 3. Write an extractor and parser.
-4. Copy dbt model templates from `dbt_parallel/_model_templates/`.
+4. Copy dbt model templates from `dbt/_model_templates/bronze|silver|gold`.
 5. Copy `dags/_template_dag.py` and wire everything together.
 6. Verify locally: `dbt run + test`, trigger DAG.
 

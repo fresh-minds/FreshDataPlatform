@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Seed base warehouse schemas from dbt_parallel outputs for local E2E runs."""
+"""Seed base warehouse schemas from dbt outputs for local E2E runs."""
 
 from __future__ import annotations
 
@@ -97,7 +97,7 @@ def main() -> int:
     finally:
         conn.close()
 
-    print("Seeded base schemas from dbt_parallel outputs.")
+    print("Seeded base schemas from dbt outputs.")
     print(f"Created/updated tables: {len(created_total)}")
     if created_total:
         print("  " + ", ".join(created_total))

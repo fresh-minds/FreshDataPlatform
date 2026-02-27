@@ -79,7 +79,7 @@ flowchart TD
   D --> E["Postgres warehouse schema: job_market_nl"]
   E --> F["Superset dashboards"]
 
-  D --> G["dbt_parallel models"]
+  D --> G["dbt models"]
   G --> E
 
   C --> H["Data quality checks"]
