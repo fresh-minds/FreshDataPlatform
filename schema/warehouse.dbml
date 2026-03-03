@@ -9,7 +9,7 @@ Project open_data_platform_dw {
 // ===========================================
 // JOB MARKET NL Domain
 // Pipeline: dags/job_market_nl_dag.py
-// dbt: dbt_parallel/models/job_market_nl/
+// dbt: dbt/models/job_market_nl/
 // ===========================================
 
 Table it_market_snapshot {

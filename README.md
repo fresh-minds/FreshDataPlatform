@@ -89,9 +89,11 @@ flowchart LR
   - Gold: analytics-ready aggregates
 - Dual transformation path:
   - Python/Spark pipelines for richer processing and Fabric compatibility
-  - dbt project (`dbt_parallel/`) for SQL-native transformations and tests
+  - dbt project (`dbt/`) for SQL-native transformations and tests
 - Metadata and governance:
   - DataHub registration scripts publish schema, tags, and lineage
+  - Warehouse `platform_metadata` schema stores run/task/artifact/lineage/quality metadata events
+  - `job_market_nl_pipeline` DAG emits operational metadata into `platform_metadata` by default
   - Governance policies and contract checks live under `tests/configs/`
 
 ## Repository Structure
@@ -105,9 +107,9 @@ src/ingestion/           Source ingestion framework (common helpers + per-source
 pipelines/               Domain pipeline logic (job_market_nl)
 shared/                  Shared runtime/config/connectors/utilities
 scripts/                 Bootstrap, QA, governance, and ops scripts
-dbt_parallel/            Parallel dbt project, seeds, and model templates
-  _model_templates/      dbt model templates for new sources (staging/intermediate/marts)
-  models/                Active dbt models (staging, intermediate, marts per source)
+dbt/            Parallel dbt project, seeds, and model templates
+  _model_templates/      dbt model templates for new sources (bronze/silver/gold)
+  models/                Active dbt models (bronze, silver, gold)
 schema/                  DBML, glossary, metrics, DQ rules
 tests/                   Unit, integration, governance, E2E, SSO suites
 frontend/                Operator launchpad and architecture UI
@@ -140,6 +142,8 @@ Option A (recommended, full bootstrap including seed/setup):
 `bootstrap_all.sh` will create `.venv` if missing, recreate it when the interpreter link is broken,
 and install bootstrap dependencies via `pip install -e ".[dev,pipeline]"`.
 Use `--skip-dev-install` only if you want to manage dependencies yourself.
+During bootstrap dbt orchestration, `scripts/pipeline/run_dbt_parallel.sh` defaults to
+`DBT_THREADS=1` to avoid Postgres deadlocks; override with `DBT_THREADS=<n>` when needed.
 
 Option B (just services):
 ```bash
@@ -163,10 +167,16 @@ Keep dbt docs and lineage auto-updated during development:
 make dbt-docs-watch
 ```
 
+Initialize platform metadata tables:
+```bash
+make warehouse-metadata-init
+```
+
 ### 3) Run a pipeline
 Postgres-only end-to-end job market pipeline:
 ```bash
 make run-job-market
+make run-job-market-metadata
 ```
 
 Run a specific pipeline entrypoint:
@@ -192,6 +202,8 @@ Key groups:
   - `VITE_DBT_DOCS_URL`, `DBT_DOCS_PUBLIC_URL`, `VITE_SHOW_DEMO_RIBBON`, `VITE_DEMO_AUTO_ADMIN`, `VITE_DEMO_USERNAME`
 - Service credentials:
   - `AIRFLOW_*`, `WAREHOUSE_*`, `MINIO_*`, `SUPERSET_*`, `DATAHUB_*`
+- Superset map rendering:
+  - `MAPBOX_API_KEY` is required for Mapbox-backed charts (for example `deck_gl_heatmap`)
 - Security-sensitive controls:
   - `MINIO_SSO_BRIDGE_SESSION_SECRET` must be set to a strong secret (32+ chars)
   - `SUPERSET_OAUTH_DEFAULT_ROLE` defaults to `Gamma` (least privilege)
@@ -204,6 +216,19 @@ Key groups:
   - `JOB_CONNECTORS_*`, `CONNECTOR_RSS_*`, `CONNECTOR_SITEMAP_*`
 
 Do not commit secrets in `.env`.
+
+Superset Mapbox setup (required for map dashboards):
+
+```bash
+echo 'MAPBOX_API_KEY=<your-mapbox-public-token>' >> .env
+docker compose up -d --force-recreate superset
+```
+
+Verification:
+
+```bash
+docker exec open-data-platform-superset sh -lc 'python -c "import os; print(bool(os.getenv(\"MAPBOX_API_KEY\")))"'
+```
 
 ## Development
 For local workflows, coding standards, and extension patterns:
@@ -284,7 +309,7 @@ guide are provided:
 - [Data Ingestion Guide](docs/INGESTION_GUIDE.md) — end-to-end walkthrough
 - Python templates: `src/ingestion/_template/`
 - DAG template: `dags/_template_dag.py`
-- dbt model templates: `dbt_parallel/_model_templates/`
+- dbt model templates: `dbt/_model_templates/`
 
 ## Roadmap (Inferred)
 - Expand beyond `job_market_nl` into additional governed domains

@@ -139,8 +139,8 @@ dags/__pycache__
 scripts/__pycache__
 shared/__pycache__
 pipelines/__pycache__
-dbt_parallel/target/
-dbt_parallel/logs/
-dbt_parallel/dbt_packages/
-dbt_parallel/.user.yml
+dbt/target/
+dbt/logs/
+dbt/dbt_packages/
+dbt/.user.yml
 notebooks/*

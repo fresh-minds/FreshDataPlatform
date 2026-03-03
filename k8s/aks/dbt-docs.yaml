@@ -47,7 +47,7 @@ spec:
             - |
               set -euo pipefail
               rm -rf /tmp/dbt_project
-              cp -r /opt/airflow/project/dbt_parallel /tmp/dbt_project
+              cp -r /opt/airflow/project/dbt /tmp/dbt_project
               dbt deps --project-dir /tmp/dbt_project --profiles-dir /tmp/dbt_project
               dbt docs generate --project-dir /tmp/dbt_project --profiles-dir /tmp/dbt_project --vars '{use_seed_data: true}'
               rm -rf /docs/*

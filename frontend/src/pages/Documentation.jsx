@@ -190,7 +190,7 @@ const REPO_MAP = [
     { path: 'dags/', detail: 'Airflow DAG definitions and scheduling logic.' },
     { path: 'pipelines/', detail: 'Pipeline code that reads, transforms, and loads data.' },
     { path: 'scripts/', detail: 'Utility scripts, bootstrap tasks, and data helpers.' },
-    { path: 'dbt_parallel/', detail: 'dbt models for analytics transformations.' },
+    { path: 'dbt/', detail: 'dbt models for analytics transformations.' },
     { path: 'frontend/', detail: 'Launchpad UI and documentation experience.' },
     { path: 'docs/', detail: 'Long-form documentation and design notes.' },
     { path: 'guides/', detail: 'Operational playbooks and walkthroughs.' },

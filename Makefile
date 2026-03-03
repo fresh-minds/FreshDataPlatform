@@ -1,5 +1,5 @@
 # Open Data Platform - Development Commands
-.PHONY: install dev-install test lint format format-check run clean help schema-validate schema-drift-check dbt-debug dbt-build-seed dbt-docs-generate dbt-docs-refresh dbt-docs-watch e2e-test test-e2e test-sso qa-test warehouse-security observability-verify k8s-aks-smoke bootstrap-all bootstrap_all k8s-dev-up k8s-dev-up-full k8s-dev-down k8s-sso-gateway-up k8s-sso-gateway-forward k8s-sso-gateway-forward-stop k8s-aks-up k8s-aks-update-images k8s-aks-down
+.PHONY: install dev-install test lint format format-check run clean help schema-validate schema-drift-check dbt-debug dbt-build-seed dbt-docs-generate dbt-docs-refresh dbt-docs-watch e2e-test test-e2e test-sso qa-test run-job-market-metadata warehouse-metadata-init warehouse-security observability-verify k8s-aks-smoke bootstrap-all bootstrap_all k8s-dev-up k8s-dev-up-full k8s-dev-down k8s-sso-gateway-up k8s-sso-gateway-forward k8s-sso-gateway-forward-stop k8s-aks-up k8s-aks-update-images k8s-aks-down
 
 # Default Python
 PYTHON := python3
@@ -43,6 +43,9 @@ run:  ## Run local pipeline (use PIPELINE=domain.layer_job)
 run-job-market:  ## Run NL job market pipeline end-to-end (mock data ok)
 	$(PYTHON) scripts/pipeline/run_job_market_pipeline.py
 
+run-job-market-metadata:  ## Run NL job market pipeline and ingest metadata into platform_metadata
+	$(PYTHON) scripts/pipeline/run_job_market_metadata_pipeline.py
+
 run-job-connectors:  ## Run job aggregator connectors (RSS + sitemap)
 	$(PYTHON) scripts/pipeline/run_job_connectors.py
 
@@ -72,17 +75,17 @@ clean-data:  ## Clean local lakehouse data (prompts for confirmation)
 	$(PYTHON) scripts/platform/clean_data.py
 
 dbt-debug:  ## Validate dbt warehouse connection for parallel dbt project
-	.venv/bin/dbt debug --project-dir dbt_parallel --profiles-dir dbt_parallel
+	.venv/bin/dbt debug --project-dir dbt --profiles-dir dbt
 
 dbt-build-seed:  ## Build parallel dbt project using seed data
-	.venv/bin/dbt seed --project-dir dbt_parallel --profiles-dir dbt_parallel --full-refresh
-	.venv/bin/dbt run --project-dir dbt_parallel --profiles-dir dbt_parallel --vars '{use_seed_data: true}'
-	.venv/bin/dbt snapshot --project-dir dbt_parallel --profiles-dir dbt_parallel --vars '{use_seed_data: true}'
-	.venv/bin/dbt test --project-dir dbt_parallel --profiles-dir dbt_parallel --vars '{use_seed_data: true}'
+	.venv/bin/dbt seed --project-dir dbt --profiles-dir dbt --full-refresh
+	.venv/bin/dbt run --project-dir dbt --profiles-dir dbt --vars '{use_seed_data: true}'
+	.venv/bin/dbt snapshot --project-dir dbt --profiles-dir dbt --vars '{use_seed_data: true}'
+	.venv/bin/dbt test --project-dir dbt --profiles-dir dbt --vars '{use_seed_data: true}'
 
 dbt-docs-generate:  ## Generate dbt docs artifacts for local lineage UI
-	.venv/bin/dbt deps --project-dir dbt_parallel --profiles-dir dbt_parallel
-	.venv/bin/dbt docs generate --project-dir dbt_parallel --profiles-dir dbt_parallel --vars '{use_seed_data: true}'
+	.venv/bin/dbt deps --project-dir dbt --profiles-dir dbt
+	.venv/bin/dbt docs generate --project-dir dbt --profiles-dir dbt --vars '{use_seed_data: true}'
 
 dbt-docs-refresh:  ## Regenerate dbt docs and (re)start static dbt docs service
 	$(MAKE) dbt-docs-generate
@@ -90,7 +93,7 @@ dbt-docs-refresh:  ## Regenerate dbt docs and (re)start static dbt docs service
 
 dbt-docs-watch:  ## Watch dbt project changes and auto-regenerate docs + lineage
 	docker compose up -d warehouse dbt-docs
-	.venv/bin/python scripts/platform/watch_dbt_docs.py --project-dir dbt_parallel --profiles-dir dbt_parallel
+	.venv/bin/python scripts/platform/watch_dbt_docs.py --project-dir dbt --profiles-dir dbt
 
 e2e-test:  ## Run end-to-end platform test suite with evidence capture
 	./scripts/testing/run_e2e_tests.sh
@@ -105,6 +108,9 @@ qa-test:  ## Run config-driven QA suites (requires warehouse + dbt artifacts)
 
 warehouse-security:  ## Apply warehouse RBAC/RLS/masking baseline
 	$(PYTHON) scripts/warehouse/apply_warehouse_security.py
+
+warehouse-metadata-init:  ## Initialize platform metadata schema/tables
+	$(PYTHON) scripts/warehouse/init_platform_metadata.py
 
 observability-verify:  ## Verify Docker Compose observability ingestion end-to-end
 	./scripts/testing/verify_compose_observability.sh

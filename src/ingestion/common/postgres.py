@@ -3,7 +3,7 @@
 Generic functions (``ensure_source_ddl``, ``upsert_records``) accept a
 ``SourceTableConfig`` so any source can reuse this module.
 
-The ingestion state table lives in schema ``staging``.
+The ingestion state table lives in schema ``platform_metadata``.
 
 Credentials resolved in priority order:
   1. Airflow connection object passed as ``conn``
@@ -30,8 +30,8 @@ from src.ingestion.common.source_config import SourceTableConfig
 
 log = logging.getLogger(__name__)
 
-# -- Staging schema constants (shared across all sources) --------------------
-_STAGING_SCHEMA = "staging"
+# -- Metadata schema constants (shared across all sources) -------------------
+_STAGING_SCHEMA = "platform_metadata"
 _STATE_TABLE = "ingestion_state"
 
 
@@ -132,7 +132,7 @@ def ensure_source_ddl(config: SourceTableConfig, conn=None) -> None:
 
 
 def ensure_state_table(conn=None) -> None:
-    """Idempotently create the shared ``staging.ingestion_state`` table."""
+    """Idempotently create the shared ``platform_metadata.ingestion_state`` table."""
     ddl = f"""
     CREATE SCHEMA IF NOT EXISTS {_STAGING_SCHEMA};
     CREATE TABLE IF NOT EXISTS {_STAGING_SCHEMA}.{_STATE_TABLE} (

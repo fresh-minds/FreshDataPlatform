@@ -11,6 +11,7 @@ from superset.security import SupersetSecurityManager
 
 ROW_LIMIT = 5000
 SECRET_KEY = os.getenv("SUPERSET_SECRET_KEY", "change_me_superset_secret_key")
+MAPBOX_API_KEY = os.getenv("MAPBOX_API_KEY", "")
 
 
 def _env_flag(name: str, default: str = "false") -> bool:

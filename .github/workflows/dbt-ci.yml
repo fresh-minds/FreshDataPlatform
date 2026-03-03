@@ -3,13 +3,13 @@ name: dbt CI
 on:
   pull_request:
     paths:
-      - "dbt_parallel/**"
+      - "dbt/**"
       - "schema/**"
       - "dags/**"
   push:
     branches: [main]
     paths:
-      - "dbt_parallel/**"
+      - "dbt/**"
       - "schema/**"
       - "dags/**"
   workflow_dispatch:
@@ -50,13 +50,13 @@ jobs:
           python -m pip install dbt-core dbt-postgres
 
       - name: Install dbt packages
-        run: dbt deps --project-dir dbt_parallel --profiles-dir dbt_parallel
+        run: dbt deps --project-dir dbt --profiles-dir dbt
 
       - name: dbt parse (validate SQL + YAML)
-        run: dbt parse --project-dir dbt_parallel --profiles-dir dbt_parallel
+        run: dbt parse --project-dir dbt --profiles-dir dbt
 
       - name: dbt compile
-        run: dbt compile --project-dir dbt_parallel --profiles-dir dbt_parallel
+        run: dbt compile --project-dir dbt --profiles-dir dbt
         continue-on-error: true  # compile may fail without live DB, but parse should not
 
   # ── dbt build + test (with Postgres service) ────────────────────
@@ -96,7 +96,7 @@ jobs:
           python -m pip install -e ".[dev]"
 
       - name: Install dbt packages
-        run: dbt deps --project-dir dbt_parallel --profiles-dir dbt_parallel
+        run: dbt deps --project-dir dbt --profiles-dir dbt
 
       - name: Create source schema and seed tables
         run: |
@@ -153,26 +153,26 @@ jobs:
           "
 
       - name: dbt debug (connection check)
-        run: dbt debug --project-dir dbt_parallel --profiles-dir dbt_parallel
+        run: dbt debug --project-dir dbt --profiles-dir dbt
         env:
           WAREHOUSE_PORT: "5432"
 
       - name: dbt build (run + test)
         run: |
-          dbt build --project-dir dbt_parallel --profiles-dir dbt_parallel \
+          dbt build --project-dir dbt --profiles-dir dbt \
             --full-refresh
         env:
           WAREHOUSE_PORT: "5432"
 
       - name: dbt source freshness
         run: |
-          dbt source freshness --project-dir dbt_parallel --profiles-dir dbt_parallel \
+          dbt source freshness --project-dir dbt --profiles-dir dbt \
             || true  # freshness may warn on CI seed data
         env:
           WAREHOUSE_PORT: "5432"
 
       - name: dbt docs generate
-        run: dbt docs generate --project-dir dbt_parallel --profiles-dir dbt_parallel
+        run: dbt docs generate --project-dir dbt --profiles-dir dbt
         env:
           WAREHOUSE_PORT: "5432"
 
@@ -182,10 +182,10 @@ jobs:
         with:
           name: dbt-artifacts
           path: |
-            dbt_parallel/target/manifest.json
-            dbt_parallel/target/run_results.json
-            dbt_parallel/target/sources.json
-            dbt_parallel/target/catalog.json
+            dbt/target/manifest.json
+            dbt/target/run_results.json
+            dbt/target/sources.json
+            dbt/target/catalog.json
 
   # ── Schema & DAG validation ─────────────────────────────────────
   validate:
