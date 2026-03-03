@@ -219,6 +219,21 @@
                     "temporary": false
                 }
             ]
+        },
+        {
+            "username": "demo",
+            "enabled": true,
+            "email": "demo@example.com",
+            "emailVerified": true,
+            "firstName": "Demo",
+            "lastName": "User",
+            "credentials": [
+                {
+                    "type": "password",
+                    "value": "${KEYCLOAK_DEMO_USER_PASSWORD}",
+                    "temporary": false
+                }
+            ]
         }
     ]
 }

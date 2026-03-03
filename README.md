@@ -32,6 +32,9 @@ Open Data Platform is a reference implementation for running analytics workloads
 - Operator UX consistency:
   - Frontend `/platform`, `/architecture`, and `/services` provide aligned observability links (Grafana, Prometheus, Alertmanager)
   - Frontend `/platform` includes `docs and horizontal technical lineage` linking to dbt docs (`dbt docs & lineage`)
+  - Admin-only frontend `/admin/login-metadata` shows pre-login homepage visit counters linked to post-login user metadata
+  - Admin metadata also includes per-page route visit counters and per-API-endpoint hit counters
+  - Admin users can clear stored portal login metadata from `/admin/login-metadata`
 
 ## Architecture Overview
 The platform is composed of three planes: control plane, data plane, and operator plane.
@@ -194,7 +197,7 @@ Key groups:
   - `SUPERSET_OAUTH_DEFAULT_ROLE` defaults to `Gamma` (least privilege)
   - `SUPERSET_ALLOW_AUTO_ADMIN_ROLE=true` is required before allowing OAuth auto-registration into Superset `Admin`
 - SSO/identity:
-  - `KEYCLOAK_*`, `KEYCLOAK_DEMO_AUTO_LOGIN`, `KEYCLOAK_DEMO_AUTOLOGIN_USERNAME`, `MINIO_OIDC_REDIRECT_URI`
+  - `KEYCLOAK_*`, `KEYCLOAK_DEMO_USER_PASSWORD`, `KEYCLOAK_DEMO_AUTO_LOGIN`, `KEYCLOAK_DEMO_AUTOLOGIN_USERNAME`, `MINIO_OIDC_REDIRECT_URI`
 - Observability:
   - `OTEL_*`, `GRAFANA_ADMIN_*`, `ALERT_TEAMS_WEBHOOK_URL`
 - Connector controls:

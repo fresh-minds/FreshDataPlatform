@@ -44,6 +44,7 @@ flowchart LR
 - `frontend/`: React launchpad linking all platform surfaces
 - `/platform` launchpad section "Logging, monitoring and tracing" links Grafana, Prometheus, and Alertmanager
 - `/platform` launchpad section "docs and horizontal technical lineage" links the dbt docs UI for model docs and lineage exploration
+- `/admin/login-metadata` is admin-only and displays homepage pre-login visit counters plus linked post-login user metadata
 - `/architecture` and `/services` pages expose the same observability links for consistent operator access
 - Airflow UI: DAG operations and task-level monitoring
 - DataHub UI: metadata catalog and lineage exploration
@@ -66,6 +67,14 @@ flowchart LR
 ### Supporting Plane
 - Observability stack in `ops/observability/`
 - Keycloak realm and SSO config in `ops/keycloak/`
+- Portal API telemetry endpoints capture auth-adjacent portal metadata:
+  - `POST /api/home-visit` for anonymous homepage visit counters
+  - `POST /api/page-visit` for aggregated per-page route visit counters
+    - Counters are unique by page + source IP address
+  - `POST /api/login-metadata` for authenticated user login metadata (linked to prior visit when available)
+  - `GET /api/admin/login-metadata` for admin-only metadata retrieval
+  - `DELETE /api/admin/login-metadata` for admin-only metadata reset
+  - API middleware tracks aggregated `/api/*` endpoint hit counters for admin reporting, excluding `/api/admin/*`
 - AKS secret manager path via Azure Key Vault + Secrets Store CSI sync (`scripts/aks/aks_up.sh`, `k8s/aks/keyvault-sync.yaml`)
 
 ## Runtime Data Flow

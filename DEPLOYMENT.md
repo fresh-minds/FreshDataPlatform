@@ -269,6 +269,7 @@ This process handles:
   - Superset custom auth/bootstrap files are injected as Kubernetes ConfigMaps during AKS parity conversion (instead of hostPath bind mounts) so `superset_config.py` is always present and `/login` auto-redirects directly to Keycloak for existing SSO sessions
   - Alertmanager configuration is injected via Kubernetes `alertmanager-config` ConfigMap (`ops/observability/alertmanager.yml`) so AKS parity deploy does not depend on hostPath file mounts
   - Keycloak is part of the AKS core phase and is reapplied before full-stack parity so realm/client changes (including portal redirect URIs) are continuously reconciled
+  - AKS Keycloak realm import seeds `odp-admin` (`KEYCLOAK_DEFAULT_USER_PASSWORD`) and `demo` (`KEYCLOAK_DEMO_USER_PASSWORD`, fallback `demo`) users for controlled testing
   - Portal frontend auth fallback is domain-aware: when `VITE_KEYCLOAK_URL` is not present at build-time, it derives `https://keycloak.<current-root-domain>` (while keeping `http://localhost:8090` for local hostnames)
   - AKS manifest rendering validates unresolved placeholders before apply, and job waits fail fast for `InvalidImageName`/image-pull errors to shorten troubleshooting loops
   - Deployment rollout diagnostics now resolve selectors from each Deployment (`spec.selector.matchLabels`) so Kompose-labeled workloads (for example `io.kompose.service=datahub-kafka`) print the correct pod diagnostics on failure

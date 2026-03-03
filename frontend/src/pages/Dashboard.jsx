@@ -24,6 +24,11 @@ const DBT_DOCS_LINKS = [
 
 const OVERVIEW_ACTION = { label: 'One-screen overview', href: '/overview', icon: Eye };
 const DIRECTORY_ACTION = { label: 'User directory', href: '/directory', icon: Users };
+const LOGIN_METADATA_ACTION = {
+    label: 'Login metadata',
+    href: '/admin/login-metadata',
+    icon: Users
+};
 
 const DESTINATIONS = [
     {
@@ -76,6 +81,14 @@ const PEOPLE_ITEM = {
     detail: 'Platform users',
     href: DIRECTORY_ACTION.href,
     label: DIRECTORY_ACTION.label,
+    icon: Users
+};
+
+const LOGIN_METADATA_ITEM = {
+    subject: 'People',
+    detail: 'Homepage visits + login events',
+    href: LOGIN_METADATA_ACTION.href,
+    label: LOGIN_METADATA_ACTION.label,
     icon: Users
 };
 
@@ -213,6 +226,7 @@ function Dashboard() {
                                         <p className="launchpad-section-title">People</p>
                                         <div className="launchpad-list">
                                             <LaunchpadListItem item={PEOPLE_ITEM} />
+                                            <LaunchpadListItem item={LOGIN_METADATA_ITEM} />
                                         </div>
                                     </div>
                                 ) : null}

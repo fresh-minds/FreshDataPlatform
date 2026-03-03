@@ -93,8 +93,15 @@ Homepage assistant note:
 - Toggle the ribbon with `VITE_SHOW_DEMO_RIBBON=true|false` (default `true`).
 - Enable demo SSO bootstrap with `VITE_DEMO_AUTO_ADMIN=true` (forces real Keycloak login flow and uses demo username hint for SSO).
 - Set the demo username hint with `VITE_DEMO_USERNAME` (default `odp-admin`).
+- On `/`, before Keycloak login redirect completes, the frontend sends an anonymous visit counter event to `POST /api/home-visit`.
+- On route changes to non-home, non-admin pages, the frontend sends page telemetry to `POST /api/page-visit`.
+- Page visit counters are unique per page and IP address (repeat hits from the same IP on the same page do not increment the counter).
+- After successful login, the frontend sends user login metadata to `POST /api/login-metadata` when a prior home-visit marker exists in browser session storage, and links it to that anonymous home visit.
 - `KEYCLOAK_DEMO_AUTO_LOGIN` is disabled by default; only set it to `true` for isolated local demos where auto-submitting demo credentials is acceptable.
 - When enabled, set `KEYCLOAK_DEMO_AUTOLOGIN_USERNAME` (default `odp-admin`) and keep Keycloak on a local hostname.
+- Local realm seed users include:
+  - `odp-admin` with password `KEYCLOAK_DEFAULT_USER_PASSWORD`
+  - `demo` with password `KEYCLOAK_DEMO_USER_PASSWORD` (default `demo`)
 - On `/`, clicking the hero image opens a chat panel on the right.
 - The panel calls `portal-api` endpoint `POST /api/chat` (authenticated with the Keycloak bearer token).
 - Preferred backend env vars (Azure AI Foundry Agent): `AZURE_EXISTING_AIPROJECT_ENDPOINT` and either `AZURE_EXISTING_AGENT_ID` or `AZURE_EXISTING_AGENT_NAME`.
@@ -109,6 +116,11 @@ Homepage assistant note:
 Platform dashboard note:
 - `/platform` keeps "Overview" at the top, followed by ordered destinations (Orchestration, Storage, Analytics + Notebook workspace row, Catalog & lineage).
 - The "People" section is shown in a separate box, only visible to admins, and rendered at the very bottom.
+- The admin-only route `/admin/login-metadata` exposes homepage visit counts and logged-in user metadata captured by `portal-api`.
+- The same admin route also shows aggregated counters per page visited and per API endpoint hit.
+- Admin routes (`/admin/*`) and admin API calls (`/api/admin/*`) are excluded from telemetry counters.
+- `/admin/login-metadata` includes a `Clear metadata` action that removes all recorded login events and homepage visit counters via `DELETE /api/admin/login-metadata`.
+- `portal-api` CORS allows `DELETE` so browser-based admin metadata clearing works cross-origin in local and AKS setups.
 - `/platform` includes a dedicated "Logging, monitoring and tracing" section with links to Grafana, Prometheus, and Alertmanager.
 - `/platform` includes a dedicated "docs and horizontal technical lineage" section with a `dbt docs & lineage` link.
 - Optional frontend overrides: `VITE_GRAFANA_URL`, `VITE_PROMETHEUS_URL`, `VITE_ALERTMANAGER_URL`.

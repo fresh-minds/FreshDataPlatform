@@ -115,6 +115,9 @@ k8s-aks-smoke:  ## Run in-cluster AKS smoke checks (observability + core platfor
 bootstrap-all:  ## Start docker stack + seed MinIO/Superset/DataHub/warehouse in one go
 	./scripts/platform/bootstrap_all.sh
 
+bootstrap-low-memory: ## Start core stack only (skips heavy observability)
+	./scripts/platform/bootstrap_all.sh --low-memory
+
 bootstrap_all: bootstrap-all  ## Alias for bootstrap-all
 
 k8s-dev-up:  ## Start dev-like Kubernetes Phase A stack on a local kind cluster

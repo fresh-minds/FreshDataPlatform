@@ -324,6 +324,9 @@ Local kind:
 - Ensure `.env` includes a strong `MINIO_SSO_BRIDGE_SESSION_SECRET` (32+ chars, non-placeholder).
 
 AKS:
+- AKS Keycloak realm import seeds two test users by default:
+  - `odp-admin` with password from `KEYCLOAK_DEFAULT_USER_PASSWORD`
+  - `demo` with password from `KEYCLOAK_DEMO_USER_PASSWORD` (defaults to `demo` when unset)
 - Set `KEYCLOAK_OIDC_BASE_URL`, `KEYCLOAK_OIDC_AUTHORIZE_URL`, `KEYCLOAK_OIDC_TOKEN_URL`,
   and `KEYCLOAK_OIDC_DISCOVERY_URL` to the public Keycloak hostname (for example:
   `https://keycloak.FRONTEND_DOMAIN/realms/odp/protocol/openid-connect`).

@@ -260,6 +260,21 @@ data:
                         "temporary": false
                     }
                 ]
+            },
+            {
+                "username": "demo",
+                "enabled": true,
+                "email": "demo@example.com",
+                "emailVerified": true,
+                "firstName": "Demo",
+                "lastName": "User",
+                "credentials": [
+                    {
+                        "type": "password",
+                        "value": "${KEYCLOAK_DEMO_USER_PASSWORD}",
+                        "temporary": false
+                    }
+                ]
             }
         ]
     }
@@ -292,6 +307,7 @@ spec:
               export KEYCLOAK_GRAFANA_CLIENT_SECRET="${KEYCLOAK_GRAFANA_CLIENT_SECRET:-change_me_keycloak_grafana_secret}"
               export KEYCLOAK_GATEWAY_CLIENT_ID="${KEYCLOAK_GATEWAY_CLIENT_ID:-platform-gateway}"
               export KEYCLOAK_GATEWAY_CLIENT_SECRET="${KEYCLOAK_GATEWAY_CLIENT_SECRET:-change_me_keycloak_gateway_secret}"
+              export KEYCLOAK_DEMO_USER_PASSWORD="${KEYCLOAK_DEMO_USER_PASSWORD:-demo}"
               envsubst < /realm/odp-realm.json > /import/odp-realm.json
           envFrom:
             - secretRef:

@@ -11,6 +11,7 @@ SKIP_DATAHUB=false
 SKIP_KEYCLOAK_CHECK=false
 SKIP_DEV_INSTALL=false
 AUTO_FILL_ENV=false
+LOW_MEMORY=false
 
 usage() {
   cat <<EOF
@@ -31,6 +32,7 @@ Options:
   --skip-superset   skip running Superset setup/bootstrap scripts
   --skip-datahub    skip DataHub metadata sync/registration
   --skip-keycloak-check  skip Keycloak/OIDC verification checks
+  --low-memory      run in low-memory mode (skips heavy observability services)
   -h, --help        show this help
 EOF
 }
@@ -45,6 +47,7 @@ while [[ $# -gt 0 ]]; do
     --skip-superset) SKIP_SUPERSET=true; shift ;;
     --skip-datahub) SKIP_DATAHUB=true; shift ;;
     --skip-keycloak-check) SKIP_KEYCLOAK_CHECK=true; shift ;;
+    --low-memory) LOW_MEMORY=true; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown arg: $1" >&2; usage; exit 2 ;;
   esac
@@ -420,7 +423,40 @@ if [[ "$RESET" == "true" ]]; then
 fi
 
 log "Starting docker compose stack..."
-$COMPOSE -f "$ROOT_DIR/docker-compose.yml" up -d
+if [[ "$LOW_MEMORY" == "true" ]]; then
+  log "Low-memory mode: skipping heavy observability services (Prometheus, Grafana, Loki, etc.)"
+  # We still want the core metadata and data stack.
+  # We start everything then stop the heavy ones, or just list the core ones.
+  # Listing core is safer to avoid OOM during start.
+  $COMPOSE -f "$ROOT_DIR/docker-compose.yml" up -d \
+    warehouse \
+    minio \
+    minio-sso-bridge \
+    keycloak \
+    postgres \
+    superset-db \
+    superset \
+    airflow-init \
+    airflow-webserver \
+    airflow-scheduler \
+    datahub-mysql \
+    datahub-mysql-setup \
+    datahub-elasticsearch \
+    datahub-elasticsearch-setup \
+    datahub-zookeeper \
+    datahub-kafka \
+    datahub-kafka-setup \
+    datahub-schema-registry \
+    datahub-upgrade \
+    datahub-gms \
+    datahub-frontend \
+    portal-api \
+    portal \
+    create-buckets \
+    dbt-docs
+else
+  $COMPOSE -f "$ROOT_DIR/docker-compose.yml" up -d
+fi
 
 # Ensure DataHub Kafka is healthy (can fail on stale ZK broker registration).
 ensure_datahub_kafka
