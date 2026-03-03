@@ -1,6 +1,7 @@
 """
 Export job market gold layer tables to PostgreSQL warehouse for BI.
 """
+
 from __future__ import annotations
 
 import os
@@ -67,15 +68,9 @@ def export_table_to_warehouse(
 
         target_table = f"{WAREHOUSE_SCHEMA}.{table_name}"
 
-        df.write \
-            .format("jdbc") \
-            .option("url", JDBC_URL) \
-            .option("dbtable", target_table) \
-            .option("user", WAREHOUSE_USER) \
-            .option("password", WAREHOUSE_PASSWORD) \
-            .option("driver", "org.postgresql.Driver") \
-            .mode("overwrite") \
-            .save()
+        df.write.format("jdbc").option("url", JDBC_URL).option("dbtable", target_table).option(
+            "user", WAREHOUSE_USER
+        ).option("password", WAREHOUSE_PASSWORD).option("driver", "org.postgresql.Driver").mode("overwrite").save()
 
         print(f"[Job Market Export] ✓ Exported {table_name} ({count} rows) -> {target_table}")
         return True

@@ -81,13 +81,13 @@ dbt project files change.
 
 ## dbt bootstrap runner threading
 
-`scripts/pipeline/run_dbt_parallel.sh` now runs dbt commands with
+`scripts/pipeline/run_dbt.sh` now runs dbt commands with
 `DBT_THREADS=1` by default to avoid Postgres DDL deadlocks during bootstrap.
 
 Override when needed:
 
 ```bash
-DBT_THREADS=4 scripts/pipeline/run_dbt_parallel.sh
+DBT_THREADS=4 scripts/pipeline/run_dbt.sh
 ```
 
 ## Kubernetes script logging

@@ -91,10 +91,7 @@ def null_count(
     dataset: str,
     column: str,
 ) -> int:
-    query = (
-        f"SELECT COUNT(*) AS null_rows FROM {_qualified_table(dataset)} "
-        f"WHERE {_quote_ident(column)} IS NULL"
-    )
+    query = f"SELECT COUNT(*) AS null_rows FROM {_qualified_table(dataset)} WHERE {_quote_ident(column)} IS NULL"
     value = warehouse.query_scalar(query)
     return int(value or 0)
 
@@ -139,7 +136,7 @@ def out_of_range_count(
     query = f"""
         SELECT COUNT(*) AS invalid_rows
         FROM {_qualified_table(dataset)}
-        WHERE {' OR '.join(predicates)}
+        WHERE {" OR ".join(predicates)}
     """
     value = warehouse.query_scalar(query)
     return int(value or 0)

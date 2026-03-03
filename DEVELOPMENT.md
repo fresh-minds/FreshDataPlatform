@@ -145,7 +145,7 @@ dbt docs + lineage workflow:
 - Generate docs artifacts: `make dbt-docs-generate`
 - Generate and (re)start static docs host: `make dbt-docs-refresh`
 - Keep docs auto-updated while developing dbt logic: `make dbt-docs-watch`
-- Bootstrap dbt orchestration (`scripts/pipeline/run_dbt_parallel.sh`) defaults to
+- Bootstrap dbt orchestration (`scripts/pipeline/run_dbt.sh`) defaults to
   `DBT_THREADS=1` to avoid local Postgres deadlocks during parallel DDL.
   Override with `DBT_THREADS=<n>` if needed.
 - Open docs UI directly at `http://localhost:8089` or via `/platform` -> "docs and horizontal technical lineage".

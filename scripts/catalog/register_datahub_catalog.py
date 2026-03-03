@@ -159,9 +159,9 @@ def determine_layer_and_domain(schema_name: str, table_name: str):
     domain = None
 
     schema_lower = schema_name.lower()
-    # dbt schemas are often prefixed by the target schema (e.g., dbt_parallel_job_market_nl_dbt)
-    if schema_lower.startswith("dbt_parallel_"):
-        schema_lower = schema_lower[len("dbt_parallel_") :]
+    # dbt schemas are often prefixed by the target schema (e.g., dbt_job_market_nl_dbt)
+    if schema_lower.startswith("dbt_"):
+        schema_lower = schema_lower[len("dbt_") :]
 
     if schema_lower in {"bronze", "silver", "gold"}:
         layer = schema_lower

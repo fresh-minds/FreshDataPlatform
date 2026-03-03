@@ -1,6 +1,7 @@
 """
 Bronze ingestion for Adzuna job ads (Netherlands).
 """
+
 from __future__ import annotations
 
 import os
@@ -11,14 +12,16 @@ import requests
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import current_timestamp
 
-from shared.config.paths import LakehouseLayer, get_lakehouse_table_path, ensure_local_path_exists
+from shared.config.paths import LakehouseLayer, ensure_local_path_exists, get_lakehouse_table_path
 from shared.config.settings import get_settings
 from shared.utils.spark_helpers import clean_df_for_spark
 
 ADZUNA_BASE_URL = "https://api.adzuna.com/v1/api/jobs"
 
 
-def fetch_adzuna_jobs(app_id: str, app_key: str, country: str, query: str, results_per_page: int = 50) -> List[Dict[str, Any]]:
+def fetch_adzuna_jobs(
+    app_id: str, app_key: str, country: str, query: str, results_per_page: int = 50
+) -> List[Dict[str, Any]]:
     url = f"{ADZUNA_BASE_URL}/{country}/search/1"
     params = {
         "app_id": app_id,

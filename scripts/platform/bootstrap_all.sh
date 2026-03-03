@@ -532,8 +532,8 @@ if [[ "$SKIP_DBT" != "true" ]]; then
   "$PYTHON" "$ROOT_DIR/scripts/pipeline/ensure_job_market_source_tables.py"
 
   if [[ -x "$ROOT_DIR/.venv/bin/dbt" ]]; then
-    log "Running dbt parallel stack (seed/run/snapshot/test)..."
-    "$ROOT_DIR/scripts/pipeline/run_dbt_parallel.sh"
+    log "Running dbt stack (seed/run/snapshot/test)..."
+    "$ROOT_DIR/scripts/pipeline/run_dbt.sh"
   else
     log "dbt not found at $ROOT_DIR/.venv/bin/dbt; skipping dbt step."
   fi

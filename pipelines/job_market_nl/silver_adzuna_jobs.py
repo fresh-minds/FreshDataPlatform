@@ -1,6 +1,7 @@
 """
 Silver layer transformation for Adzuna job ads.
 """
+
 from __future__ import annotations
 
 from typing import Any, Optional
@@ -8,7 +9,7 @@ from typing import Any, Optional
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, lit
 
-from shared.config.paths import LakehouseLayer, get_lakehouse_table_path, ensure_local_path_exists
+from shared.config.paths import LakehouseLayer, ensure_local_path_exists, get_lakehouse_table_path
 from shared.config.settings import get_settings
 
 
@@ -41,22 +42,20 @@ def run_silver_adzuna_jobs(
 
     df_raw = spark.read.format("delta").load(raw_path)
 
-    df = (
-        df_raw.select(
-            col("id").cast("string").alias("job_id"),
-            col("title").alias("title"),
-            col("company_display_name").alias("company"),
-            col("location_display_name").alias("location"),
-            col("created").alias("posted_at"),
-            col("description").alias("description"),
-            col("contract_time").alias("contract_time"),
-            col("contract_type").alias("contract_type"),
-            col("salary_min").cast("double").alias("salary_min"),
-            col("salary_max").cast("double").alias("salary_max"),
-            col("salary_is_predicted").alias("salary_is_predicted"),
-            col("ingestion_timestamp"),
-            lit("ADZUNA").alias("source"),
-        )
+    df = df_raw.select(
+        col("id").cast("string").alias("job_id"),
+        col("title").alias("title"),
+        col("company_display_name").alias("company"),
+        col("location_display_name").alias("location"),
+        col("created").alias("posted_at"),
+        col("description").alias("description"),
+        col("contract_time").alias("contract_time"),
+        col("contract_type").alias("contract_type"),
+        col("salary_min").cast("double").alias("salary_min"),
+        col("salary_max").cast("double").alias("salary_max"),
+        col("salary_is_predicted").alias("salary_is_predicted"),
+        col("ingestion_timestamp"),
+        lit("ADZUNA").alias("source"),
     )
 
     if settings.is_local:

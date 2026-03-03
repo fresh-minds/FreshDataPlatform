@@ -1,6 +1,7 @@
 """
 Gold layer aggregations for IT job market in the Netherlands.
 """
+
 from __future__ import annotations
 
 from typing import Any, Optional
@@ -9,9 +10,9 @@ from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, desc, explode, lit, lower, udf
 from pyspark.sql.types import ArrayType, StringType
 
-from shared.config.paths import LakehouseLayer, get_lakehouse_table_path, ensure_local_path_exists
-from shared.config.settings import get_settings
 from pipelines.job_market_nl.utils import extract_skills_from_text
+from shared.config.paths import LakehouseLayer, ensure_local_path_exists, get_lakehouse_table_path
+from shared.config.settings import get_settings
 
 
 def run_gold_it_market_snapshot(
@@ -95,8 +96,7 @@ def run_gold_it_market_snapshot(
     if df_ads is not None and df_ads_count > 0:
         skill_udf = udf(lambda text: extract_skills_from_text(text), ArrayType(StringType()))
         df_skills = (
-            df_ads
-            .withColumn("skills", skill_udf(col("description")))
+            df_ads.withColumn("skills", skill_udf(col("description")))
             .withColumn("skill", explode(col("skills")))
             .groupBy("skill")
             .count()

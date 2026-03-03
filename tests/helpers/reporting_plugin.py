@@ -110,9 +110,7 @@ class QAReportingPlugin:
         lines.append("| Test | Outcome | Stage | Duration (s) |")
         lines.append("| --- | --- | --- | ---: |")
         for result in sorted(results, key=lambda item: item.nodeid):
-            lines.append(
-                f"| `{result.nodeid}` | `{result.outcome}` | `{result.stage}` | {result.duration_s:.3f} |"
-            )
+            lines.append(f"| `{result.nodeid}` | `{result.outcome}` | `{result.stage}` | {result.duration_s:.3f} |")
 
         md_path = self.artifact_dir / "qa_report.md"
         md_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -157,7 +155,12 @@ class QAReportingPlugin:
             for result in sorted(results, key=lambda item: item.nodeid):
                 if result.outcome != "failed":
                     continue
-                message = (result.message or "unknown failure").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                message = (
+                    (result.message or "unknown failure")
+                    .replace("&", "&amp;")
+                    .replace("<", "&lt;")
+                    .replace(">", "&gt;")
+                )
                 nodeid = result.nodeid.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                 html_lines.append(f"<li><code>{nodeid}</code><br/>{message}</li>")
             html_lines.append("</ul>")

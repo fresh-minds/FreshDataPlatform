@@ -1,6 +1,7 @@
 """
 Bronze ingestion for UWV Open Match vacancy data (URL-based).
 """
+
 from __future__ import annotations
 
 import io
@@ -13,7 +14,7 @@ import requests
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import current_timestamp
 
-from shared.config.paths import LakehouseLayer, get_lakehouse_table_path, ensure_local_path_exists
+from shared.config.paths import LakehouseLayer, ensure_local_path_exists, get_lakehouse_table_path
 from shared.config.settings import get_settings
 from shared.utils.spark_helpers import clean_df_for_spark
 

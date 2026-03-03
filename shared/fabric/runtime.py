@@ -100,10 +100,9 @@ def get_spark_session(app_name: str = "OpenDataPlatform") -> SparkSession:
         secret_key = os.getenv("MINIO_SECRET_KEY", "minioadmin")
 
         print(f"[Spark] Configuring MinIO S3A endpoint: {minio_endpoint}")
-        
+
         builder = (
-            builder
-            .config("spark.hadoop.fs.s3a.endpoint", minio_endpoint)
+            builder.config("spark.hadoop.fs.s3a.endpoint", minio_endpoint)
             .config("spark.hadoop.fs.s3a.access.key", access_key)
             .config("spark.hadoop.fs.s3a.secret.key", secret_key)
             .config("spark.hadoop.fs.s3a.path.style.access", "true")
@@ -121,12 +120,10 @@ def get_spark_session(app_name: str = "OpenDataPlatform") -> SparkSession:
     if os.getenv("USE_DATAHUB", "false").lower() == "true" and datahub_package:
         datahub_gms = os.getenv("DATAHUB_REST_URL", "http://localhost:8080")
         print(f"[Spark] Configuring DataHub lineage integration: {datahub_gms}")
-        
+
         # DataHub Spark Lineage Config
-        builder = (
-            builder
-            .config("spark.extraListeners", "datahub.spark.DatahubSparkListener")
-            .config("spark.datahub.rest.server", datahub_gms)
+        builder = builder.config("spark.extraListeners", "datahub.spark.DatahubSparkListener").config(
+            "spark.datahub.rest.server", datahub_gms
         )
 
     return builder.getOrCreate()

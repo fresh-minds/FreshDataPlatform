@@ -71,9 +71,7 @@ class GovernancePolicyEngine:
                 requirement_name = str(requirement)
                 checker = self._requirement_checks.get(requirement_name)
                 if checker is None:
-                    raise ValueError(
-                        f"Policy `{policy_name}` references unsupported requirement `{requirement_name}`"
-                    )
+                    raise ValueError(f"Policy `{policy_name}` references unsupported requirement `{requirement_name}`")
 
                 passed, detail = checker(dataset)
                 if not passed:
@@ -142,7 +140,10 @@ class GovernancePolicyEngine:
             return True, "rbac not required"
         roles = dataset.governance.get("allowed_roles_read", [])
         passed = isinstance(roles, list) and len(roles) > 0
-        return passed, "allowed_roles_read is required when require_rbac=true" if not passed else "rbac roles configured"
+        return (
+            passed,
+            "allowed_roles_read is required when require_rbac=true" if not passed else "rbac roles configured",
+        )
 
     def _allowed_roles_defined(self, dataset: DatasetConfig) -> tuple[bool, str]:
         roles = dataset.governance.get("allowed_roles_read", [])
@@ -177,7 +178,10 @@ class GovernancePolicyEngine:
             return True, "pii masking not required by policy"
         masking_view = dataset.governance.get("masking_view")
         passed = isinstance(masking_view, str) and bool(masking_view.strip())
-        return passed, "masking_view is required when pii_masking_required=true" if not passed else "masking_view configured"
+        return (
+            passed,
+            "masking_view is required when pii_masking_required=true" if not passed else "masking_view configured",
+        )
 
 
 def load_policies(repo_root: Path) -> list[dict[str, Any]]:

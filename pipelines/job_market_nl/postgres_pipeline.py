@@ -25,7 +25,6 @@ import requests
 
 from pipelines.job_market_nl.utils import extract_skills_from_text
 
-
 CBS_ODATA_BASE = "https://opendata.cbs.nl/ODataApi/OData"
 CBS_VACANCY_RATE_TABLE = os.getenv("CBS_VACANCY_RATE_TABLE", "80567ENG")
 CBS_VACANCIES_TABLE = os.getenv("CBS_VACANCIES_TABLE", "80472ENG")
@@ -244,13 +243,7 @@ def _fetch_job_ads_mock_or_adzuna() -> List[Dict[str, Any]]:
 
 
 def _normalize_geo_token(value: str) -> str:
-    cleaned = (
-        value.strip()
-        .lower()
-        .replace("-", " ")
-        .replace("_", " ")
-        .replace(",", " ")
-    )
+    cleaned = value.strip().lower().replace("-", " ").replace("_", " ").replace(",", " ")
     return " ".join(cleaned.split())
 
 

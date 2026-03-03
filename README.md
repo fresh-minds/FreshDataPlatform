@@ -142,7 +142,7 @@ Option A (recommended, full bootstrap including seed/setup):
 `bootstrap_all.sh` will create `.venv` if missing, recreate it when the interpreter link is broken,
 and install bootstrap dependencies via `pip install -e ".[dev,pipeline]"`.
 Use `--skip-dev-install` only if you want to manage dependencies yourself.
-During bootstrap dbt orchestration, `scripts/pipeline/run_dbt_parallel.sh` defaults to
+During bootstrap dbt orchestration, `scripts/pipeline/run_dbt.sh` defaults to
 `DBT_THREADS=1` to avoid Postgres deadlocks; override with `DBT_THREADS=<n>` when needed.
 
 Option B (just services):

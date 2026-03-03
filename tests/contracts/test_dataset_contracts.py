@@ -23,9 +23,7 @@ def test_contract_required_columns_exist(
     for dataset in _all_datasets(dataset_configs):
         required_columns = (dataset.tests.get("schema") or {}).get("required_columns", [])
         missing = missing_columns(warehouse, dataset.dataset, required_columns)
-        assert not missing, (
-            f"Contract break in {dataset.dataset}: required columns missing or renamed: {missing}"
-        )
+        assert not missing, f"Contract break in {dataset.dataset}: required columns missing or renamed: {missing}"
 
 
 @pytest.mark.contracts
@@ -38,9 +36,7 @@ def test_contract_primary_keys_present_and_unique(
         assert dataset.primary_key, f"Contract for {dataset.dataset} must declare at least one primary key column"
 
         missing_pk = missing_columns(warehouse, dataset.dataset, dataset.primary_key)
-        assert not missing_pk, (
-            f"Contract break in {dataset.dataset}: primary key columns missing: {missing_pk}"
-        )
+        assert not missing_pk, f"Contract break in {dataset.dataset}: primary key columns missing: {missing_pk}"
 
         dupes = duplicate_count(warehouse, dataset.dataset, dataset.primary_key)
         assert dupes == 0, (

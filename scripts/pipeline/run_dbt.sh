@@ -22,6 +22,7 @@ run_dbt() {
 
 echo "[dbt] Running with DBT_THREADS=$DBT_THREADS"
 run_dbt debug
+run_dbt deps
 run_dbt seed --full-refresh
 run_dbt run --vars '{use_seed_data: true}'
 run_dbt snapshot --vars '{use_seed_data: true}'

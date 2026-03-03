@@ -2,7 +2,11 @@
 .PHONY: install dev-install test lint format format-check run clean help schema-validate schema-drift-check dbt-debug dbt-build-seed dbt-docs-generate dbt-docs-refresh dbt-docs-watch e2e-test test-e2e test-sso qa-test run-job-market-metadata warehouse-metadata-init warehouse-security observability-verify k8s-aks-smoke bootstrap-all bootstrap_all k8s-dev-up k8s-dev-up-full k8s-dev-down k8s-sso-gateway-up k8s-sso-gateway-forward k8s-sso-gateway-forward-stop k8s-aks-up k8s-aks-update-images k8s-aks-down
 
 # Default Python
-PYTHON := python3
+PYTHON := .venv/bin/python
+PYTEST := .venv/bin/pytest
+RUFF := .venv/bin/ruff
+MYPY := .venv/bin/mypy
+DBT := .venv/bin/dbt
 
 help:  ## Show this help
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -17,25 +21,25 @@ pipeline-install:  ## Install pipeline runtime dependencies (Airflow, Spark, dbt
 	$(PYTHON) -m pip install -e ".[dev,pipeline]"
 
 test:  ## Run all tests
-	pytest tests/ -v
+	$(PYTEST) tests/ -v
 
 test-unit:  ## Run unit tests only
-	pytest tests/unit/ -v
+	$(PYTEST) tests/unit/ -v
 
 test-cov:  ## Run tests with coverage report
-	pytest tests/ --cov=shared --cov=pipelines --cov-report=html --cov-report=term
+	$(PYTEST) tests/ --cov=shared --cov=pipelines --cov-report=html --cov-report=term
 
 lint:  ## Run linter
-	ruff check shared/ pipelines/ tests/
+	$(RUFF) check shared/ pipelines/ tests/
 
 format:  ## Format code
-	ruff format shared/ pipelines/ tests/
+	$(RUFF) format shared/ pipelines/ tests/
 
 format-check:  ## Check formatting without modifying files
-	ruff format --check shared/ pipelines/ tests/
+	$(RUFF) format --check shared/ pipelines/ tests/
 
 type-check:  ## Run type checker
-	mypy shared/ pipelines/
+	$(MYPY) shared/ pipelines/
 
 run:  ## Run local pipeline (use PIPELINE=domain.layer_job)
 	$(PYTHON) scripts/pipeline/run_local.py --pipeline $(PIPELINE)
@@ -104,7 +108,7 @@ test-sso:  ## Run SSO E2E suite with Keycloak/browser/API evidence
 	./scripts/testing/run_sso_tests.sh
 
 qa-test:  ## Run config-driven QA suites (requires warehouse + dbt artifacts)
-	QA_ENV=$${QA_ENV:-test} QA_REQUIRE_SERVICES=true pytest tests/data_quality tests/contracts tests/governance tests/e2e -vv
+	QA_ENV=$${QA_ENV:-test} QA_REQUIRE_SERVICES=true $(PYTEST) tests/data_quality tests/contracts tests/governance tests/e2e -vv
 
 warehouse-security:  ## Apply warehouse RBAC/RLS/masking baseline
 	$(PYTHON) scripts/warehouse/apply_warehouse_security.py

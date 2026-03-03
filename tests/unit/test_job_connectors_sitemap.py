@@ -7,7 +7,7 @@ import httpx
 import pytest
 
 from shared.job_connectors.connectors.sitemap import GenericSitemapConnector
-from shared.job_connectors.http import FetchError, PoliteHttpClient
+from shared.job_connectors.http import PoliteHttpClient
 
 
 def _fixture(path: str) -> str:
@@ -177,9 +177,7 @@ def test_sitemap_connector_raises_on_malformed_xml():
 def test_sitemap_connector_respects_max_urls_limit():
     """The connector should not return more refs than max_urls."""
     index_url = "https://careers.example.com/sitemap.xml"
-    urls = "\n".join(
-        f"  <url><loc>https://careers.example.com/jobs/{i}</loc></url>" for i in range(20)
-    )
+    urls = "\n".join(f"  <url><loc>https://careers.example.com/jobs/{i}</loc></url>" for i in range(20))
     sitemap_xml = f"""<?xml version="1.0"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 {urls}

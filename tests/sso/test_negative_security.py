@@ -191,20 +191,14 @@ def test_refresh_token_rotation_behavior(sso_settings: SSOSettings, primary_app:
 
     expected_rotation = sso_settings.expected_refresh_rotation
     if expected_rotation is None:
-        pytest.skip(
-            "Rotation expectation not configured (set SSO_EXPECT_REFRESH_ROTATION=true|false to enforce)"
-        )
+        pytest.skip("Rotation expectation not configured (set SSO_EXPECT_REFRESH_ROTATION=true|false to enforce)")
 
     if expected_rotation:
         assert first_refresh.status_code == 200, "First refresh should succeed"
-        assert second_refresh.status_code in {400, 401}, (
-            "Refresh token reuse should fail when rotation is enabled"
-        )
+        assert second_refresh.status_code in {400, 401}, "Refresh token reuse should fail when rotation is enabled"
     else:
         assert first_refresh.status_code == 200, "First refresh should succeed"
-        assert second_refresh.status_code == 200, (
-            "Second refresh should succeed when rotation is disabled"
-        )
+        assert second_refresh.status_code == 200, "Second refresh should succeed when rotation is disabled"
 
 
 @pytest.mark.e2e

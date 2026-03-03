@@ -1,11 +1,12 @@
 """
 Utilities for Netherlands job market ingestion and enrichment.
 """
+
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Dict, Iterable, List, Optional, Tuple
 import re
+from dataclasses import dataclass
+from typing import Dict, Iterable, List, Optional
 
 
 @dataclass(frozen=True)

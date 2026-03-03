@@ -1,6 +1,7 @@
 """
 Silver layer transformation for CBS vacancy rate data.
 """
+
 from __future__ import annotations
 
 from typing import Any, Optional
@@ -8,7 +9,7 @@ from typing import Any, Optional
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, lit
 
-from shared.config.paths import LakehouseLayer, get_lakehouse_table_path, ensure_local_path_exists
+from shared.config.paths import LakehouseLayer, ensure_local_path_exists, get_lakehouse_table_path
 from shared.config.settings import get_settings
 
 
@@ -65,7 +66,7 @@ def run_silver_cbs_vacancy_rate(
     cols = df_raw.columns
 
     vacancies_col = _find_column(cols, ["Vacancies"])
-    vacancy_rate_col = _find_column(cols, ["VacancyRate", "Vacancy_rate"]) 
+    vacancy_rate_col = _find_column(cols, ["VacancyRate", "Vacancy_rate"])
 
     if not vacancies_col or not vacancy_rate_col:
         raise ValueError("[CBS Silver] Could not locate vacancy columns in raw dataset.")
@@ -74,8 +75,7 @@ def run_silver_cbs_vacancy_rate(
     df_periods = spark.read.format("delta").load(dim_periods_path).withColumnRenamed("Title", "period_label")
 
     df = (
-        df_raw
-        .join(df_sic, df_raw["SIC2008"] == df_sic["Key"], "left")
+        df_raw.join(df_sic, df_raw["SIC2008"] == df_sic["Key"], "left")
         .join(df_periods, df_raw["Periods"] == df_periods["Key"], "left")
         .select(
             col("SIC2008").alias("sector_code"),

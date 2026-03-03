@@ -77,9 +77,7 @@ def test_unauthenticated_access_redirects_to_keycloak(
 
         if _pkce_required_for_app(app, sso_settings):
             assert auth_query.get("code_challenge"), f"{app.name} auth request missing code_challenge"
-            assert auth_query.get("code_challenge_method") == "S256", (
-                f"{app.name} auth request missing PKCE S256"
-            )
+            assert auth_query.get("code_challenge_method") == "S256", f"{app.name} auth request missing PKCE S256"
 
         write_log(f"browser-unauth-{browser_name}-{app.name}", auth_url)
 
@@ -107,9 +105,7 @@ def test_login_establishes_session_for_each_app(
             cookie["name"].startswith("KEYCLOAK_")
             or cookie["name"] in {"AUTH_SESSION_ID", "AUTH_SESSION_ID_LEGACY", "KC_AUTH_SESSION_HASH"}
             for cookie in all_cookies
-        ), (
-            f"{app.name} login did not establish Keycloak session cookie"
-        )
+        ), f"{app.name} login did not establish Keycloak session cookie"
 
         assert app_session_cookie_count(context, app) > 0, f"{app.name} did not establish an app session"
 
@@ -242,13 +238,9 @@ def test_logout_propagation_matches_expected_design(
 
     reauth_required = _is_reauth_required(page_b, target_app, sso_settings.keycloak_base_url)
     if expect_global_logout:
-        assert reauth_required, (
-            f"Logout in {source_app.name} did not require re-authentication in {target_app.name}"
-        )
+        assert reauth_required, f"Logout in {source_app.name} did not require re-authentication in {target_app.name}"
     else:
-        assert not reauth_required, (
-            f"Logout in {source_app.name} unexpectedly invalidated session in {target_app.name}"
-        )
+        assert not reauth_required, f"Logout in {source_app.name} unexpectedly invalidated session in {target_app.name}"
 
 
 @pytest.mark.e2e

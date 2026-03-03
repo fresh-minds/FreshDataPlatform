@@ -129,7 +129,7 @@ if [[ "$DBT_EXIT" -eq 0 ]]; then
 
   "$ROOT_DIR/.venv/bin/python" "$ROOT_DIR/tests/e2e/scripts/log_pipeline_run.py" \
     --run-id "$RUN_ID" \
-    --pipeline-name "dbt_parallel_e2e_suite" \
+    --pipeline-name "dbt_e2e_suite" \
     --status "RUNNING" \
     --started-at-utc "$STARTED_AT_UTC" \
     --finished-at-utc "$STARTED_AT_UTC" \
@@ -160,7 +160,7 @@ fi
 
 "$ROOT_DIR/.venv/bin/python" "$ROOT_DIR/tests/e2e/scripts/log_pipeline_run.py" \
   --run-id "$RUN_ID" \
-  --pipeline-name "dbt_parallel_e2e_suite" \
+  --pipeline-name "dbt_e2e_suite" \
   --status "$PIPELINE_STATUS" \
   --started-at-utc "$STARTED_AT_UTC" \
   --finished-at-utc "$FINISHED_AT_UTC" \

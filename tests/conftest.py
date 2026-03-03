@@ -57,10 +57,7 @@ def warehouse(qa_environment: QAEnvironment) -> Generator[SQLWarehouseConnector,
         connector.ping()
     except Exception as exc:  # noqa: BLE001
         if qa_environment.require_services:
-            pytest.fail(
-                "Warehouse connection is required for QA tests but failed: "
-                f"{exc}"
-            )
+            pytest.fail(f"Warehouse connection is required for QA tests but failed: {exc}")
         pytest.skip(f"Warehouse unavailable, skipping QA dataset tests: {exc}")
     yield connector
 

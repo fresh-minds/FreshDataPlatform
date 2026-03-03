@@ -110,9 +110,7 @@ def test_pii_classification_and_export_leak_controls(
             continue
 
         missing = [column for column in dataset.pii_columns if column not in dataset.pii_classifications]
-        assert not missing, (
-            f"Dataset {dataset.dataset} has unclassified PII columns: {missing}"
-        )
+        assert not missing, f"Dataset {dataset.dataset} has unclassified PII columns: {missing}"
 
         for relative_path in dataset.governance.get("non_authorized_export_queries", []):
             query_path = (repo_root / str(relative_path)).resolve()
@@ -139,15 +137,11 @@ def test_restricted_datasets_rbac_controls(
             continue
 
         allowed_roles = dataset.governance.get("allowed_roles_read", []) or []
-        assert allowed_roles, (
-            f"Restricted dataset {dataset.dataset} requires non-empty allowed_roles_read"
-        )
+        assert allowed_roles, f"Restricted dataset {dataset.dataset} requires non-empty allowed_roles_read"
 
         for role_name in allowed_roles:
             allowed = warehouse.has_select_privilege(str(role_name), dataset.dataset)
-            assert allowed, (
-                f"RBAC violation: role `{role_name}` is expected to have SELECT on {dataset.dataset}"
-            )
+            assert allowed, f"RBAC violation: role `{role_name}` is expected to have SELECT on {dataset.dataset}"
 
         public_allowed = warehouse.has_select_privilege("public", dataset.dataset)
         assert not public_allowed, (
