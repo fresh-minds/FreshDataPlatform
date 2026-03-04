@@ -125,6 +125,87 @@ models:
         tests:
           - not_null
 
+  - name: dim_company
+    description: "Hiring company dimension derived from Harvey Nash job postings."
+    config:
+      materialized: table
+      tags: ['job_market', 'dimension']
+    columns:
+      - name: company_sk
+        description: "Surrogate key (MD5 hash of company_name)."
+        tests:
+          - not_null
+          - unique
+      - name: company_name
+        description: "Company name as scraped from Harvey Nash."
+        tests:
+          - not_null
+          - unique
+
+  - name: fact_job_postings
+    description: >
+      Star-schema fact table for individual Harvey Nash job postings.
+      Each row is one vacancy with FK references to dim_region and dim_company.
+      Region FK may be null when the city cannot be resolved to a Dutch province.
+    config:
+      materialized: table
+      tags: ['job_market', 'fact']
+    columns:
+      - name: posting_sk
+        description: "Surrogate key (MD5 hash of job_id)."
+        tests:
+          - not_null
+          - unique
+      - name: region_sk
+        description: "FK to dim_region (null when city cannot be resolved to a province)."
+        tests:
+          - relationships:
+              to: ref('dim_region')
+              field: region_sk
+      - name: company_sk
+        description: "FK to dim_company."
+        tests:
+          - relationships:
+              to: ref('dim_company')
+              field: company_sk
+      - name: job_id
+        description: "Natural business key for the job posting."
+        tests:
+          - not_null
+          - unique
+      - name: title
+        description: "Job title."
+        tests:
+          - not_null
+      - name: company
+        description: "Company name (denormalized from dim_company for convenience)."
+      - name: location
+        description: "Raw location string from Harvey Nash (city level)."
+      - name: province
+        description: "Resolved Dutch province (nullable)."
+      - name: contract_type
+        description: "Contract type (e.g. permanent, freelance)."
+      - name: description
+        description: "Plain-text job description."
+      - name: salary_min
+        description: "Minimum salary or rate (nullable)."
+      - name: salary_max
+        description: "Maximum salary or rate (nullable)."
+      - name: salary_raw
+        description: "Raw salary text from the card (e.g. 'Tarief in overleg')."
+      - name: url
+        description: "Canonical URL of the job posting."
+      - name: posted_date
+        description: "Date/time the posting was published (nullable)."
+      - name: source
+        description: "Source tag, always HARVEY_NASH."
+        tests:
+          - not_null
+      - name: ingestion_timestamp
+        description: "Timestamp when the row was ingested."
+        tests:
+          - not_null
+
 # ── Exposures ─────────────────────────────────────────────────────
 
 exposures:

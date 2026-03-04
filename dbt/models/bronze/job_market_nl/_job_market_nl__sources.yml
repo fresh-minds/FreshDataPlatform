@@ -73,3 +73,33 @@ sources:
             description: "Human-readable location label"
           - name: loaded_at
             description: "Timestamp when this row was loaded"
+
+      - name: harvey_nash_vacatures
+        description: "Individual job postings scraped from the Harvey Nash NL vacatures page."
+        columns:
+          - name: id
+            description: "Numeric job posting ID extracted from the URL slug"
+          - name: title
+            description: "Job title"
+          - name: company
+            description: "Hiring company name (Harvey Nash or client name)"
+          - name: location
+            description: "City where the job is based (e.g. Amsterdam)"
+          - name: province
+            description: "Dutch province extracted from location card (e.g. Noord-Holland)"
+          - name: contract_type
+            description: "Contract type (e.g. permanent, freelance) — empty when not shown on card"
+          - name: description
+            description: "Job description — empty at card level; available on detail page"
+          - name: salary_min
+            description: "Minimum salary or rate (parsed from card text, nullable)"
+          - name: salary_max
+            description: "Maximum salary or rate (parsed from card text, nullable)"
+          - name: salary_raw
+            description: "Raw salary text from the card (e.g. 'Tarief in overleg')"
+          - name: url
+            description: "Canonical URL of the job posting"
+          - name: posted_date
+            description: "Date the posting was published — empty at card level"
+          - name: ingestion_timestamp
+            description: "Timestamp when the row was ingested"

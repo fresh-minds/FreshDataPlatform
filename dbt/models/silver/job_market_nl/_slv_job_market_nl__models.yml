@@ -25,3 +25,47 @@ models:
         description: "Number of distinct skills extracted from job ads."
         tests:
           - not_null
+
+  - name: slv_job_market_nl__harvey_nash_job_postings
+    description: >
+      Silver Harvey Nash job postings. Province is extracted directly by the
+      Python bronze pipeline from the card text 'City, Province' format and
+      maps directly to dim_region.region_name for the gold layer FK join.
+    columns:
+      - name: job_id
+        description: "Unique job posting identifier."
+        tests:
+          - not_null
+          - unique
+      - name: title
+        description: "Job title."
+        tests:
+          - not_null
+      - name: company
+        description: "Hiring company name."
+      - name: location
+        description: "City name (e.g. Amsterdam)."
+      - name: province
+        description: "Dutch province from the card (e.g. Noord-Holland). Used for dim_region join."
+      - name: contract_type
+        description: "Contract type — empty at card level."
+      - name: description
+        description: "Job description — empty at card level."
+      - name: salary_min
+        description: "Minimum salary or rate (nullable)."
+      - name: salary_max
+        description: "Maximum salary or rate (nullable)."
+      - name: salary_raw
+        description: "Raw salary text (e.g. 'Tarief in overleg', '€80 per uur')."
+      - name: url
+        description: "Canonical URL of the job posting."
+      - name: posted_date
+        description: "Posting date (nullable)."
+      - name: source
+        description: "Source tag, always HARVEY_NASH."
+        tests:
+          - not_null
+      - name: ingestion_timestamp
+        description: "Timestamp when the row was ingested."
+        tests:
+          - not_null

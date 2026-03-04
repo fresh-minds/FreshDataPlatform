@@ -10,7 +10,6 @@ from typing import Any, Optional
 from pyspark.sql import SparkSession
 
 from shared.config.paths import LakehouseLayer, get_lakehouse_table_path
-from shared.config.settings import get_settings
 from shared.utils.export_helper import read_lakehouse_table
 
 WAREHOUSE_HOST = os.getenv("WAREHOUSE_HOST", "localhost")
@@ -86,7 +85,6 @@ def run_export_job_market_to_warehouse(
     workspace_id: Optional[str] = None,
     tables: Optional[list[str]] = None,
 ) -> dict[str, bool]:
-    settings = get_settings()
     print("[Job Market Export] Starting warehouse export...")
 
     if workspace_id is None:

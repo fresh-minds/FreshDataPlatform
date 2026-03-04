@@ -12,6 +12,7 @@ And creates/refreshes:
 - job_market_nl.it_market_top_skills
 - job_market_nl.it_market_region_distribution
 - job_market_nl.it_market_job_ads_geo
+- job_market_nl.harvey_nash_vacatures (source table for Harvey Nash NL vacatures)
 """
 
 from __future__ import annotations
@@ -424,6 +425,25 @@ def ensure_tables(conn) -> None:
               longitude DOUBLE PRECISION NOT NULL,
               location_label TEXT,
               loaded_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS job_market_nl.harvey_nash_vacatures (
+              id TEXT NOT NULL,
+              title TEXT,
+              company TEXT,
+              location TEXT,
+              province TEXT,
+              contract_type TEXT,
+              description TEXT,
+              salary_min DOUBLE PRECISION,
+              salary_max DOUBLE PRECISION,
+              salary_raw TEXT,
+              url TEXT,
+              posted_date TIMESTAMPTZ,
+              ingestion_timestamp TIMESTAMPTZ NOT NULL DEFAULT now()
             )
             """
         )
