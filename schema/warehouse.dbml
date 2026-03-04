@@ -49,3 +49,103 @@ Table it_market_job_ads_geo {
   loaded_at timestamptz [not null, default: `now()`, note: 'Pipeline load timestamp']
   Note: 'Geo-coded individual IT job ad locations for map visualizations. Refreshed daily by job_market_nl_pipeline DAG.'
 }
+
+// ==========================================================================
+// GOLD LAYER — Conformed Dimensions
+// Schema: gold
+// Built by: dbt run --select gold
+// Triggered by: dags/job_market_nl_dag.py > gold.run_dbt_gold
+// Source: dbt/models/gold/_shared/
+// ==========================================================================
+
+Table gold.dim_date {
+  date_sk      text    [pk, not null, note: 'Surrogate key — MD5 hash of date_key']
+  date_key     date    [not null, unique]
+  year         int     [not null]
+  quarter      int     [not null, note: '1–4']
+  month        int     [not null, note: '1–12']
+  week_of_year int     [not null, note: 'ISO week number']
+  day_of_week  int     [not null, note: 'ISO day of week (1=Mon, 7=Sun)']
+  is_weekend   boolean [not null]
+  Note: 'Conformed date dimension: continuous calendar 2020-01-01 to 2030-12-31 (dbt_utils.date_spine). Shared across all domains.'
+}
+
+Table gold.dim_region {
+  region_sk   text  [pk, not null, note: 'Surrogate key — MD5 hash of region_name']
+  region_name text  [not null, unique]
+  latitude    float [not null, note: 'Province centroid latitude']
+  longitude   float [not null, note: 'Province centroid longitude']
+  Note: 'Conformed dimension: Dutch provinces with centroid coordinates. Sourced from it_market_region_distribution.'
+}
+
+Table gold.dim_company {
+  company_sk   text [pk, not null, note: 'Surrogate key — MD5 hash of company_name']
+  company_name text [not null, unique]
+  Note: 'Conformed dimension: hiring companies. Sourced from harvey_nash_vacatures. Shared across job_market_nl, finance, and HR domains.'
+}
+
+// ==========================================================================
+// GOLD LAYER — job_market_nl Domain Facts and Dimensions
+// Schema: gold
+// Source: dbt/models/gold/job_market_nl/
+// ==========================================================================
+
+Table gold.dim_period {
+  period_sk    text [pk, not null, note: 'Surrogate key — MD5 hash of period_key']
+  period_key   text [not null, unique, note: 'Natural business key e.g. 2025KW04']
+  period_label text [not null, note: 'Human-readable label e.g. 2025 Q4']
+  Note: 'IT market period dimension. Sourced from it_market_snapshot.'
+}
+
+Table gold.dim_sector {
+  sector_sk   text [pk, not null, note: 'Surrogate key — MD5 hash of sector_name']
+  sector_name text [not null, unique, note: 'CBS SIC2008 industry sector name']
+  Note: 'IT market sector dimension. Sourced from it_market_snapshot.'
+}
+
+Table gold.fact_it_market_snapshot {
+  snapshot_sk           text        [pk, not null, note: 'Surrogate key — MD5 hash of period_key + sector_name']
+  period_sk             text        [not null, ref: > gold.dim_period.period_sk]
+  sector_sk             text        [not null, ref: > gold.dim_sector.sector_sk]
+  period_key            text        [not null]
+  period_label          text
+  sector_name           text
+  vacancies             float       [note: 'CBS unfilled vacancy count']
+  vacancy_rate          float       [note: 'CBS vacancy rate percentage']
+  job_ads_count         int         [not null, note: 'Adzuna job ad count at snapshot time']
+  regions_with_ads      int         [not null, note: 'Dutch provinces with at least one ad']
+  regional_ads_total    int         [not null]
+  distinct_skills_count int         [not null]
+  total_skill_mentions  int         [not null]
+  loaded_at             timestamptz
+  Note: 'Star-schema fact: IT market snapshot enriched with regional and skills context. Refreshed daily.'
+}
+
+Table gold.fact_it_market_top_skills {
+  skill_sk      text        [pk, not null, note: 'Surrogate key — MD5 hash of skill']
+  skill         text        [not null]
+  mention_count int         [not null, note: 'Job ad mention count']
+  loaded_at     timestamptz
+  Note: 'Skill demand ranking from IT job advertisements.'
+}
+
+Table gold.fact_job_postings {
+  posting_sk          text        [pk, not null, note: 'Surrogate key — MD5 hash of job_id']
+  region_sk           text        [ref: > gold.dim_region.region_sk, note: 'nullable — unresolved province']
+  company_sk          text        [ref: > gold.dim_company.company_sk]
+  job_id              text        [not null]
+  title               text        [not null]
+  company             text
+  location            text        [note: 'City name']
+  province            text        [note: 'Dutch province (nullable)']
+  contract_type       text
+  description         text
+  salary_min          float
+  salary_max          float
+  salary_raw          text
+  url                 text
+  posted_date         timestamptz
+  source              text        [not null, note: 'Always HARVEY_NASH']
+  ingestion_timestamp timestamptz [not null]
+  Note: 'Harvey Nash job postings fact table with FK references to dim_region and dim_company.'
+}

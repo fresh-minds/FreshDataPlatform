@@ -1,0 +1,45 @@
+domain:
+  name: job_market_nl
+  display_name: "Job Market NL"
+  description: >
+    Dutch IT labor market indicators: vacancy rates (CBS), job advertisements
+    (Adzuna), public vacancies (UWV), and recruiter listings (Harvey Nash).
+  owner: job-market.owner@example.com
+  steward: job-market.steward@example.com
+  classification: public
+  criticality: medium
+
+entities:
+  - name: vacancy_snapshot
+    description: "Periodic aggregate of IT vacancy rates and job ad counts"
+    type: aggregate
+    glossary_terms: [Vacancy, Vacancy Rate]
+    grain: [period, sector]
+
+  - name: job_posting
+    description: "Individual job advertisement from any source"
+    type: transactional
+    glossary_terms: [Vacancy, Skill Demand]
+    grain: [job_id]
+
+  - name: skill
+    description: "Technology or competency extracted from job descriptions"
+    type: reference
+    glossary_terms: [Skill Demand]
+    grain: [skill_name]
+
+  - name: region
+    description: "Dutch province or geographic area"
+    type: reference
+    grain: [region_name]
+
+relationships:
+  - from: job_posting
+    to: region
+    type: many_to_one
+    join_key: province -> region_name
+
+  - from: job_posting
+    to: skill
+    type: many_to_many
+    description: "Skills extracted from job posting descriptions"

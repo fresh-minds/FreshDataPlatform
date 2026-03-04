@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 import os
+import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
@@ -43,6 +44,42 @@ def try_get_conn(conn_id: str):
         return BaseHook.get_connection(conn_id)
     except Exception:
         return None
+
+
+def resolve_code_version(env_var: str = "GITHUB_SHA", fallback: str = "unknown") -> str:
+    """Resolve the current code version for metadata/audit logging.
+
+    Resolution order:
+
+    1. ``env_var`` (defaults to ``GITHUB_SHA``), if set.
+    2. ``git rev-parse HEAD`` from the nearest ancestor containing ``.git``.
+    3. ``fallback``.
+    """
+    env_sha = os.environ.get(env_var, "").strip()
+    if env_sha:
+        return env_sha
+
+    git_cwd: Optional[str] = None
+    try:
+        for parent in Path(__file__).resolve().parents:
+            if (parent / ".git").exists():
+                git_cwd = str(parent)
+                break
+
+        git_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=git_cwd,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        value = git_sha.stdout.strip()
+        if git_sha.returncode == 0 and value:
+            return value
+    except Exception:
+        pass
+
+    return fallback
 
 
 # ---------------------------------------------------------------------------

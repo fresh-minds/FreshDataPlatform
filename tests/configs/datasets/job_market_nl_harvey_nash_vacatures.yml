@@ -1,0 +1,32 @@
+dataset: job_market_nl.harvey_nash_vacatures
+owner: job_market_nl.owner@example.com
+description: Individual job advertisement from any source
+domain: job_market_nl
+layer: silver
+classification: internal
+sensitivity: public
+product_tag: job-market-nl
+pii_columns: []
+pii_classifications: {}
+retention_days: 365
+timestamp_column: ingestion_timestamp
+primary_key:
+- id
+upstreams: []
+tests:
+  schema:
+    required_columns:
+    - id
+    - ingestion_timestamp
+  constraints:
+    not_null:
+    - id
+    - ingestion_timestamp
+  freshness:
+    column: ingestion_timestamp
+    max_age_hours: 48
+    format: timestamp
+governance:
+  require_rbac: false
+  allowed_roles_read: []
+  non_authorized_export_queries: []

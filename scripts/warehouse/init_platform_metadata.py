@@ -11,6 +11,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
 from src.ingestion.common.metadata_store import ensure_metadata_tables, now_utc, upsert_pipeline_run  # noqa: E402
+from src.ingestion.common.dag_helpers import resolve_code_version  # noqa: E402
 
 
 class _Conn:
@@ -33,7 +34,7 @@ def main() -> int:
         dataset="metadata",
         status="SUCCESS",
         triggered_by=os.getenv("USER", "bootstrap"),
-        code_version=os.getenv("GITHUB_SHA", "local"),
+        code_version=resolve_code_version(fallback="local"),
         started_at_utc=now_utc(),
         finished_at_utc=now_utc(),
         metadata={"action": "ensure_metadata_tables"},

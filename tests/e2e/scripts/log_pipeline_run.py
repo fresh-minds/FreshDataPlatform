@@ -3,12 +3,12 @@ from __future__ import annotations
 
 import argparse
 import os
-import subprocess
 from datetime import datetime, timezone
 
 import psycopg2
 
 from src.ingestion.common.metadata_store import ensure_metadata_tables, upsert_pipeline_run
+from src.ingestion.common.dag_helpers import resolve_code_version
 
 
 class _WarehouseConnAdapter:
@@ -18,28 +18,6 @@ class _WarehouseConnAdapter:
         self.schema = os.getenv("WAREHOUSE_DB", "open_data_platform_dw")
         self.login = os.getenv("WAREHOUSE_USER", "admin")
         self.password = os.getenv("WAREHOUSE_PASSWORD", "admin")
-
-
-def _resolve_code_version() -> str:
-    env_sha = os.getenv("GITHUB_SHA")
-    if env_sha:
-        return env_sha
-
-    try:
-        completed = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-        if completed.returncode == 0:
-            value = completed.stdout.strip()
-            if value:
-                return value
-    except Exception:
-        pass
-
-    return "unknown"
 
 
 def _connect():
@@ -66,7 +44,7 @@ def main() -> int:
     args = _parse_args()
 
     triggered_by = os.getenv("GITHUB_ACTOR") or os.getenv("USER") or os.getenv("USERNAME") or "unknown"
-    code_version = _resolve_code_version()
+    code_version = resolve_code_version()
 
     # Validate timestamp inputs eagerly.
     datetime.fromisoformat(args.started_at_utc.replace("Z", "+00:00"))

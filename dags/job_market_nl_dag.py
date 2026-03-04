@@ -1,11 +1,25 @@
 """
-NL IT Job Market Pipeline DAG — decomposed with task groups, SLA, and quality checkpoints.
+NL IT Job Market Gold Pipeline DAG
 
-This DAG orchestrates the full job market data pipeline:
-  1. Bronze — fetch source data
-  2. Silver — build cleaned/aggregated intermediate outputs
-  3. Gold — publish curated warehouse tables
-  4. Quality — run data quality checks
+Publishes the curated gold-layer warehouse tables by reading from the silver
+Postgres tables that are populated by the dedicated source DAGs:
+
+  - ``cbs_vacancy_rate_dag``   → job_market_nl.cbs_vacancy_rate
+  - ``adzuna_job_ads_dag``     → job_market_nl.it_market_{top_skills,region_distribution,job_ads_geo}
+  - ``uwv_open_match_dag``     → job_market_nl.uwv_vacancies
+  - ``harvey_nash_vacatures_dag`` → job_market_nl.harvey_nash_vacatures
+
+This DAG only runs the Gold and Quality task groups:
+
+  1. Gold    — build the ``it_market_snapshot`` fact row from the latest CBS
+               silver data and the Adzuna job-ad count, then write it to the
+               warehouse.
+  2. Quality — run data quality checks against all freshly loaded tables.
+
+Scheduling note: schedule this DAG after the source DAGs have completed.
+A simple approach is to set the schedule to 03:00 UTC so the silver DAGs
+(01:00, 01:30, 02:00 UTC) have time to finish.  For a strict dependency,
+wire up Airflow ExternalTaskSensors pointing at each source DAG.
 """
 
 from datetime import datetime, timedelta
@@ -22,18 +36,15 @@ _DAG_ID = "job_market_nl_pipeline"
 def _metadata_context(**kwargs):
     """Resolve common metadata logging context for this DAG run."""
     import os
-    import subprocess
     from datetime import datetime, timezone
+
+    from src.ingestion.common.dag_helpers import resolve_code_version
 
     ti = kwargs["ti"]
     dag_run = kwargs.get("dag_run")
     run_id = getattr(dag_run, "run_id", None) or f"{_DAG_ID}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
     triggered_by = os.environ.get("USER", "airflow")
-    try:
-        git_sha = subprocess.run(["git", "rev-parse", "HEAD"], text=True, capture_output=True, check=False)
-        code_version = git_sha.stdout.strip() if git_sha.returncode == 0 and git_sha.stdout.strip() else "unknown"
-    except Exception:
-        code_version = "unknown"
+    code_version = resolve_code_version()
     return ti, run_id, triggered_by, code_version
 
 
@@ -85,116 +96,22 @@ def _log_task_success(
 # Keeping imports inside the callables avoids import errors at DAG parse time.
 # ---------------------------------------------------------------------------
 
-def _fetch_cbs_data(**kwargs):
-    """Fetch CBS vacancy rate and vacancies data."""
-    from pipelines.job_market_nl.postgres_pipeline import (
-        CBS_IT_SECTOR_KEY,
-        CBS_VACANCIES_TABLE,
-        CBS_VACANCY_RATE_TABLE,
-        _fetch_cbs_vacancies_latest,
-        _fetch_cbs_vacancy_rate_latest,
-        _get_period_label,
-        _get_sector_label_for_vacancies,
-    )
-
-    period_rate, vacancy_rate = _fetch_cbs_vacancy_rate_latest(CBS_VACANCY_RATE_TABLE, CBS_IT_SECTOR_KEY)
-    period_vac, vacancies = _fetch_cbs_vacancies_latest(CBS_VACANCIES_TABLE, CBS_IT_SECTOR_KEY)
-
-    period_key = max([p for p in [period_rate, period_vac] if p], default=period_rate or period_vac)
-    period_label = _get_period_label(CBS_VACANCIES_TABLE, period_key)
-    sector_name = _get_sector_label_for_vacancies(CBS_VACANCIES_TABLE, CBS_IT_SECTOR_KEY)
-
-    kwargs["ti"].xcom_push(key="cbs_data", value={
-        "period_key": period_key,
-        "period_label": period_label,
-        "sector_name": sector_name,
-        "vacancies": vacancies,
-        "vacancy_rate": vacancy_rate,
-    })
-    _log_task_success(
-        kwargs=kwargs,
-        task_group="bronze",
-        task_id="fetch_cbs_data",
-        metadata={"period_key": period_key, "vacancies": vacancies, "vacancy_rate": vacancy_rate},
-    )
-    print(f"[CBS Ingest] ✓ period={period_key}, vacancies={vacancies}, rate={vacancy_rate}")
-
-
-def _fetch_job_ads(**kwargs):
-    """Fetch Adzuna job ads (or mock data in local environments)."""
-    from pipelines.job_market_nl.postgres_pipeline import _fetch_job_ads_mock_or_adzuna
-
-    job_ads = _fetch_job_ads_mock_or_adzuna()
-    kwargs["ti"].xcom_push(key="job_ads", value=job_ads)
-    _log_task_success(
-        kwargs=kwargs,
-        task_group="bronze",
-        task_id="fetch_job_ads",
-        metadata={"job_ads_count": len(job_ads)},
-    )
-    print(f"[Adzuna Ingest] ✓ fetched {len(job_ads)} job ads")
-
-
-def _build_all_outputs(**kwargs):
-    """Build snapshot row, top skills, region distribution, and geo data."""
-    from pipelines.job_market_nl.postgres_pipeline import (
-        SnapshotRow,
-        build_job_ads_geo,
-        build_region_distribution,
-        build_top_skills,
-    )
-
-    ti = kwargs["ti"]
-    cbs_data = ti.xcom_pull(key="cbs_data", task_ids="bronze.fetch_cbs_data")
-    job_ads = ti.xcom_pull(key="job_ads", task_ids="bronze.fetch_job_ads")
-
-    snapshot = SnapshotRow(
-        period_key=cbs_data["period_key"],
-        period_label=cbs_data["period_label"],
-        sector_name=cbs_data["sector_name"],
-        vacancies=cbs_data["vacancies"],
-        vacancy_rate=cbs_data["vacancy_rate"],
-        job_ads_count=len(job_ads),
-    )
-
-    top_skills = build_top_skills(job_ads)
-    region_distribution = build_region_distribution(job_ads)
-    job_ads_geo = build_job_ads_geo(job_ads)
-
-    ti.xcom_push(key="snapshot", value={
-        "period_key": snapshot.period_key,
-        "period_label": snapshot.period_label,
-        "sector_name": snapshot.sector_name,
-        "vacancies": snapshot.vacancies,
-        "vacancy_rate": snapshot.vacancy_rate,
-        "job_ads_count": snapshot.job_ads_count,
-    })
-    ti.xcom_push(key="top_skills", value=top_skills)
-    ti.xcom_push(key="region_distribution", value=region_distribution)
-    ti.xcom_push(key="job_ads_geo", value=job_ads_geo)
-    _log_task_success(
-        kwargs=kwargs,
-        task_group="silver",
-        task_id="build_outputs",
-        metadata={
-            "period_key": snapshot.period_key,
-            "skills_count": len(top_skills),
-            "regions_count": len(region_distribution),
-            "geo_count": len(job_ads_geo),
-        },
-    )
-
-    print(
-        f"[Transform] ✓ snapshot period={snapshot.period_key}, "
-        f"skills={len(top_skills)}, regions={len(region_distribution)}, geo={len(job_ads_geo)}"
-    )
-
-
 def _load_to_warehouse(**kwargs):
-    """Load all transformed data into Postgres warehouse within a single transaction."""
+    """
+    Gold: build ``it_market_snapshot`` from pre-populated silver tables.
+
+    Reads the latest CBS vacancy data from ``job_market_nl.cbs_vacancy_rate``
+    and the current Adzuna job-ad count from ``job_market_nl.it_market_job_ads_geo``,
+    then TRUNCATE + INSERTs a single snapshot row into
+    ``job_market_nl.it_market_snapshot``.
+
+    Prerequisite: ``cbs_vacancy_rate_dag`` and ``adzuna_job_ads_dag`` must have
+    run and populated their respective silver tables before this task executes.
+    """
     from pipelines.job_market_nl.postgres_pipeline import (
         SnapshotRow,
-        refresh_tables,
+        _connect_warehouse,
+        ensure_tables,
     )
     from src.ingestion.common.dag_helpers import try_get_conn
     from src.ingestion.common.metadata_store import (
@@ -204,61 +121,104 @@ def _load_to_warehouse(**kwargs):
         upsert_dataset_registry,
     )
 
-    ti = kwargs["ti"]
-    snap_data = ti.xcom_pull(key="snapshot", task_ids="silver.build_outputs")
-    top_skills = ti.xcom_pull(key="top_skills", task_ids="silver.build_outputs")
-    region_distribution = ti.xcom_pull(key="region_distribution", task_ids="silver.build_outputs")
-    job_ads_geo = ti.xcom_pull(key="job_ads_geo", task_ids="silver.build_outputs")
+    conn = _connect_warehouse()
+    try:
+        ensure_tables(conn)
 
-    snapshot = SnapshotRow(**snap_data)
+        with conn.cursor() as cur:
+            # ── Read latest CBS silver row ──────────────────────────────────
+            cur.execute(
+                """
+                SELECT period_key, period_label, sector_name, vacancies, vacancy_rate
+                FROM job_market_nl.cbs_vacancy_rate
+                ORDER BY ingestion_timestamp DESC
+                LIMIT 1
+                """
+            )
+            cbs_row = cur.fetchone()
 
-    # Convert lists back to tuples for psycopg2
-    top_skills_tuples = [tuple(s) for s in (top_skills or [])]
-    region_tuples = [tuple(r) for r in (region_distribution or [])]
-    geo_tuples = [tuple(g) for g in (job_ads_geo or [])]
+        if not cbs_row:
+            raise RuntimeError(
+                "[Gold] job_market_nl.cbs_vacancy_rate is empty. "
+                "Ensure cbs_vacancy_rate_dag has run successfully before this DAG."
+            )
 
-    refresh_tables(snapshot, top_skills_tuples, region_tuples, geo_tuples)
-    conn = try_get_conn("postgres_warehouse")
+        period_key, period_label, sector_name, vacancies, vacancy_rate = cbs_row
+
+        with conn.cursor() as cur:
+            # ── Count Adzuna geo rows as job_ads_count ──────────────────────
+            cur.execute("SELECT COUNT(*) FROM job_market_nl.it_market_job_ads_geo")
+            job_ads_count = cur.fetchone()[0] or 0
+
+        snapshot = SnapshotRow(
+            period_key=period_key,
+            period_label=period_label,
+            sector_name=sector_name,
+            vacancies=vacancies,
+            vacancy_rate=vacancy_rate,
+            job_ads_count=job_ads_count,
+        )
+
+        with conn.cursor() as cur:
+            cur.execute("TRUNCATE TABLE job_market_nl.it_market_snapshot")
+            cur.execute(
+                """
+                INSERT INTO job_market_nl.it_market_snapshot
+                  (period_key, period_label, sector_name, vacancies, vacancy_rate, job_ads_count)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    snapshot.period_key,
+                    snapshot.period_label,
+                    snapshot.sector_name,
+                    snapshot.vacancies,
+                    snapshot.vacancy_rate,
+                    snapshot.job_ads_count,
+                ),
+            )
+        conn.commit()
+        print(
+            f"[Gold] ✓ Snapshot: period={snapshot.period_key}, "
+            f"vacancies={snapshot.vacancies}, rate={snapshot.vacancy_rate}, "
+            f"job_ads={snapshot.job_ads_count}"
+        )
+    finally:
+        conn.close()
+
+    # ── Metadata & lineage ────────────────────────────────────────────────────
     _, run_id, _, _ = _metadata_context(**kwargs)
+    meta_conn = try_get_conn("postgres_warehouse")
 
-    datasets = [
-        ("job_market_nl.it_market_snapshot", snapshot.job_ads_count),
-        ("job_market_nl.it_market_top_skills", len(top_skills_tuples)),
-        ("job_market_nl.it_market_region_distribution", len(region_tuples)),
-        ("job_market_nl.it_market_job_ads_geo", len(geo_tuples)),
-    ]
-    for dataset_id, row_count in datasets:
-        schema_name, table_name = dataset_id.split(".", 1)
-        upsert_dataset_registry(
-            dataset_id=dataset_id,
-            layer="gold",
-            domain="job_market_nl",
-            schema_name=schema_name,
-            table_name=table_name,
-            owner="data-platform",
-            classification="internal",
-            sensitivity="internal",
-            retention_days=365,
-            metadata={"pipeline": _DAG_ID},
-            conn=conn,
-        )
-        insert_dataset_version(
-            dataset_id=dataset_id,
-            version_label=run_id,
-            schema_hash=None,
-            column_schema=[],
-            row_count=row_count,
-            byte_size=None,
-            run_id=run_id,
-            metadata={"loaded_at": now_utc().isoformat()},
-            conn=conn,
-        )
+    upsert_dataset_registry(
+        dataset_id="job_market_nl.it_market_snapshot",
+        layer="gold",
+        domain="job_market_nl",
+        schema_name="job_market_nl",
+        table_name="it_market_snapshot",
+        owner="data-platform",
+        classification="internal",
+        sensitivity="internal",
+        retention_days=365,
+        metadata={"pipeline": _DAG_ID},
+        conn=meta_conn,
+    )
+    insert_dataset_version(
+        dataset_id="job_market_nl.it_market_snapshot",
+        version_label=run_id,
+        schema_hash=None,
+        column_schema=[],
+        row_count=1,
+        byte_size=None,
+        run_id=run_id,
+        metadata={"loaded_at": now_utc().isoformat()},
+        conn=meta_conn,
+    )
 
     lineage = {
-        "job_market_nl.it_market_snapshot": ["silver.cbs_vacancy_rate", "silver.adzuna_job_ads"],
-        "job_market_nl.it_market_top_skills": ["silver.adzuna_job_ads"],
-        "job_market_nl.it_market_region_distribution": ["silver.adzuna_job_ads"],
-        "job_market_nl.it_market_job_ads_geo": ["silver.adzuna_job_ads"],
+        "job_market_nl.it_market_snapshot": [
+            "job_market_nl.cbs_vacancy_rate",
+            "job_market_nl.it_market_job_ads_geo",
+        ],
     }
     for downstream, upstreams in lineage.items():
         for upstream in upstreams:
@@ -269,7 +229,7 @@ def _load_to_warehouse(**kwargs):
                 downstream_dataset=downstream,
                 transformation_type="TRANSFORMED",
                 metadata={"task": "load_to_warehouse"},
-                conn=conn,
+                conn=meta_conn,
             )
 
     _log_task_success(
@@ -278,12 +238,145 @@ def _load_to_warehouse(**kwargs):
         task_id="load_to_warehouse",
         metadata={
             "snapshot_rows": 1,
-            "skills_rows": len(top_skills_tuples),
-            "region_rows": len(region_tuples),
-            "geo_rows": len(geo_tuples),
+            "period_key": period_key,
+            "job_ads_count": job_ads_count,
         },
     )
-    print("[Export] ✓ Loaded all tables to Postgres warehouse")
+    print("[Export] ✓ Loaded it_market_snapshot to Postgres warehouse")
+
+
+def _run_dbt_gold(**kwargs):
+    """
+    Gold: materialise all gold-layer tables in freshminds_dw via dbt.
+
+    Runs after ``_load_to_warehouse`` has populated the silver source tables
+    (it_market_snapshot, harvey_nash_vacatures, etc.) that dbt reads from.
+    Uses subprocess — same pattern as ``_run_quality_checks`` — so that
+    stdout/stderr are forwarded to Airflow task logs and a non-zero exit code
+    marks the task FAILED with retries.
+    """
+    import os
+    import subprocess
+
+    from src.ingestion.common.dag_helpers import try_get_conn
+    from src.ingestion.common.metadata_store import (
+        insert_lineage_edge,
+        upsert_dataset_registry,
+    )
+
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    dbt_project_dir = os.path.join(repo_root, "dbt")
+    dbt_profiles_dir = os.path.join(repo_root, "dbt")
+    dbt_bin = os.path.join(repo_root, ".venv", "bin", "dbt")
+    dbt_packages_dir = os.path.join(dbt_project_dir, "dbt_packages")
+
+    # Forward warehouse credentials; fall back to local dev defaults.
+    env = os.environ.copy()
+    env.setdefault("WAREHOUSE_DB",       "freshminds_dw")
+    env.setdefault("WAREHOUSE_HOST",     "localhost")
+    env.setdefault("WAREHOUSE_PORT",     "5433")
+    env.setdefault("WAREHOUSE_USER",     "admin")
+    env.setdefault("WAREHOUSE_PASSWORD", "admin")
+
+    base_args = [
+        dbt_bin,
+        "--project-dir", dbt_project_dir,
+        "--profiles-dir", dbt_profiles_dir,
+    ]
+
+    # Install dbt packages if the packages directory is absent or empty.
+    if not os.path.isdir(dbt_packages_dir) or not os.listdir(dbt_packages_dir):
+        print("[dbt] Running dbt deps to install packages...")
+        deps = subprocess.run(
+            base_args + ["deps"], capture_output=True, text=True, env=env
+        )
+        print(deps.stdout)
+        if deps.returncode != 0:
+            print(deps.stderr)
+            raise RuntimeError(
+                f"[dbt] dbt deps failed (exit {deps.returncode}):\n{deps.stderr[-4000:]}"
+            )
+
+    # Run all gold models.  dbt resolves upstream bronze/silver refs automatically,
+    # creating or refreshing those views in the same run.
+    print("[dbt] Running: dbt run --select gold ...")
+    run = subprocess.run(
+        base_args + ["run", "--threads", "4", "--select", "gold"],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    print(run.stdout)
+    if run.returncode != 0:
+        print(run.stderr)
+        raise RuntimeError(
+            f"[dbt] dbt run failed (exit {run.returncode}):\n{run.stderr[-4000:]}"
+        )
+
+    print("[dbt] ✓ Gold materialisation complete.")
+
+    # ── Metadata & lineage ─────────────────────────────────────────────────
+    _, run_id, _, _ = _metadata_context(**kwargs)
+    meta_conn = try_get_conn("postgres_warehouse")
+
+    # Register every gold table in the dataset registry.
+    for dataset_id, table_name in [
+        ("gold.dim_date",                  "dim_date"),
+        ("gold.dim_region",                "dim_region"),
+        ("gold.dim_company",               "dim_company"),
+        ("gold.dim_period",                "dim_period"),
+        ("gold.dim_sector",                "dim_sector"),
+        ("gold.fact_it_market_snapshot",   "fact_it_market_snapshot"),
+        ("gold.fact_it_market_top_skills", "fact_it_market_top_skills"),
+        ("gold.fact_job_postings",         "fact_job_postings"),
+    ]:
+        upsert_dataset_registry(
+            dataset_id=dataset_id,
+            layer="gold",
+            domain="job_market_nl",
+            schema_name="gold",
+            table_name=table_name,
+            owner="data-platform",
+            classification="internal",
+            sensitivity="internal",
+            retention_days=365,
+            metadata={"pipeline": _DAG_ID, "built_by": "dbt"},
+            conn=meta_conn,
+        )
+
+    # Record silver → gold lineage for the key fact tables.
+    gold_lineage = {
+        "gold.fact_it_market_snapshot": [
+            "job_market_nl.it_market_snapshot",
+            "job_market_nl.it_market_region_distribution",
+            "job_market_nl.it_market_top_skills",
+        ],
+        "gold.fact_it_market_top_skills": [
+            "job_market_nl.it_market_top_skills",
+        ],
+        "gold.fact_job_postings": [
+            "job_market_nl.harvey_nash_vacatures",
+        ],
+    }
+    for downstream, upstreams in gold_lineage.items():
+        for upstream in upstreams:
+            insert_lineage_edge(
+                run_id=run_id,
+                pipeline_name=_DAG_ID,
+                upstream_dataset=upstream,
+                downstream_dataset=downstream,
+                transformation_type="TRANSFORMED",
+                metadata={"task": "run_dbt_gold", "tool": "dbt"},
+                conn=meta_conn,
+            )
+
+    _log_task_success(
+        kwargs=kwargs,
+        task_group="gold",
+        task_id="run_dbt_gold",
+        metadata={"dbt_return_code": run.returncode},
+    )
+    print("[dbt] ✓ Gold tables registered in metadata store.")
 
 
 def _run_quality_checks(**kwargs):
@@ -366,44 +459,21 @@ default_args = {
 with DAG(
     _DAG_ID,
     default_args=default_args,
-    description="NL IT job market pipeline (bronze -> silver -> gold -> Postgres) with metadata tracking",
-    schedule_interval="@daily",
+    description=(
+        "NL IT job market gold pipeline — reads from silver tables populated by "
+        "cbs_vacancy_rate_dag, adzuna_job_ads_dag, and uwv_open_match_dag, "
+        "then publishes it_market_snapshot and runs quality checks."
+    ),
+    schedule_interval="0 3 * * *",  # 03:00 UTC daily — after all silver DAGs finish
     catchup=False,
-    tags=["job_market", "nl", "bronze", "silver", "gold", "metadata"],
+    tags=["job_market", "nl", "gold", "metadata"],
     sla_miss_callback=None,  # TODO: wire up to alerting (e.g. scripts/send_alert.py)
     max_active_runs=1,
     dagrun_timeout=timedelta(hours=2),
 ) as dag:
 
-    # ── Bronze Task Group ──────────────────────────────────────────────
-    with TaskGroup("bronze", tooltip="Fetch raw source data from external systems") as bronze:
-        fetch_cbs = PythonOperator(
-            task_id="fetch_cbs_data",
-            python_callable=_fetch_cbs_data,
-            retries=3,
-            retry_delay=timedelta(minutes=2),
-            sla=timedelta(minutes=15),
-        )
-        fetch_ads = PythonOperator(
-            task_id="fetch_job_ads",
-            python_callable=_fetch_job_ads,
-            retries=3,
-            retry_delay=timedelta(minutes=2),
-            sla=timedelta(minutes=15),
-        )
-        # CBS and Adzuna can be fetched in parallel
-        [fetch_cbs, fetch_ads]
-
-    # ── Silver Task Group ──────────────────────────────────────────────
-    with TaskGroup("silver", tooltip="Build cleaned and aggregated intermediate outputs") as silver:
-        build_outputs = PythonOperator(
-            task_id="build_outputs",
-            python_callable=_build_all_outputs,
-            sla=timedelta(minutes=10),
-        )
-
-    # ── Gold Task Group ────────────────────────────────────────────────
-    with TaskGroup("gold", tooltip="Publish curated warehouse tables") as gold:
+    # ── Gold Task Group ────────────────────────────────────────────────────
+    with TaskGroup("gold", tooltip="Publish curated warehouse tables from silver sources") as gold:
         load_warehouse = PythonOperator(
             task_id="load_to_warehouse",
             python_callable=_load_to_warehouse,
@@ -412,7 +482,18 @@ with DAG(
             sla=timedelta(minutes=10),
         )
 
-    # ── Quality Task Group ─────────────────────────────────────────────
+        run_dbt_gold = PythonOperator(
+            task_id="run_dbt_gold",
+            python_callable=_run_dbt_gold,
+            retries=1,
+            retry_delay=timedelta(minutes=5),
+            sla=timedelta(minutes=20),
+        )
+
+        # load_to_warehouse (silver) must complete before dbt builds gold tables.
+        load_warehouse >> run_dbt_gold
+
+    # ── Quality Task Group ─────────────────────────────────────────────────
     with TaskGroup("quality", tooltip="Run data quality checks") as quality:
         run_dq = PythonOperator(
             task_id="run_quality_checks",
@@ -423,5 +504,5 @@ with DAG(
             trigger_rule="all_success",
         )
 
-    # ── Dependency Chain ───────────────────────────────────────────────
-    bronze >> silver >> gold >> quality
+    # ── Dependency Chain ───────────────────────────────────────────────────
+    gold >> quality

@@ -497,6 +497,30 @@ The pipeline is designed for safe re-runs:
 - Checksum guard — prevents unnecessary updates.
 - `ingested_at DEFAULT now()` — only set on first insert.
 
+### Code Version Provenance
+
+All ingestion DAGs should write a `code_version` value to metadata using
+`resolve_code_version()` from `src/ingestion/common/dag_helpers.py`.
+
+The same helper is also used by metadata scripts (for example
+`scripts/pipeline/run_job_market_metadata_pipeline.py` and
+`tests/e2e/scripts/log_pipeline_run.py`) so audit records are consistent
+between Airflow-triggered runs and script-triggered runs.
+
+Resolution order:
+- `GITHUB_SHA` env var (preferred in CI/CD and containerized deployments)
+- `git rev-parse HEAD` (fallback for local/dev runs with a `.git` directory)
+- `unknown` (final fallback when neither is available)
+
+Verification command:
+
+```bash
+docker exec -it warehouse psql -U airflow -d freshminds_dw -c \
+    "SELECT run_id, pipeline_name, code_version, started_at_utc \
+     FROM platform_metadata.pipeline_runs \
+     ORDER BY started_at_utc DESC LIMIT 10;"
+```
+
 ### Adding an __init__.py
 
 Create an empty `__init__.py` in your source directory to make it a Python

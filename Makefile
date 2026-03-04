@@ -1,5 +1,5 @@
 # Open Data Platform - Development Commands
-.PHONY: install dev-install test lint format format-check run clean help schema-validate schema-drift-check dbt-debug dbt-build-seed dbt-docs-generate dbt-docs-refresh dbt-docs-watch e2e-test test-e2e test-sso qa-test run-job-market-metadata warehouse-metadata-init warehouse-security observability-verify k8s-aks-smoke bootstrap-all bootstrap_all k8s-dev-up k8s-dev-up-full k8s-dev-down k8s-sso-gateway-up k8s-sso-gateway-forward k8s-sso-gateway-forward-stop k8s-aks-up k8s-aks-update-images k8s-aks-down
+.PHONY: install dev-install test lint format format-check run clean help schema-validate schema-drift-check dbt-debug dbt-build-seed dbt-docs-generate dbt-docs-refresh dbt-docs-watch e2e-test test-e2e test-sso qa-test run-job-market-metadata warehouse-metadata-init warehouse-security create-warehouse-user fabric-import observability-verify k8s-aks-smoke bootstrap-all bootstrap_all k8s-dev-up k8s-dev-up-full k8s-dev-down k8s-sso-gateway-up k8s-sso-gateway-forward k8s-sso-gateway-forward-stop k8s-aks-up k8s-aks-update-images k8s-aks-down platform-init-domain platform-add-entity platform-validate platform-sync
 
 # Default Python
 PYTHON := .venv/bin/python
@@ -116,11 +116,38 @@ warehouse-security:  ## Apply warehouse RBAC/RLS/masking baseline
 warehouse-metadata-init:  ## Initialize platform metadata schema/tables
 	$(PYTHON) scripts/warehouse/init_platform_metadata.py
 
+fabric-import:  ## Import Fabric SQL tables into warehouse Postgres (defaults to --all-schemas)
+	$(PYTHON) scripts/warehouse/import_fabric_sql_to_postgres.py \
+	  --fabric-endpoint "$${FABRIC_SQL_ENDPOINT}" \
+	  --fabric-database "$${FABRIC_SQL_DATABASE}" \
+	  --fabric-user "$${FABRIC_SQL_USER}" \
+	  --fabric-password "$${FABRIC_SQL_PASSWORD}" \
+	  --target-schema "$${FABRIC_TARGET_SCHEMA:-fabric_landing}" \
+	  --mode "$${FABRIC_IMPORT_MODE:-truncate}" \
+	  --batch-size "$${FABRIC_IMPORT_BATCH_SIZE:-5000}" \
+	  $${FABRIC_IMPORT_ARGS:---all-schemas}
+
 observability-verify:  ## Verify Docker Compose observability ingestion end-to-end
 	./scripts/testing/verify_compose_observability.sh
 
 k8s-aks-smoke:  ## Run in-cluster AKS smoke checks (observability + core platform services)
 	./scripts/testing/verify_aks_smoke.sh
+
+# ── Model-driven platform commands ────────────────────────────────────────
+
+platform-init-domain:  ## Scaffold a new data domain (DOMAIN=finance)
+	$(PYTHON) scripts/platform/cli.py init-domain $(DOMAIN)
+
+platform-add-entity:  ## Generate artefacts from entity YAML (DOMAIN=finance ENTITY=invoice)
+	$(PYTHON) scripts/platform/cli.py add-entity $(DOMAIN) $(ENTITY)
+
+platform-validate:  ## Validate model registry against dbt/DAGs/DDL
+	$(PYTHON) scripts/platform/cli.py validate
+
+platform-sync:  ## Regenerate derived configs from entity YAMLs (non-destructive)
+	$(PYTHON) scripts/platform/cli.py sync
+
+# ── Bootstrap ─────────────────────────────────────────────────────────────
 
 bootstrap-all:  ## Start docker stack + seed MinIO/Superset/DataHub/warehouse in one go
 	./scripts/platform/bootstrap_all.sh

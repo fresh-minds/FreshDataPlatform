@@ -1,0 +1,82 @@
+entity: vacancy_snapshot
+domain: job_market_nl
+description: "Periodic aggregate of IT vacancy rates and job ad counts for the Netherlands"
+type: aggregate
+
+layer_mapping:
+  bronze_source: it_market_snapshot
+  silver_model: slv_job_market_nl__sector_vacancy_enriched
+  gold_model: fact_it_market_snapshot
+  gold_dimensions: [dim_period, dim_sector, dim_region]
+
+attributes:
+  - name: period_key
+    type: text
+    primary_key: true
+    not_null: true
+    description: "Period identifier (e.g. 2025KW04)"
+
+  - name: period_label
+    type: text
+    description: "Human-readable period label (e.g. 2025 4th quarter)"
+
+  - name: sector_name
+    type: text
+    description: "Industry sector name from CBS SIC2008 classification"
+
+  - name: vacancies
+    type: double_precision
+    description: "Number of open vacancies reported by CBS"
+    constraints:
+      min: 0
+
+  - name: vacancy_rate
+    type: double_precision
+    description: "Vacancy rate as percentage (vacancies / total positions)"
+    constraints:
+      min: 0
+      max: 100
+
+  - name: job_ads_count
+    type: integer
+    not_null: true
+    description: "Number of IT job ads found from Adzuna"
+    constraints:
+      min: 0
+
+sources:
+  - source_name: cbs
+    dag: cbs_vacancy_rate_pipeline
+    extraction: odata_api
+    schedule: "0 1 * * *"
+    description: "CBS vacancy rate and unfilled vacancies via OData API"
+
+  - source_name: adzuna
+    dag: adzuna_job_ads_pipeline
+    extraction: rest_api
+    schedule: "30 1 * * *"
+    description: "Adzuna job ad count feeds into job_ads_count"
+
+quality:
+  freshness:
+    column: loaded_at
+    max_age_hours: 48
+    severity: high
+  checks:
+    - type: non_null
+      columns: [period_key, job_ads_count]
+    - type: value_range
+      column: vacancy_rate
+      min: 0
+      max: 100
+      max_invalid_pct: 5
+    - type: value_range
+      column: job_ads_count
+      min: 0
+      max_invalid_pct: 0
+
+governance:
+  sensitivity: public
+  pii_columns: []
+  retention_days: 365
+  require_rbac: false

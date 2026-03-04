@@ -447,6 +447,31 @@ def ensure_tables(conn) -> None:
             )
             """
         )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS job_market_nl.cbs_vacancy_rate (
+              period_key TEXT NOT NULL,
+              period_label TEXT,
+              sector_name TEXT,
+              vacancies DOUBLE PRECISION,
+              vacancy_rate DOUBLE PRECISION,
+              ingestion_timestamp TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS job_market_nl.uwv_vacancies (
+              vacancy_id TEXT NOT NULL,
+              occupation TEXT,
+              region TEXT,
+              posted_date TEXT,
+              employment_type TEXT,
+              work_time TEXT,
+              ingestion_timestamp TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+            """
+        )
     conn.commit()
 
 

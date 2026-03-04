@@ -24,7 +24,8 @@ def main() -> int:
         "[bootstrap] Ensured job market source tables exist "
         "(job_market_nl.it_market_snapshot, job_market_nl.it_market_top_skills, "
         "job_market_nl.it_market_region_distribution, job_market_nl.it_market_job_ads_geo, "
-        "job_market_nl.harvey_nash_vacatures).",
+        "job_market_nl.harvey_nash_vacatures, job_market_nl.cbs_vacancy_rate, "
+        "job_market_nl.uwv_vacancies).",
     )
     return 0
 

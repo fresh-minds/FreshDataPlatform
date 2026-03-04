@@ -1,0 +1,20 @@
+dimension: dim_company
+type: conformed
+description: "Companies referenced across job postings and potentially finance/HR domains."
+grain: [company_name]
+
+attributes:
+  - name: company_sk
+    type: text
+    primary_key: true
+    generated: "hashed_key([company_name])"
+    description: "Deterministic MD5 surrogate key"
+
+  - name: company_name
+    type: text
+    not_null: true
+    description: "Company name as it appears in source data"
+
+source_of_truth: dbt_model
+dbt_model: dim_company
+domains_using: [job_market_nl]

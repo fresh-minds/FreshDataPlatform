@@ -39,28 +39,11 @@ models:
           - not_null
           - unique
 
-  - name: dim_region
-    description: "Dutch province dimension with centroid coordinates."
-    config:
-      materialized: table
-      tags: ['job_market', 'dimension']
-    columns:
-      - name: region_sk
-        description: "Surrogate key (MD5 hash of region name)."
-        tests:
-          - not_null
-          - unique
-      - name: region_name
-        description: "Province name."
-        tests:
-          - not_null
-          - unique
-      - name: latitude
-        tests:
-          - not_null
-      - name: longitude
-        tests:
-          - not_null
+  # Note: dim_region and dim_company have been moved to
+  # dbt/models/gold/_shared/ as conformed dimensions shared across domains.
+  # They retain the same model names (dim_region, dim_company) so all
+  # {{ ref('dim_region') }} and {{ ref('dim_company') }} calls resolve
+  # without changes.
 
   # ── Facts ─────────────────────────────────────────────────────────
 
@@ -124,23 +107,6 @@ models:
         description: "Number of job ads mentioning this skill."
         tests:
           - not_null
-
-  - name: dim_company
-    description: "Hiring company dimension derived from Harvey Nash job postings."
-    config:
-      materialized: table
-      tags: ['job_market', 'dimension']
-    columns:
-      - name: company_sk
-        description: "Surrogate key (MD5 hash of company_name)."
-        tests:
-          - not_null
-          - unique
-      - name: company_name
-        description: "Company name as scraped from Harvey Nash."
-        tests:
-          - not_null
-          - unique
 
   - name: fact_job_postings
     description: >

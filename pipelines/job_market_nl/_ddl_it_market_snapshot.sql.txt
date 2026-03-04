@@ -1,0 +1,13 @@
+-- Add this block to pipelines/job_market_nl/postgres_pipeline.py ensure_tables():
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS job_market_nl.it_market_snapshot (
+              period_key TEXT NOT NULL,
+              period_label TEXT,
+              sector_name TEXT,
+              vacancies DOUBLE PRECISION,
+              vacancy_rate DOUBLE PRECISION,
+              job_ads_count INTEGER NOT NULL,
+              ingestion_timestamp TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+        """)

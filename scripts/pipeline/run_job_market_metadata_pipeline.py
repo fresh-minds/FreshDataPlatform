@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import os
-import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -24,6 +23,7 @@ from src.ingestion.common.metadata_store import (  # noqa: E402
     upsert_dataset_registry,
     upsert_pipeline_run,
 )
+from src.ingestion.common.dag_helpers import resolve_code_version  # noqa: E402
 
 
 class _Conn:
@@ -58,23 +58,6 @@ def _connect() -> psycopg2.extensions.connection:
         user=os.getenv("WAREHOUSE_USER", "admin"),
         password=os.getenv("WAREHOUSE_PASSWORD", "admin"),
     )
-
-
-def _resolve_code_version() -> str:
-    env_sha = os.getenv("GITHUB_SHA")
-    if env_sha:
-        return env_sha
-    try:
-        out = subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=str(REPO_ROOT), text=True, capture_output=True, check=False
-        )
-        if out.returncode == 0:
-            value = out.stdout.strip()
-            if value:
-                return value
-    except Exception:
-        pass
-    return "unknown"
 
 
 def _table_columns(conn: psycopg2.extensions.connection, schema_name: str, table_name: str) -> list[dict]:
@@ -120,7 +103,7 @@ def main() -> int:
         dataset="it_market",
         status="RUNNING",
         triggered_by=os.getenv("USER", "local"),
-        code_version=_resolve_code_version(),
+        code_version=resolve_code_version(),
         started_at_utc=started_at,
         metadata={"mode": "parallel_metadata_pipeline"},
         conn=conn_adapter,
@@ -214,7 +197,7 @@ def main() -> int:
         dataset="it_market",
         status="SUCCESS" if exit_code == 0 else "FAILED",
         triggered_by=os.getenv("USER", "local"),
-        code_version=_resolve_code_version(),
+        code_version=resolve_code_version(),
         started_at_utc=started_at,
         finished_at_utc=finished_at,
         metadata={"error": error_message} if error_message else {"mode": "parallel_metadata_pipeline"},
