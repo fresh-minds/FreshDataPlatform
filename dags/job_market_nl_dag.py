@@ -256,6 +256,7 @@ def _run_dbt_gold(**kwargs):
     marks the task FAILED with retries.
     """
     import os
+    import shutil
     import subprocess
 
     from src.ingestion.common.dag_helpers import try_get_conn
@@ -264,31 +265,55 @@ def _run_dbt_gold(**kwargs):
         upsert_dataset_registry,
     )
 
-    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    dbt_project_dir = os.path.join(repo_root, "dbt")
-    dbt_profiles_dir = os.path.join(repo_root, "dbt")
-    dbt_bin = os.path.join(repo_root, ".venv", "bin", "dbt")
+    airflow_home = os.environ.get("AIRFLOW_HOME", "/opt/airflow")
+    candidate_dbt_dirs = [
+        os.path.join(airflow_home, "project", "dbt"),
+        os.path.join(airflow_home, "dbt"),
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "dbt"),
+    ]
+    dbt_project_dir = next(
+        (
+            path
+            for path in candidate_dbt_dirs
+            if os.path.exists(os.path.join(path, "dbt_project.yml"))
+        ),
+        None,
+    )
+    if not dbt_project_dir:
+        raise RuntimeError(
+            "[dbt] Could not locate dbt project directory. Checked: "
+            + ", ".join(candidate_dbt_dirs)
+        )
+    dbt_profiles_dir = dbt_project_dir
+    dbt_bin = shutil.which("dbt")
+    if not dbt_bin:
+        raise RuntimeError(
+            "[dbt] dbt executable not found on PATH in Airflow runtime. "
+            "Install dbt in the Airflow image or expose it via PATH."
+        )
     dbt_packages_dir = os.path.join(dbt_project_dir, "dbt_packages")
 
     # Forward warehouse credentials; fall back to local dev defaults.
     env = os.environ.copy()
     env.setdefault("WAREHOUSE_DB",       "freshminds_dw")
-    env.setdefault("WAREHOUSE_HOST",     "localhost")
-    env.setdefault("WAREHOUSE_PORT",     "5433")
+    env.setdefault("WAREHOUSE_HOST",     "warehouse")
+    env.setdefault("WAREHOUSE_PORT",     "5432")
     env.setdefault("WAREHOUSE_USER",     "admin")
     env.setdefault("WAREHOUSE_PASSWORD", "admin")
-
-    base_args = [
-        dbt_bin,
-        "--project-dir", dbt_project_dir,
-        "--profiles-dir", dbt_profiles_dir,
-    ]
 
     # Install dbt packages if the packages directory is absent or empty.
     if not os.path.isdir(dbt_packages_dir) or not os.listdir(dbt_packages_dir):
         print("[dbt] Running dbt deps to install packages...")
         deps = subprocess.run(
-            base_args + ["deps"], capture_output=True, text=True, env=env
+            [
+                dbt_bin,
+                "deps",
+                "--project-dir", dbt_project_dir,
+                "--profiles-dir", dbt_profiles_dir,
+            ],
+            capture_output=True,
+            text=True,
+            env=env,
         )
         print(deps.stdout)
         if deps.returncode != 0:
@@ -299,9 +324,16 @@ def _run_dbt_gold(**kwargs):
 
     # Run all gold models.  dbt resolves upstream bronze/silver refs automatically,
     # creating or refreshing those views in the same run.
-    print("[dbt] Running: dbt run --select gold ...")
+    print("[dbt] Running: dbt run --select +gold ...")
     run = subprocess.run(
-        base_args + ["run", "--threads", "4", "--select", "gold"],
+        [
+            dbt_bin,
+            "run",
+            "--project-dir", dbt_project_dir,
+            "--profiles-dir", dbt_profiles_dir,
+            "--threads", "4",
+            "--select", "+gold",
+        ],
         capture_output=True,
         text=True,
         env=env,

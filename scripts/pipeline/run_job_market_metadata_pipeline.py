@@ -13,6 +13,7 @@ import psycopg2
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
+from src.ingestion.common.dag_helpers import resolve_code_version  # noqa: E402
 from src.ingestion.common.metadata_store import (  # noqa: E402
     ensure_metadata_tables,
     insert_data_quality_result,
@@ -23,7 +24,6 @@ from src.ingestion.common.metadata_store import (  # noqa: E402
     upsert_dataset_registry,
     upsert_pipeline_run,
 )
-from src.ingestion.common.dag_helpers import resolve_code_version  # noqa: E402
 
 
 class _Conn:

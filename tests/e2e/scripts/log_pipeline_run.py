@@ -7,8 +7,8 @@ from datetime import datetime, timezone
 
 import psycopg2
 
-from src.ingestion.common.metadata_store import ensure_metadata_tables, upsert_pipeline_run
 from src.ingestion.common.dag_helpers import resolve_code_version
+from src.ingestion.common.metadata_store import ensure_metadata_tables, upsert_pipeline_run
 
 
 class _WarehouseConnAdapter:
