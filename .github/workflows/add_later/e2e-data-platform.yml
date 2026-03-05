@@ -59,7 +59,7 @@ jobs:
               "AIRFLOW_ADMIN_EMAIL": "admin@example.com",
               "MINIO_ROOT_USER": "minio_admin",
               "MINIO_ROOT_PASSWORD": "minio_secure_123",
-              "WAREHOUSE_DB": "freshminds_dw",
+              "WAREHOUSE_DB": "odp_dw",
               "WAREHOUSE_USER": "warehouse_app",
               "WAREHOUSE_PASSWORD": "warehouse_secure_123",
               "SUPERSET_SECRET_KEY": "superset_secret_key_for_ci",

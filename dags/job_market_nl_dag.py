@@ -247,7 +247,7 @@ def _load_to_warehouse(**kwargs):
 
 def _run_dbt_gold(**kwargs):
     """
-    Gold: materialise all gold-layer tables in freshminds_dw via dbt.
+    Gold: materialise all gold-layer tables in odp_dw via dbt.
 
     Runs after ``_load_to_warehouse`` has populated the silver source tables
     (it_market_snapshot, harvey_nash_vacatures, etc.) that dbt reads from.
@@ -295,7 +295,7 @@ def _run_dbt_gold(**kwargs):
 
     # Forward warehouse credentials; fall back to local dev defaults.
     env = os.environ.copy()
-    env.setdefault("WAREHOUSE_DB",       "freshminds_dw")
+    env.setdefault("WAREHOUSE_DB",       "odp_dw")
     env.setdefault("WAREHOUSE_HOST",     "warehouse")
     env.setdefault("WAREHOUSE_PORT",     "5432")
     env.setdefault("WAREHOUSE_USER",     "admin")
@@ -361,6 +361,10 @@ def _run_dbt_gold(**kwargs):
         ("gold.fact_it_market_snapshot",   "fact_it_market_snapshot"),
         ("gold.fact_it_market_top_skills", "fact_it_market_top_skills"),
         ("gold.fact_job_postings",         "fact_job_postings"),
+        ("gold.dim_role",                  "dim_role"),
+        ("gold.dim_unit",                  "dim_unit"),
+        ("gold.dim_location",              "dim_location"),
+        ("gold.fact_aanvragen",            "fact_aanvragen"),
     ]:
         upsert_dataset_registry(
             dataset_id=dataset_id,
@@ -388,6 +392,12 @@ def _run_dbt_gold(**kwargs):
         ],
         "gold.fact_job_postings": [
             "job_market_nl.harvey_nash_vacatures",
+        ],
+        "gold.fact_aanvragen": [
+            "fabric_landing.fact_aanvragen",
+            "fabric_landing.dim_rol",
+            "fabric_landing.dim_organisatie",
+            "fabric_landing.dim_unit",
         ],
     }
     for downstream, upstreams in gold_lineage.items():

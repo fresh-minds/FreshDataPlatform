@@ -149,3 +149,49 @@ Table gold.fact_job_postings {
   ingestion_timestamp timestamptz [not null]
   Note: 'Harvey Nash job postings fact table with FK references to dim_region and dim_company.'
 }
+
+// ==========================================================================
+// GOLD LAYER — Fabric Landing Dimensions & Facts
+// Schema: gold
+// Source: dbt/models/gold/job_market_nl/ (dim_role, dim_unit, dim_location, fact_aanvragen)
+// ==========================================================================
+
+Table gold.dim_role {
+  role_sk      text [pk, not null, note: 'Surrogate key — MD5 hash of role_name']
+  role_name    text [not null, unique, note: 'Job role name']
+  role_cluster text [note: 'Role cluster grouping (e.g. Cloud DevOps)']
+  Note: 'Job roles with cluster groupings. Sourced from fabric_landing.dim_rol.'
+}
+
+Table gold.dim_unit {
+  unit_sk   text [pk, not null, note: 'Surrogate key — MD5 hash of unit_name']
+  unit_name text [not null, unique, note: 'Business unit (Data, Software, Security, ...)']
+  Note: 'Business units (9 entries). Sourced from fabric_landing.dim_unit.'
+}
+
+Table gold.dim_location {
+  location_sk   text [pk, not null, note: 'Surrogate key — MD5 hash of location_name']
+  location_name text [not null, unique, note: 'Cleaned location name']
+  Note: 'Locations derived from fabric staffing requests (locatie_clean).'
+}
+
+Table gold.fact_aanvragen {
+  aanvraag_sk    text        [pk, not null, note: 'Surrogate key — MD5 hash of aanvraag_id']
+  date_sk        text        [ref: > gold.dim_date.date_sk, note: 'nullable']
+  company_sk     text        [ref: > gold.dim_company.company_sk, note: 'nullable']
+  role_sk        text        [ref: > gold.dim_role.role_sk, note: 'nullable']
+  unit_sk        text        [ref: > gold.dim_unit.unit_sk, note: 'nullable']
+  location_sk    text        [ref: > gold.dim_location.location_sk, note: 'nullable']
+  aanvraag_id    text        [not null, unique]
+  source         text        [note: 'mail_info, mail_das, or mail_aanvragen']
+  sender_name    text
+  subject_edited text
+  role_name      text        [note: 'Denormalized from dim_role']
+  role_cluster   text        [note: 'Denormalized from dim_role']
+  company_name   text        [note: 'Denormalized from dim_company']
+  unit_name      text        [note: 'Denormalized from dim_unit']
+  location_name  text        [note: 'Denormalized from dim_location']
+  deadline       text
+  date_received  timestamptz [not null]
+  Note: 'Staffing/recruitment requests from fabric_landing (Sep 2020 — Jan 2026, 79k rows). 5 FK refs to shared and domain dims.'
+}

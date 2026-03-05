@@ -1,0 +1,28 @@
+version: 2
+
+sources:
+  - name: fabric_landing
+    schema: fabric_landing
+    description: >
+      Legacy gold-layer data imported from Microsoft Fabric SQL endpoint.
+      Contains staffing/recruitment request history (2020--2026).
+    tables:
+      - name: fact_aanvragen
+        description: "Staffing requests parsed from email inboxes."
+        columns:
+          - name: id
+          - name: source
+          - name: sender_name
+          - name: subject_edited
+          - name: rol
+          - name: organisatie
+          - name: unit
+          - name: locatie_clean
+          - name: deadline
+          - name: date_received
+      - name: dim_organisatie
+        description: "Requesting organisations (PascalCase columns)."
+      - name: dim_rol
+        description: "Job roles with cluster groupings (PascalCase columns)."
+      - name: dim_unit
+        description: "Business units (PascalCase columns)."

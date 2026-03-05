@@ -11,7 +11,7 @@ ADMIN_PASSWORD = os.getenv("SUPERSET_ADMIN_PASSWORD", "admin")
 
 WAREHOUSE_HOST = os.getenv("WAREHOUSE_HOST", "warehouse")
 WAREHOUSE_PORT = os.getenv("WAREHOUSE_PORT", "5432")
-WAREHOUSE_DB = os.getenv("WAREHOUSE_DB", "freshminds_dw")
+WAREHOUSE_DB = os.getenv("WAREHOUSE_DB", "odp_dw")
 WAREHOUSE_USER = os.getenv("WAREHOUSE_USER", "admin")
 WAREHOUSE_PASSWORD = os.getenv("WAREHOUSE_PASSWORD", "admin")
 
@@ -373,8 +373,10 @@ def update_dashboard_layout(session: requests.Session, headers: Dict[str, str], 
         "DASHBOARD_VERSION_KEY": "v2",
         "ROOT_ID": {"id": "ROOT_ID", "type": "ROOT", "children": ["GRID_ID"]},
         "GRID_ID": {"id": "GRID_ID", "type": "GRID", "parents": ["ROOT_ID"], "children": ["ROW-1", "ROW-2"]},
-        "ROW-1": {"id": "ROW-1", "type": "ROW", "parents": ["ROOT_ID", "GRID_ID"], "children": []},
-        "ROW-2": {"id": "ROW-2", "type": "ROW", "parents": ["ROOT_ID", "GRID_ID"], "children": []},
+        # meta MUST be present — Row.jsx reads meta.background and crashes with
+        # "Cannot read properties of undefined" when meta is absent (Superset 3.x).
+        "ROW-1": {"id": "ROW-1", "type": "ROW", "parents": ["ROOT_ID", "GRID_ID"], "children": [], "meta": {"background": "BACKGROUND_TRANSPARENT"}},
+        "ROW-2": {"id": "ROW-2", "type": "ROW", "parents": ["ROOT_ID", "GRID_ID"], "children": [], "meta": {"background": "BACKGROUND_TRANSPARENT"}},
     }
 
     # First row for big numbers, second row for skill bar + heat map.

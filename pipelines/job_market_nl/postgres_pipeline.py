@@ -372,7 +372,7 @@ def build_top_skills(job_ads: List[Dict[str, Any]], top_n: int = 25) -> List[Tup
 def _connect_warehouse():
     host = os.getenv("WAREHOUSE_HOST", "localhost")
     port = int(os.getenv("WAREHOUSE_PORT", "5433"))
-    db = os.getenv("WAREHOUSE_DB", "freshminds_dw")
+    db = os.getenv("WAREHOUSE_DB", "odp_dw")
     user = os.getenv("WAREHOUSE_USER", "admin")
     password = os.getenv("WAREHOUSE_PASSWORD", "")
 

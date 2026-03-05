@@ -416,17 +416,17 @@ for o in objs.get('Contents', []):
 "
 
 # Postgres silver — records loaded
-docker exec -it warehouse psql -U airflow -d freshminds_dw -c \
+docker exec -it warehouse psql -U airflow -d odp_dw -c \
   "SELECT count(*) FROM <source_name>.<dataset>;"
 
 # dbt gold — fact table populated
-docker exec -it warehouse psql -U airflow -d freshminds_dw -c \
+docker exec -it warehouse psql -U airflow -d odp_dw -c \
   "SELECT count(*) FROM gold.fct_<dataset>;"
 
 # Metadata registry — run + artifact rows captured
-docker exec -it warehouse psql -U airflow -d freshminds_dw -c \
+docker exec -it warehouse psql -U airflow -d odp_dw -c \
   "SELECT count(*) FROM platform_metadata.pipeline_runs WHERE pipeline_name = '<source_name>_<dataset>_ingestion';"
-docker exec -it warehouse psql -U airflow -d freshminds_dw -c \
+docker exec -it warehouse psql -U airflow -d odp_dw -c \
   "SELECT count(*) FROM platform_metadata.artifact_inventory WHERE source_name = '<source_name>' AND dataset = '<dataset>';"
 ```
 
@@ -515,7 +515,7 @@ Resolution order:
 Verification command:
 
 ```bash
-docker exec -it warehouse psql -U airflow -d freshminds_dw -c \
+docker exec -it warehouse psql -U airflow -d odp_dw -c \
     "SELECT run_id, pipeline_name, code_version, started_at_utc \
      FROM platform_metadata.pipeline_runs \
      ORDER BY started_at_utc DESC LIMIT 10;"

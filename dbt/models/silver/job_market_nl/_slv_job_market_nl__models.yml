@@ -69,3 +69,26 @@ models:
         description: "Timestamp when the row was ingested."
         tests:
           - not_null
+
+  - name: slv_job_market_nl__fabric_aanvragen_enriched
+    description: >
+      Silver enrichment of fabric_landing staffing requests. Joins with
+      dim_rol to add role cluster groupings. Excludes PII columns.
+    columns:
+      - name: id
+        description: "Unique request identifier."
+        tests:
+          - not_null
+          - unique
+      - name: source
+        description: "Email source (mail_info, mail_das, mail_aanvragen)."
+      - name: rol
+        description: "Job role name."
+      - name: rol_cluster
+        description: "Role cluster grouping (e.g. Data Engineering & Analytics)."
+      - name: organisatie
+        description: "Requesting organisation name."
+      - name: date_received
+        description: "Timestamp when the request was received."
+        tests:
+          - not_null

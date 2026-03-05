@@ -1,7 +1,7 @@
 -- dim_company.sql
--- Dimension: hiring companies derived from Harvey Nash job postings.
+-- Dimension: hiring companies from Harvey Nash + fabric_landing organisations.
 
-with companies as (
+with harvey_nash_companies as (
 
     select distinct
         company
@@ -9,9 +9,27 @@ with companies as (
     where company is not null
       and company <> ''
 
+),
+
+fabric_companies as (
+
+    select distinct
+        organisatie as company
+    from {{ ref('brz_job_market_nl__fl_dim_organisatie') }}
+    where organisatie is not null
+      and organisatie <> ''
+
+),
+
+all_companies as (
+
+    select company from harvey_nash_companies
+    union
+    select company from fabric_companies
+
 )
 
 select
     {{ hashed_key(['company']) }}   as company_sk,
     company                         as company_name
-from companies
+from all_companies

@@ -172,6 +172,120 @@ models:
         tests:
           - not_null
 
+  # ── Fabric Landing Dimensions ────────────────────────────────────
+
+  - name: dim_role
+    description: "Job role dimension with cluster groupings from fabric_landing."
+    config:
+      materialized: table
+      tags: ['job_market', 'dimension', 'fabric']
+    columns:
+      - name: role_sk
+        description: "Surrogate key (MD5 hash of role_name)."
+        tests:
+          - not_null
+          - unique
+      - name: role_name
+        description: "Job role name."
+        tests:
+          - not_null
+          - unique
+      - name: role_cluster
+        description: "Role cluster grouping (e.g. Cloud DevOps & Platform Engineering)."
+
+  - name: dim_unit
+    description: "Business unit dimension from fabric_landing (9 units)."
+    config:
+      materialized: table
+      tags: ['job_market', 'dimension', 'fabric']
+    columns:
+      - name: unit_sk
+        description: "Surrogate key (MD5 hash of unit_name)."
+        tests:
+          - not_null
+          - unique
+      - name: unit_name
+        description: "Business unit name (e.g. Data, Software, Security)."
+        tests:
+          - not_null
+          - unique
+
+  - name: dim_location
+    description: "Location dimension derived from fabric staffing request locations."
+    config:
+      materialized: table
+      tags: ['job_market', 'dimension', 'fabric']
+    columns:
+      - name: location_sk
+        description: "Surrogate key (MD5 hash of location_name)."
+        tests:
+          - not_null
+          - unique
+      - name: location_name
+        description: "Cleaned location name."
+        tests:
+          - not_null
+          - unique
+
+  # ── Fabric Landing Facts ─────────────────────────────────────────
+
+  - name: fact_aanvragen
+    description: >
+      Star-schema fact table for staffing/recruitment requests from
+      fabric_landing. Each row is one request with FK references to
+      dim_date, dim_company, dim_role, dim_unit, and dim_location.
+      Covers Sep 2020 -- Jan 2026 (79k rows).
+    config:
+      materialized: table
+      tags: ['job_market', 'fact', 'fabric']
+    columns:
+      - name: aanvraag_sk
+        description: "Surrogate key (MD5 hash of aanvraag_id)."
+        tests:
+          - not_null
+          - unique
+      - name: date_sk
+        description: "FK to dim_date (nullable if date_received is null)."
+        tests:
+          - relationships:
+              to: ref('dim_date')
+              field: date_sk
+      - name: company_sk
+        description: "FK to dim_company (nullable if organisatie is null)."
+        tests:
+          - relationships:
+              to: ref('dim_company')
+              field: company_sk
+      - name: role_sk
+        description: "FK to dim_role (nullable if rol is null)."
+        tests:
+          - relationships:
+              to: ref('dim_role')
+              field: role_sk
+      - name: unit_sk
+        description: "FK to dim_unit (nullable if unit is null)."
+        tests:
+          - relationships:
+              to: ref('dim_unit')
+              field: unit_sk
+      - name: location_sk
+        description: "FK to dim_location (nullable if locatie_clean is null)."
+        tests:
+          - relationships:
+              to: ref('dim_location')
+              field: location_sk
+      - name: aanvraag_id
+        description: "Natural business key."
+        tests:
+          - not_null
+          - unique
+      - name: source
+        description: "Email source (mail_info, mail_das, mail_aanvragen)."
+      - name: date_received
+        description: "Timestamp when the request was received."
+        tests:
+          - not_null
+
 # ── Exposures ─────────────────────────────────────────────────────
 
 exposures:
@@ -188,6 +302,27 @@ exposures:
       - ref('dim_period')
       - ref('dim_sector')
       - ref('dim_region')
+    owner:
+      name: "Data Platform Team"
+      email: "data-platform@example.com"
+
+  - name: superset_staffing_demand_dashboard
+    type: dashboard
+    description: >
+      ODP Staffing Demand dashboard showing request volume trends,
+      geographic distribution, business unit breakdown, and top companies.
+    maturity: medium
+    url: "http://localhost:8088/superset/dashboard/odp-staffing/"
+    depends_on:
+      - ref('fact_aanvragen')
+      - ref('fact_it_market_snapshot')
+      - ref('fact_it_market_top_skills')
+      - ref('fact_job_postings')
+      - ref('dim_date')
+      - ref('dim_company')
+      - ref('dim_role')
+      - ref('dim_unit')
+      - ref('dim_location')
     owner:
       name: "Data Platform Team"
       email: "data-platform@example.com"
