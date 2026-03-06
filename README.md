@@ -144,6 +144,8 @@ and install bootstrap dependencies via `pip install -e ".[dev,pipeline]"`.
 Use `--skip-dev-install` only if you want to manage dependencies yourself.
 During bootstrap dbt orchestration, `scripts/pipeline/run_dbt.sh` defaults to
 `DBT_THREADS=1` to avoid Postgres deadlocks; override with `DBT_THREADS=<n>` when needed.
+The default Superset bootstrap seeds committed dashboards, including `NL IT Job Market`
+and `ODP Staffing Demand`.
 
 Option B (just services):
 ```bash

@@ -20,7 +20,7 @@ Usage: $(basename "$0") [options]
 Bootstraps the local Docker stack and (re)populates:
 - MinIO buckets (uploads deterministic fixture files)
 - Warehouse baseline schemas (dbt + base schemas)
-- Superset (datasets + NL job market dashboard)
+- Superset (datasets + seeded dashboards: NL IT Job Market + ODP Staffing Demand)
 - DataHub (schema/glossary sync + warehouse catalog registration)
 
 Options:
@@ -554,9 +554,10 @@ log "Populating job market demo tables in the warehouse (Spark-free pipeline)...
 "$PYTHON" "$ROOT_DIR/scripts/pipeline/run_job_market_pipeline.py" || true
 
 if [[ "$SKIP_SUPERSET" != "true" ]]; then
-  log "Running Superset onboarding (datasets + job market dashboard)..."
+  log "Running Superset onboarding (datasets + seeded dashboards)..."
   docker exec open-data-platform-superset python /app/scripts/superset/superset_setup.py || true
   docker exec open-data-platform-superset python /app/scripts/superset/superset_bootstrap_job_market.py || true
+  docker exec open-data-platform-superset python /app/scripts/superset/superset_bootstrap_gold_dashboards.py || true
 else
   log "Skipping Superset bootstrap (--skip-superset)."
 fi

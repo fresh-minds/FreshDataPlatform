@@ -174,6 +174,31 @@ Use host-based URLs such as:
 - For AKS Key Vault sync: data-plane write access on the Key Vault (`Key Vault Secrets Officer` or `Key Vault Administrator`) and permission to create role assignments if you want the script to auto-grant missing access
 - `.env` configured
 
+### Scheduled AKS stop/start via GitHub Actions
+Summary: `.github/workflows/aks-schedule.yml` runs only at four weekday UTC slots ( `05:00`, `17:00`) and executes AKS power actions at local Netherlands time (`Europe/Amsterdam`): stop at `18:00`, start at `06:00`.
+
+Prerequisites and constraints:
+- Configure GitHub OIDC federation from your repo to Azure AD app/service principal.
+- Add repository secrets:
+  - `AZURE_CLIENT_ID`
+  - `AZURE_TENANT_ID`
+  - `AZURE_SUBSCRIPTION_ID`
+- The Azure principal must have permission to run `Microsoft.ContainerService/managedClusters/start/action` and `.../stop/action` on AKS `ai-trial-aks` in resource group `ai-trial-rg`.
+- Schedule is timezone-aware in workflow logic (`Europe/Amsterdam`) to handle CET/CEST changes; cron is limited to the minimal UTC windows needed for those local times.
+- On weekends, scheduled runs intentionally perform no action; manual `workflow_dispatch` (`start`/`stop`) still works.
+
+Verification steps:
+1. Open **Actions** and run workflow **AKS Scheduled Power** manually with input `action=stop`.
+2. Confirm logs show `Decision: stop` and `az aks stop` succeeds.
+3. Run again with `action=start` and confirm `az aks start` succeeds.
+4. Optional CLI verification:
+
+```bash
+az aks show -g ai-trial-rg -n ai-trial-aks --query powerState.code -o tsv
+```
+
+Expected value is `Stopped` after stop and `Running` after start.
+
 ### Provision and deploy
 ```bash
 make k8s-aks-up

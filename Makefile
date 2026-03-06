@@ -175,7 +175,7 @@ k8s-sso-gateway-forward:  ## Start ingress-nginx port-forward for SSO gateway on
 k8s-sso-gateway-forward-stop:  ## Stop ingress-nginx port-forward for SSO gateway
 	./scripts/k8s/k8s_port_forward_ingress.sh stop
 
-k8s-aks-up:  ## Provision AKS + deploy stack (Key Vault-backed secrets by default), then run AKS smoke checks (set AKS_SMOKE_AFTER_UP=false to skip)
+k8s-aks-up:  ## Provision AKS infra deploy stack, then run AKS smoke checks (set AKS_SMOKE_AFTER_UP=false to skip)
 	./scripts/aks/aks_up.sh
 	@if [ "$${AKS_SMOKE_AFTER_UP:-true}" = "true" ]; then \
 		echo "Running post-deploy AKS smoke checks (AKS_SMOKE_AFTER_UP=true)"; \
@@ -187,8 +187,23 @@ k8s-aks-up:  ## Provision AKS + deploy stack (Key Vault-backed secrets by defaul
 k8s-aks-update-images:  ## Build/push selected app images and patch existing AKS deployments only (no infra/parity reapply)
 	./scripts/aks/aks_update_images.sh
 
-k8s-aks-down:  ## Tear down AKS workloads (and optionally infra/Key Vault) created by k8s-aks-up
+k8s-aks-down:  ## Tear down AKS workloads; set TF_DESTROY=true to also destroy Terraform-managed infra
 	./scripts/aks/aks_down.sh
+
+tf-init:  ## Initialize Terraform (download providers, configure backend)
+	cd terraform && terraform init
+
+tf-plan:  ## Show Terraform plan for AKS infrastructure changes
+	cd terraform && terraform plan -var-file=environments/$${ENVIRONMENT:-dev}.tfvars
+
+tf-apply:  ## Apply Terraform changes to AKS infrastructure
+	cd terraform && terraform apply -var-file=environments/$${ENVIRONMENT:-dev}.tfvars
+
+tf-destroy:  ## Destroy all Terraform-managed AKS infrastructure
+	cd terraform && terraform destroy -var-file=environments/$${ENVIRONMENT:-dev}.tfvars
+
+tf-bootstrap-state:  ## One-time: create Azure Storage Account for Terraform remote state
+	./scripts/terraform/bootstrap_state.sh
 
 setup:  ## Initial setup (create venv, install deps, copy .env)
 	$(PYTHON) -m venv .venv

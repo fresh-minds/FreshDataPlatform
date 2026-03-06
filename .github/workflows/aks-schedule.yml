@@ -1,0 +1,96 @@
+name: AKS Scheduled Power
+
+on:
+  schedule:
+    - cron: "0 8 * * 1-5"
+    - cron: "0 16 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Action to run"
+        type: choice
+        options:
+          - auto
+          - start
+          - stop
+        default: auto
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: aks-schedule-power
+  cancel-in-progress: false
+
+env:
+  AKS_RESOURCE_GROUP: ai-trial-rg
+  AKS_CLUSTER_NAME: ai-trial-aks
+  AKS_TIMEZONE: Europe/Amsterdam
+
+jobs:
+  aks-power:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Decide action
+        id: decide
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          event_name="${{ github.event_name }}"
+          input_action="${{ github.event.inputs.action || 'auto' }}"
+
+          if [[ "$event_name" == "workflow_dispatch" && "$input_action" != "auto" ]]; then
+            echo "action=$input_action" >> "$GITHUB_OUTPUT"
+            echo "reason=Manual dispatch requested '$input_action'" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          local_hour="$(TZ="$AKS_TIMEZONE" date +%H)"
+          local_weekday="$(TZ="$AKS_TIMEZONE" date +%u)"
+          local_time="$(TZ="$AKS_TIMEZONE" date +'%Y-%m-%d %H:%M:%S %Z')"
+
+          if (( local_weekday > 5 )); then
+            echo "action=none" >> "$GITHUB_OUTPUT"
+            echo "reason=Weekend in $AKS_TIMEZONE at local time $local_time" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$local_hour" == "18" ]]; then
+            echo "action=stop" >> "$GITHUB_OUTPUT"
+            echo "reason=Scheduled local time $local_time (18:00 stop window)" >> "$GITHUB_OUTPUT"
+          elif [[ "$local_hour" == "06" ]]; then
+            echo "action=start" >> "$GITHUB_OUTPUT"
+            echo "reason=Scheduled local time $local_time (06:00 start window)" >> "$GITHUB_OUTPUT"
+          else
+            echo "action=none" >> "$GITHUB_OUTPUT"
+            echo "reason=No action window at local time $local_time" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Show decision
+        run: |
+          echo "Decision: ${{ steps.decide.outputs.action }}"
+          echo "Reason:   ${{ steps.decide.outputs.reason }}"
+
+      - name: Azure login (OIDC)
+        if: steps.decide.outputs.action != 'none'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Stop AKS cluster
+        if: steps.decide.outputs.action == 'stop'
+        run: |
+          az aks stop \
+            --resource-group "$AKS_RESOURCE_GROUP" \
+            --name "$AKS_CLUSTER_NAME"
+
+      - name: Start AKS cluster
+        if: steps.decide.outputs.action == 'start'
+        run: |
+          az aks start \
+            --resource-group "$AKS_RESOURCE_GROUP" \
+            --name "$AKS_CLUSTER_NAME"
