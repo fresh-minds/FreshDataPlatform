@@ -18,3 +18,9 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "dns_label" {
+  description = "Optional DNS label for the public IP — gives a stable <label>.<region>.cloudapp.azure.com FQDN. Empty string disables it."
+  type        = string
+  default     = ""
+}

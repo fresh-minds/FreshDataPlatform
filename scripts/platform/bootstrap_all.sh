@@ -558,6 +558,7 @@ if [[ "$SKIP_SUPERSET" != "true" ]]; then
   docker exec open-data-platform-superset python /app/scripts/superset/superset_setup.py || true
   docker exec open-data-platform-superset python /app/scripts/superset/superset_bootstrap_job_market.py || true
   docker exec open-data-platform-superset python /app/scripts/superset/superset_bootstrap_gold_dashboards.py || true
+  docker exec open-data-platform-superset python /app/scripts/superset/superset_bootstrap_platform_metadata.py || true
 else
   log "Skipping Superset bootstrap (--skip-superset)."
 fi

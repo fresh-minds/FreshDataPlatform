@@ -156,6 +156,24 @@ dbt docs + lineage workflow:
 - `make observability-verify`: validate Compose logs/metrics/traces ingestion path (Grafana/Loki/Prometheus/Tempo); supports strict trace-volume mode (`OBS_REQUIRE_TRACE_VOLUME=true`) and ambient-only mode (`OBS_TRACE_VOLUME_MODE=ambient`)
 - `make k8s-aks-smoke`: run in-cluster AKS smoke checks (observability + core service endpoints); HTTP checks retry for short warm-up windows (~60s max per endpoint) and then fail on RED checks
 - `make k8s-aks-up`: runs AKS smoke checks by default after deploy (`AKS_SMOKE_AFTER_UP` unset/empty = `true`) and uses Azure Key Vault as the default AKS secret source; reruns safely skip Key Vault provider re-enable when already active and can enforce minimum System nodepool capacity via `AKS_NODE_COUNT` (set `AKS_SMOKE_AFTER_UP=false` to skip smoke; set `AKS_USE_KEY_VAULT=false` to use direct `.env` -> Kubernetes secret)
+  - Scaleway mode: `scw` CLI is only required when kubeconfig must be fetched dynamically or when `SCW_SECRET_KEY` is not already exported; if `KUBECONFIG`/`KUBE_CONTEXT` and `SCW_SECRET_KEY` are provided, deployment can run without `scw` installed.
+- `make tf-plan ENVIRONMENT=scaleway-dev`: for Scaleway-only planning in Azure CA-restricted tenants, run with `TF_VAR_azure_use_cli=false`; requires `SCW_ACCESS_KEY`, `SCW_SECRET_KEY`, and `SCW_DEFAULT_PROJECT_ID` in your shell
+- `make scaleway-destroy-all`: destroy all Terraform-managed Scaleway resources in `terraform/scaleway` (set `DRY_RUN=true` for plan-only; set `PURGE_LEFTOVERS=true` to also remove leftover Registry namespaces and LB IPs)
+- Scaleway notes:
+  - `SCW_DEFAULT_PROJECT_ID` from `.env` must be mapped to Terraform var `scw_project_id` (for example via `-var scw_project_id=$SCW_DEFAULT_PROJECT_ID` or `TF_VAR_scw_project_id`).
+  - `scw_kubernetes_version` may be left empty (`""`) in `terraform/environments/scaleway-*.tfvars` to let Scaleway choose a currently available upstream Kubernetes version.
+  - Dedicated Scaleway-only root module is available at `terraform/scaleway` (no Azure provider/backend dependency).
+  - Example commands:
+    - `cd terraform/scaleway`
+    - `set -a && source ../../.env && set +a`
+    - `terraform init`
+    - `terraform plan -var-file=../environments/scaleway-dev.tfvars -var "scw_project_id=$SCW_DEFAULT_PROJECT_ID"`
+  - Teardown commands:
+    - `set -a && source .env && set +a`
+    - `DRY_RUN=true make scaleway-destroy-all`
+    - `make scaleway-destroy-all`
+    - `PURGE_LEFTOVERS=true make scaleway-destroy-all`
+    - `terraform -chdir=terraform/scaleway state list` (should print nothing after destroy)
 - `make k8s-aks-update-images`: build/push selected app images and patch existing AKS deployments only (faster inner loop; no infra/parity apply); when `AKS_IMAGES` includes `airflow`, also refreshes `airflow-webserver-config` from `airflow/webserver_config.py` and refreshes dbt docs init image
 - `make dbt-docs-generate`: generate dbt docs site artifacts in `dbt/target/`
 - `make dbt-docs-refresh`: regenerate dbt docs and ensure static docs service is running

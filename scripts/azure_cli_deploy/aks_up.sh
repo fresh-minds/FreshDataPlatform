@@ -3,42 +3,11 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
-# ---------------------------------------------------------------------------
-# Read infrastructure values from Terraform outputs
-# Output names are cloud-agnostic; azure_* / scw_* prefixes for cloud-specific.
-# ---------------------------------------------------------------------------
-TF_DIR="${TF_DIR:-$ROOT_DIR/terraform}"
-if [[ -d "$TF_DIR" ]] && command -v terraform >/dev/null 2>&1; then
-  TF_OUTPUT="$(cd "$TF_DIR" && terraform output -json 2>/dev/null || true)"
-  if [[ -n "$TF_OUTPUT" && "$TF_OUTPUT" != "{}" ]]; then
-    # Active cloud (drives conditional logic below)
-    CLOUD_PROVIDER="${CLOUD_PROVIDER:-$(echo "$TF_OUTPUT" | jq -r '.cloud_provider.value // "azure"')}"
-
-    # Cross-cloud unified outputs
-    AKS_CLUSTER_NAME="${AKS_CLUSTER_NAME:-$(echo "$TF_OUTPUT" | jq -r '.cluster_name.value // empty')}"
-    ACR_NAME="${ACR_NAME:-$(echo "$TF_OUTPUT" | jq -r '.registry_name.value // empty')}"
-    ACR_LOGIN_SERVER="${ACR_LOGIN_SERVER:-$(echo "$TF_OUTPUT" | jq -r '.registry_login_server.value // empty')}"
-    INGRESS_PIP_IP="${INGRESS_PIP_IP:-$(echo "$TF_OUTPUT" | jq -r '.ingress_public_ip.value // empty')}"
-    FRONTEND_DOMAIN="${FRONTEND_DOMAIN:-$(echo "$TF_OUTPUT" | jq -r '.dns_zone_name.value // empty')}"
-    AKS_KEY_VAULT_NAME="${AKS_KEY_VAULT_NAME:-$(echo "$TF_OUTPUT" | jq -r '.secrets_store_name.value // empty')}"
-    KUBE_CONFIG_COMMAND="${KUBE_CONFIG_COMMAND:-$(echo "$TF_OUTPUT" | jq -r '.kube_config_command.value // empty')}"
-
-    # Azure-specific outputs
-    AKS_RESOURCE_GROUP="${AKS_RESOURCE_GROUP:-$(echo "$TF_OUTPUT" | jq -r '.azure_resource_group_name.value // empty')}"
-    AKS_KEY_VAULT_PROVIDER_CLIENT_ID="${AKS_KEY_VAULT_PROVIDER_CLIENT_ID:-$(echo "$TF_OUTPUT" | jq -r '.azure_kv_provider_identity_client_id.value // empty')}"
-    AKS_TENANT_ID="${AKS_TENANT_ID:-$(echo "$TF_OUTPUT" | jq -r '.azure_tenant_id.value // empty')}"
-    NODE_RESOURCE_GROUP="${NODE_RESOURCE_GROUP:-$(echo "$TF_OUTPUT" | jq -r '.azure_node_resource_group.value // empty')}"
-
-    # Scaleway-specific outputs
-    SCW_REGION="${SCW_REGION:-$(echo "$TF_OUTPUT" | jq -r '.scw_region.value // empty')}"
-  fi
-fi
-
-# Fallback defaults (used when Terraform outputs are unavailable)
-CLOUD_PROVIDER="${CLOUD_PROVIDER:-azure}"   # azure | scaleway
-SCW_REGION="${SCW_REGION:-nl-ams}"
+AKS_LOCATION="${AKS_LOCATION:-westeurope}"
 AKS_RESOURCE_GROUP="${AKS_RESOURCE_GROUP:-ai-trial-rg}"
 AKS_CLUSTER_NAME="${AKS_CLUSTER_NAME:-ai-trial-aks}"
+AKS_NODE_COUNT="${AKS_NODE_COUNT:-1}"
+AKS_NODE_VM_SIZE="${AKS_NODE_VM_SIZE:-Standard_B2s}"
 NAMESPACE="${NAMESPACE:-odp-dev}"
 AIRFLOW_IMAGE_REPO="${AIRFLOW_IMAGE_REPO:-ai-trial/airflow}"
 AIRFLOW_IMAGE_TAG="${AIRFLOW_IMAGE_TAG:-dev-$(date +%Y%m%d%H%M%S)}"
@@ -51,22 +20,27 @@ JUPYTER_IMAGE_TAG="${JUPYTER_IMAGE_TAG:-jupyter-$(date +%Y%m%d%H%M%S)}"
 MINIO_SSO_BRIDGE_IMAGE_REPO="${MINIO_SSO_BRIDGE_IMAGE_REPO:-ai-trial/minio-sso-bridge}"
 MINIO_SSO_BRIDGE_IMAGE_TAG="${MINIO_SSO_BRIDGE_IMAGE_TAG:-minio-sso-bridge-$(date +%Y%m%d%H%M%S)}"
 FRONTEND_DOMAIN="${FRONTEND_DOMAIN:-eu-sovereigndataplatform.com}"
-
 AKS_VITE_KEYCLOAK_URL="${AKS_VITE_KEYCLOAK_URL:-https://keycloak.${FRONTEND_DOMAIN}}"
 AKS_VITE_PORTAL_API_URL="${AKS_VITE_PORTAL_API_URL:-https://portal-api.${FRONTEND_DOMAIN}}"
 AKS_VITE_DBT_DOCS_URL="${AKS_VITE_DBT_DOCS_URL:-https://dbt-docs.${FRONTEND_DOMAIN}}"
 AKS_VITE_KEYCLOAK_REALM="${AKS_VITE_KEYCLOAK_REALM:-${VITE_KEYCLOAK_REALM:-odp}}"
 AKS_VITE_KEYCLOAK_CLIENT_ID="${AKS_VITE_KEYCLOAK_CLIENT_ID:-${VITE_KEYCLOAK_CLIENT_ID:-portal}}"
+DNS_RESOURCE_GROUP="${DNS_RESOURCE_GROUP:-$AKS_RESOURCE_GROUP}"
 LETSENCRYPT_EMAIL="${LETSENCRYPT_EMAIL:-karel.goense@freshminds.nl}"
+INGRESS_PIP_NAME="${INGRESS_PIP_NAME:-ai-trial-ingress-pip}"
+INGRESS_NGINX_VERSION="${INGRESS_NGINX_VERSION:-controller-v1.14.3}"
+CERT_MANAGER_VERSION="${CERT_MANAGER_VERSION:-v1.19.3}"
 WAIT_TIMEOUT="${WAIT_TIMEOUT:-300s}"
 AIRFLOW_INIT_JOB_TIMEOUT="${AIRFLOW_INIT_JOB_TIMEOUT:-960s}"
 AIRFLOW_DEPLOYMENT_TIMEOUT="${AIRFLOW_DEPLOYMENT_TIMEOUT:-600s}"
 KUBECONFIG_PATH="${KUBECONFIG_PATH:-${KUBECONFIG:-$HOME/.kube/config}}"
+AKS_FORCE_ATTACH_ACR="${AKS_FORCE_ATTACH_ACR:-false}"
 AKS_WAIT_RETRIES="${AKS_WAIT_RETRIES:-6}"
 AKS_WAIT_RETRY_DELAY_SECONDS="${AKS_WAIT_RETRY_DELAY_SECONDS:-10}"
 DATAHUB_SETUP_JOB_TIMEOUT="${DATAHUB_SETUP_JOB_TIMEOUT:-1200s}"
 DATAHUB_ELASTICSEARCH_SETUP_JOB_TIMEOUT="${DATAHUB_ELASTICSEARCH_SETUP_JOB_TIMEOUT:-300s}"
 AKS_USE_KEY_VAULT="${AKS_USE_KEY_VAULT:-true}"
+AKS_KEY_VAULT_RESOURCE_GROUP="${AKS_KEY_VAULT_RESOURCE_GROUP:-$AKS_RESOURCE_GROUP}"
 AKS_KEY_VAULT_NAME="${AKS_KEY_VAULT_NAME:-}"
 AKS_KEY_VAULT_SECRET_NAME="${AKS_KEY_VAULT_SECRET_NAME:-odp-env}"
 AKS_KEY_VAULT_PROVIDER_CLASS_NAME="${AKS_KEY_VAULT_PROVIDER_CLASS_NAME:-odp-env-keyvault}"
@@ -74,12 +48,33 @@ AKS_KEY_VAULT_SYNC_DEPLOYMENT_NAME="${AKS_KEY_VAULT_SYNC_DEPLOYMENT_NAME:-odp-en
 AKS_KEY_VAULT_SYNC_TIMEOUT_SECONDS="${AKS_KEY_VAULT_SYNC_TIMEOUT_SECONDS:-300}"
 AKS_KEY_VAULT_SECRET_SET_RETRIES="${AKS_KEY_VAULT_SECRET_SET_RETRIES:-18}"
 AKS_KEY_VAULT_SECRET_SET_RETRY_DELAY_SECONDS="${AKS_KEY_VAULT_SECRET_SET_RETRY_DELAY_SECONDS:-10}"
+KEY_VAULT_SECRETS_USER_ROLE_ID="4633458b-17de-408a-b874-0445c86b69e6"
+KEY_VAULT_SECRETS_OFFICER_ROLE_ID="b86a8fe4-44ce-4948-aee5-eccb2c155cd7"
+KEY_VAULT_ADMIN_ROLE_ID="00482a5a-887f-4fb3-b363-3b7fe8e74483"
 KOMPOSE_OVERRIDE_FILE="${KOMPOSE_OVERRIDE_FILE:-$ROOT_DIR/docker-compose.k8s.yml}"
 AKS_HELPERS_LIB="$ROOT_DIR/scripts/aks/aks_up_lib.sh"
 KOMPOSE_LIB="$ROOT_DIR/scripts/k8s/k8s_kompose_lib.sh"
 
 log() {
   echo "[aks-up] $*"
+}
+
+validate_boolean_env() {
+  local var_name="$1"
+  local var_value="$2"
+  if [[ "$var_value" != "true" && "$var_value" != "false" ]]; then
+    echo "[aks-up] ERROR: ${var_name} must be 'true' or 'false' (got '${var_value}')." >&2
+    exit 1
+  fi
+}
+
+validate_positive_integer_env() {
+  local var_name="$1"
+  local var_value="$2"
+  if [[ ! "$var_value" =~ ^[0-9]+$ ]] || (( var_value < 1 )); then
+    echo "[aks-up] ERROR: ${var_name} must be a positive integer (got '${var_value}')." >&2
+    exit 1
+  fi
 }
 
 enforce_odp_env_secret_name() {
@@ -99,11 +94,8 @@ warn_on_legacy_vite_url_vars() {
   done
 }
 
-# KUBE_CONTEXT is set after kubeconfig is fetched in the cloud-specific section.
-# Bash resolves variable values at call time, so the function can be defined here.
-KUBE_CONTEXT="${KUBE_CONTEXT:-$AKS_CLUSTER_NAME}"
 kubectl_ctx() {
-  kubectl --context "$KUBE_CONTEXT" "$@"
+  kubectl --context "$AKS_CLUSTER_NAME" "$@"
 }
 
 ODP_ENV_KEYS=()
@@ -333,6 +325,130 @@ wait_for_synced_secret_key() {
   return 1
 }
 
+resolve_current_azure_principal_object_id() {
+  local principal_object_id=""
+  local access_token
+
+  if ! command -v python3 >/dev/null 2>&1; then
+    printf ''
+    return 0
+  fi
+
+  access_token="$(az account get-access-token --resource https://management.azure.com/ --query accessToken -o tsv 2>/dev/null || true)"
+  if [[ -z "$access_token" ]]; then
+    printf ''
+    return 0
+  fi
+
+  principal_object_id="$(
+    ARM_ACCESS_TOKEN="$access_token" python3 - <<'PY'
+import base64
+import json
+import os
+import sys
+
+token = os.environ.get("ARM_ACCESS_TOKEN", "")
+parts = token.split(".")
+if len(parts) < 2:
+    sys.exit(0)
+
+payload = parts[1] + "=" * (-len(parts[1]) % 4)
+try:
+    claims = json.loads(base64.urlsafe_b64decode(payload.encode()).decode())
+except Exception:
+    sys.exit(0)
+
+principal_oid = claims.get("oid", "")
+if principal_oid:
+    print(principal_oid)
+PY
+  )"
+
+  if [[ -n "$access_token" && -z "$principal_object_id" ]]; then
+    log "WARN: could not derive signed-in Azure principal object ID from access token; automatic Key Vault RBAC assignment may be skipped."
+  fi
+
+  printf '%s' "$principal_object_id"
+}
+
+role_assignment_count_for_role_id() {
+  local assignee_object_id="$1"
+  local scope="$2"
+  local role_id="$3"
+
+  az role assignment list \
+    --assignee-object-id "$assignee_object_id" \
+    --scope "$scope" \
+    --include-inherited \
+    --fill-principal-name false \
+    --fill-role-definition-name false \
+    --query "[?contains(roleDefinitionId, '$role_id')] | length(@)" \
+    -o tsv 2>/dev/null || echo 0
+}
+
+create_role_assignment_via_rest() {
+  local scope="$1"
+  local principal_id="$2"
+  local role_definition_id="$3"
+  local principal_type="${4:-}"
+  local assignment_id
+  local request_body
+
+  if command -v uuidgen >/dev/null 2>&1; then
+    assignment_id="$(uuidgen | tr '[:upper:]' '[:lower:]')"
+  else
+    assignment_id="$(
+      python3 - <<'PY'
+import uuid
+print(uuid.uuid4())
+PY
+    )"
+  fi
+
+  if [[ -n "$principal_type" ]]; then
+    request_body="$(printf '{"properties":{"roleDefinitionId":"%s","principalId":"%s","principalType":"%s"}}' "$role_definition_id" "$principal_id" "$principal_type")"
+  else
+    request_body="$(printf '{"properties":{"roleDefinitionId":"%s","principalId":"%s"}}' "$role_definition_id" "$principal_id")"
+  fi
+
+  az rest \
+    --method put \
+    --url "https://management.azure.com${scope}/providers/Microsoft.Authorization/roleAssignments/${assignment_id}?api-version=2022-04-01" \
+    --body "$request_body" \
+    -o none
+}
+
+ensure_current_principal_can_seed_key_vault() {
+  local key_vault_id="$1"
+  local deployer_object_id
+  local deployer_officer_count
+  local deployer_admin_count
+  local role_definition_id
+  local assignment_error
+
+  deployer_object_id="$(resolve_current_azure_principal_object_id)"
+  if [[ -z "$deployer_object_id" ]]; then
+    log "Could not resolve the signed-in Azure principal object ID; expecting pre-existing Key Vault secret write permissions."
+    return 0
+  fi
+
+  deployer_officer_count="$(role_assignment_count_for_role_id "$deployer_object_id" "$key_vault_id" "$KEY_VAULT_SECRETS_OFFICER_ROLE_ID")"
+  deployer_admin_count="$(role_assignment_count_for_role_id "$deployer_object_id" "$key_vault_id" "$KEY_VAULT_ADMIN_ROLE_ID")"
+  if [[ "${deployer_officer_count:-0}" != "0" || "${deployer_admin_count:-0}" != "0" ]]; then
+    return 0
+  fi
+
+  log "Signed-in Azure principal is missing Key Vault secret write role on '$AKS_KEY_VAULT_NAME'; attempting to grant 'Key Vault Secrets Officer'..."
+  role_definition_id="/subscriptions/${SUBSCRIPTION_ID}/providers/Microsoft.Authorization/roleDefinitions/${KEY_VAULT_SECRETS_OFFICER_ROLE_ID}"
+  if assignment_error="$(create_role_assignment_via_rest "$key_vault_id" "$deployer_object_id" "$role_definition_id" 2>&1)"; then
+    log "Granted 'Key Vault Secrets Officer' to signed-in Azure principal for '$AKS_KEY_VAULT_NAME'."
+  elif [[ "$assignment_error" == *"RoleAssignmentExists"* ]]; then
+    log "Signed-in Azure principal already has an equivalent Key Vault role assignment."
+  else
+    log "Could not auto-assign 'Key Vault Secrets Officer'. If secret sync fails, grant 'Key Vault Secrets Officer' or 'Key Vault Administrator' on '$AKS_KEY_VAULT_NAME' and rerun."
+  fi
+}
+
 set_key_vault_secret_with_retry() {
   local vault_name="$1"
   local secret_name="$2"
@@ -364,33 +480,112 @@ set_key_vault_secret_with_retry() {
 }
 
 ensure_key_vault_secret_sync() {
-  # Key Vault creation, addon enabling, and RBAC role assignments are managed
-  # by Terraform. This function only seeds secrets from .env and sets up the
-  # Kubernetes SecretProviderClass + sync deployment.
+  local key_vault_id
+  local key_vault_rbac_enabled
+  local addon_identity_client_id=""
+  local addon_identity_object_id=""
+  local role_assignment_count
   local secret_provider_manifest
   local idx
   local kv_secret_name
   local value
+  local deleted_vault_count
+  local addon_enabled
+  local role_definition_id
+  local assignment_error
 
   if [[ -z "$AKS_KEY_VAULT_NAME" ]]; then
-    # Derive from subscription hash on Azure; on Scaleway this path should not be reached.
-    AKS_KEY_VAULT_NAME="aitrialkv${SUB_HASH:-}"
+    AKS_KEY_VAULT_NAME="aitrialkv${SUB_HASH}"
   fi
   AKS_KEY_VAULT_NAME="$(echo "$AKS_KEY_VAULT_NAME" | tr '[:upper:]' '[:lower:]')"
 
-  if [[ -z "$AKS_TENANT_ID" ]]; then
-    AKS_TENANT_ID="$(az account show --query tenantId -o tsv)"
-  fi
-
-  if [[ -z "${AKS_KEY_VAULT_PROVIDER_CLIENT_ID:-}" ]]; then
-    AKS_KEY_VAULT_PROVIDER_CLIENT_ID="$(az aks show \
-      --resource-group "$AKS_RESOURCE_GROUP" \
-      --name "$AKS_CLUSTER_NAME" \
-      --query addonProfiles.azureKeyvaultSecretsProvider.identity.clientId \
-      -o tsv 2>/dev/null || true)"
+  if [[ ! "$AKS_KEY_VAULT_NAME" =~ ^[a-z][a-z0-9-]{1,22}[a-z0-9]$ ]]; then
+    echo "[aks-up] ERROR: invalid AKS_KEY_VAULT_NAME '$AKS_KEY_VAULT_NAME'." >&2
+    echo "[aks-up] Use 3-24 chars, start with a letter, end with a letter/digit, and include only lowercase letters, digits, or '-'." >&2
+    return 1
   fi
 
   load_env_entries_for_key_vault
+
+  log "Ensuring Key Vault resource group '$AKS_KEY_VAULT_RESOURCE_GROUP' exists..."
+  az group create --name "$AKS_KEY_VAULT_RESOURCE_GROUP" --location "$AKS_LOCATION" -o none
+
+  if az keyvault show --name "$AKS_KEY_VAULT_NAME" >/dev/null 2>&1; then
+    log "Key Vault '$AKS_KEY_VAULT_NAME' already exists."
+  else
+    deleted_vault_count="$(az keyvault list-deleted --query "[?name=='${AKS_KEY_VAULT_NAME}'] | length(@)" -o tsv 2>/dev/null || echo 0)"
+    if [[ "${deleted_vault_count:-0}" != "0" ]]; then
+      log "Recovering soft-deleted Key Vault '$AKS_KEY_VAULT_NAME'..."
+      az keyvault recover --name "$AKS_KEY_VAULT_NAME" -o none
+    else
+      log "Creating Key Vault '$AKS_KEY_VAULT_NAME'..."
+      az keyvault create \
+        --name "$AKS_KEY_VAULT_NAME" \
+        --resource-group "$AKS_KEY_VAULT_RESOURCE_GROUP" \
+        --location "$AKS_LOCATION" \
+        --enable-rbac-authorization true \
+        -o none
+    fi
+  fi
+
+  key_vault_id="$(az keyvault show --name "$AKS_KEY_VAULT_NAME" --query id -o tsv)"
+  key_vault_rbac_enabled="$(az keyvault show --name "$AKS_KEY_VAULT_NAME" --query properties.enableRbacAuthorization -o tsv)"
+  AKS_TENANT_ID="$(az account show --query tenantId -o tsv)"
+
+  addon_enabled="$(az aks show --resource-group "$AKS_RESOURCE_GROUP" --name "$AKS_CLUSTER_NAME" --query addonProfiles.azureKeyvaultSecretsProvider.enabled -o tsv 2>/dev/null || echo false)"
+  if [[ "$(printf '%s' "$addon_enabled" | tr '[:upper:]' '[:lower:]')" == "true" ]]; then
+    log "AKS Key Vault provider add-on is already enabled."
+  else
+    log "Enabling AKS Key Vault provider add-on..."
+    az aks enable-addons \
+      --addons azure-keyvault-secrets-provider \
+      --resource-group "$AKS_RESOURCE_GROUP" \
+      --name "$AKS_CLUSTER_NAME" \
+      -o none
+  fi
+
+  for _ in {1..24}; do
+    addon_identity_client_id="$(az aks show --resource-group "$AKS_RESOURCE_GROUP" --name "$AKS_CLUSTER_NAME" --query addonProfiles.azureKeyvaultSecretsProvider.identity.clientId -o tsv 2>/dev/null || true)"
+    addon_identity_object_id="$(az aks show --resource-group "$AKS_RESOURCE_GROUP" --name "$AKS_CLUSTER_NAME" --query addonProfiles.azureKeyvaultSecretsProvider.identity.objectId -o tsv 2>/dev/null || true)"
+    if [[ -n "$addon_identity_client_id" && -n "$addon_identity_object_id" ]]; then
+      break
+    fi
+    sleep 5
+  done
+
+  if [[ -z "$addon_identity_client_id" || -z "$addon_identity_object_id" ]]; then
+    echo "[aks-up] ERROR: unable to resolve AKS Key Vault provider identity after enabling add-on." >&2
+    return 1
+  fi
+
+  AKS_KEY_VAULT_PROVIDER_CLIENT_ID="$addon_identity_client_id"
+
+  if [[ "$key_vault_rbac_enabled" == "true" ]]; then
+    role_assignment_count="$(role_assignment_count_for_role_id "$addon_identity_object_id" "$key_vault_id" "$KEY_VAULT_SECRETS_USER_ROLE_ID")"
+    if [[ "${role_assignment_count:-0}" == "0" ]]; then
+      log "Granting 'Key Vault Secrets User' to AKS Key Vault provider identity..."
+      role_definition_id="/subscriptions/${SUBSCRIPTION_ID}/providers/Microsoft.Authorization/roleDefinitions/${KEY_VAULT_SECRETS_USER_ROLE_ID}"
+      if assignment_error="$(create_role_assignment_via_rest "$key_vault_id" "$addon_identity_object_id" "$role_definition_id" "ServicePrincipal" 2>&1)"; then
+        :
+      elif [[ "$assignment_error" == *"RoleAssignmentExists"* ]]; then
+        log "AKS Key Vault provider identity already has 'Key Vault Secrets User' role on '$AKS_KEY_VAULT_NAME'."
+      else
+        echo "$assignment_error" >&2
+        return 1
+      fi
+    else
+      log "AKS Key Vault provider identity already has 'Key Vault Secrets User' role on '$AKS_KEY_VAULT_NAME'."
+    fi
+
+    ensure_current_principal_can_seed_key_vault "$key_vault_id"
+  else
+    log "Key Vault '$AKS_KEY_VAULT_NAME' uses access policies; granting get/list secret permissions to AKS provider identity..."
+    az keyvault set-policy \
+      --name "$AKS_KEY_VAULT_NAME" \
+      --object-id "$addon_identity_object_id" \
+      --secret-permissions get list \
+      -o none
+  fi
 
   log "Syncing ${#ODP_ENV_KEYS[@]} non-empty .env entries into Key Vault '$AKS_KEY_VAULT_NAME'..."
   if [[ "${#ODP_ENV_SKIPPED_EMPTY_KEYS[@]}" -gt 0 ]]; then
@@ -521,22 +716,13 @@ fi
 # shellcheck source=scripts/aks/aks_up_lib.sh
 source "$AKS_HELPERS_LIB"
 
+require_cmd az
 require_cmd kubectl
 require_cmd docker
 require_cmd curl
 require_cmd openssl
 require_cmd kompose
 require_cmd yq
-require_cmd jq
-# Cloud-specific CLI tools
-if [[ "$CLOUD_PROVIDER" == "azure" ]]; then
-  require_cmd az
-elif [[ "$CLOUD_PROVIDER" == "scaleway" ]]; then
-  :
-else
-  echo "[aks-up] ERROR: Unsupported CLOUD_PROVIDER='$CLOUD_PROVIDER'. Must be 'azure' or 'scaleway'." >&2
-  exit 1
-fi
 
 if [[ ! -f "$KOMPOSE_LIB" ]]; then
   echo "Missing kompose shared library: $KOMPOSE_LIB" >&2
@@ -549,104 +735,273 @@ source "$KOMPOSE_LIB"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
+AKS_SKIP_OPENAPI_VALIDATE="${AKS_SKIP_OPENAPI_VALIDATE:-false}"
+
+kubectl_ctx_apply() {
+  if [[ "$AKS_SKIP_OPENAPI_VALIDATE" == "true" ]]; then
+    kubectl_ctx apply --validate=false -f "$@"
+  else
+    kubectl_ctx apply -f "$@"
+  fi
+}
+
+check_kube_api() {
+  if kubectl_ctx get --raw='/readyz' >/dev/null 2>&1; then
+    return 0
+  fi
+
+  echo "[aks-up] ERROR: Kubernetes API endpoint is unreachable from this machine." >&2
+  echo "[aks-up] If this is a private AKS cluster, connect to the VNet (VPN/bastion) or ensure private DNS resolves the API server." >&2
+  echo "[aks-up] You can set AKS_SKIP_OPENAPI_VALIDATE=true to skip client-side OpenAPI validation once connectivity is fixed." >&2
+  return 1
+}
+
+ensure_aks_nodepool_capacity() {
+  local desired_count="$AKS_NODE_COUNT"
+  local system_pool
+  local autoscaling_enabled
+  local pool_count
+  local pool_min_count
+  local pool_max_count
+  local adjusted_max_count
+
+  system_pool="$(az aks nodepool list \
+    --resource-group "$AKS_RESOURCE_GROUP" \
+    --cluster-name "$AKS_CLUSTER_NAME" \
+    --query "[?mode=='System'] | [0].name" \
+    -o tsv 2>/dev/null || true)"
+  if [[ -z "$system_pool" ]]; then
+    log "Could not resolve a System nodepool for AKS cluster '$AKS_CLUSTER_NAME'; skipping nodepool capacity reconciliation."
+    return 0
+  fi
+
+  autoscaling_enabled="$(az aks nodepool show --resource-group "$AKS_RESOURCE_GROUP" --cluster-name "$AKS_CLUSTER_NAME" --name "$system_pool" --query enableAutoScaling -o tsv 2>/dev/null || echo false)"
+  pool_count="$(az aks nodepool show --resource-group "$AKS_RESOURCE_GROUP" --cluster-name "$AKS_CLUSTER_NAME" --name "$system_pool" --query count -o tsv 2>/dev/null || echo 0)"
+
+  if [[ "$(printf '%s' "$autoscaling_enabled" | tr '[:upper:]' '[:lower:]')" == "true" ]]; then
+    pool_min_count="$(az aks nodepool show --resource-group "$AKS_RESOURCE_GROUP" --cluster-name "$AKS_CLUSTER_NAME" --name "$system_pool" --query minCount -o tsv 2>/dev/null || echo 0)"
+    pool_max_count="$(az aks nodepool show --resource-group "$AKS_RESOURCE_GROUP" --cluster-name "$AKS_CLUSTER_NAME" --name "$system_pool" --query maxCount -o tsv 2>/dev/null || echo 0)"
+    if (( pool_min_count < desired_count )); then
+      adjusted_max_count="$pool_max_count"
+      if (( adjusted_max_count < desired_count )); then
+        adjusted_max_count="$desired_count"
+      fi
+      log "Raising AKS autoscaler minimum for nodepool '$system_pool' from $pool_min_count to $desired_count (max=$adjusted_max_count)..."
+      az aks nodepool update \
+        --resource-group "$AKS_RESOURCE_GROUP" \
+        --cluster-name "$AKS_CLUSTER_NAME" \
+        --name "$system_pool" \
+        --update-cluster-autoscaler \
+        --min-count "$desired_count" \
+        --max-count "$adjusted_max_count" \
+        -o none
+    fi
+  else
+    if (( pool_count < desired_count )); then
+      log "Scaling AKS nodepool '$system_pool' from $pool_count to $desired_count nodes..."
+      az aks nodepool scale \
+        --resource-group "$AKS_RESOURCE_GROUP" \
+        --cluster-name "$AKS_CLUSTER_NAME" \
+        --name "$system_pool" \
+        --node-count "$desired_count" \
+        -o none
+    fi
+  fi
+}
+
 if [[ ! -f "$ROOT_DIR/.env" ]]; then
   echo "Missing $ROOT_DIR/.env. Create it first (for example: cp .env.template .env)." >&2
   exit 1
 fi
 
+validate_boolean_env "AKS_USE_KEY_VAULT" "$AKS_USE_KEY_VAULT"
+validate_boolean_env "AKS_FORCE_ATTACH_ACR" "$AKS_FORCE_ATTACH_ACR"
+validate_positive_integer_env "AKS_NODE_COUNT" "$AKS_NODE_COUNT"
 enforce_odp_env_secret_name
 
-# ---------------------------------------------------------------------------
-# Resolve infrastructure values and configure kubeconfig / registry login
-# Branches on CLOUD_PROVIDER (azure | scaleway).
-# ---------------------------------------------------------------------------
+SUBSCRIPTION_ID="$(az account show --query id -o tsv)"
+SUB_HASH="$(echo "$SUBSCRIPTION_ID" | tr -d '-' | cut -c1-8)"
+ACR_NAME="${ACR_NAME:-aitrial${SUB_HASH}}"
+AIRFLOW_IMAGE="${ACR_NAME}.azurecr.io/${AIRFLOW_IMAGE_REPO}:${AIRFLOW_IMAGE_TAG}"
+FRONTEND_IMAGE="${ACR_NAME}.azurecr.io/${FRONTEND_IMAGE_REPO}:${FRONTEND_IMAGE_TAG}"
+PORTAL_API_IMAGE="${ACR_NAME}.azurecr.io/${PORTAL_API_IMAGE_REPO}:${PORTAL_API_IMAGE_TAG}"
+JUPYTER_IMAGE="${ACR_NAME}.azurecr.io/${JUPYTER_IMAGE_REPO}:${JUPYTER_IMAGE_TAG}"
+MINIO_SSO_BRIDGE_IMAGE="${ACR_NAME}.azurecr.io/${MINIO_SSO_BRIDGE_IMAGE_REPO}:${MINIO_SSO_BRIDGE_IMAGE_TAG}"
 export KUBECONFIG="$KUBECONFIG_PATH"
-mkdir -p "$(dirname "$KUBECONFIG_PATH")"
 
-if [[ "$CLOUD_PROVIDER" == "azure" ]]; then
-  # ---- Azure: derive ACR name from subscription hash if not set by TF ----
-  SUBSCRIPTION_ID="$(az account show --query id -o tsv)"
-  SUB_HASH="$(echo "$SUBSCRIPTION_ID" | tr -d '-' | cut -c1-8)"
-  ACR_NAME="${ACR_NAME:-aitrial${SUB_HASH}}"
-  ACR_LOGIN_SERVER="${ACR_LOGIN_SERVER:-${ACR_NAME}.azurecr.io}"
+log "Using Azure subscription: $(az account show --query name -o tsv)"
+log "Creating/updating resource group '$AKS_RESOURCE_GROUP' in '$AKS_LOCATION'..."
+az group create --name "$AKS_RESOURCE_GROUP" --location "$AKS_LOCATION" -o none
 
-  # Ingress IP fallback — read from AKS node resource group if TF output missing
-  if [[ -z "${INGRESS_PIP_IP:-}" ]]; then
-    NODE_RESOURCE_GROUP="${NODE_RESOURCE_GROUP:-$(az aks show \
-      --resource-group "$AKS_RESOURCE_GROUP" \
-      --name "$AKS_CLUSTER_NAME" \
-      --query nodeResourceGroup -o tsv)}"
-    INGRESS_PIP_IP="$(az network public-ip show \
-      --resource-group "$NODE_RESOURCE_GROUP" \
-      --name "${INGRESS_PIP_NAME:-ai-trial-ingress-pip}" \
-      --query ipAddress -o tsv)"
-  fi
-
-  log "Using Azure subscription: $(az account show --query name -o tsv)"
-  log "Infrastructure managed by Terraform — skipping resource provisioning."
-  log "Ingress Public IP: $INGRESS_PIP_IP"
-
-  # Kubeconfig for the AKS cluster
-  log "Fetching kubectl credentials for AKS cluster '$AKS_CLUSTER_NAME'..."
-  az aks get-credentials \
-    --resource-group "$AKS_RESOURCE_GROUP" \
-    --name "$AKS_CLUSTER_NAME" \
-    --overwrite-existing \
-    -o none
-  kubectl config use-context "$AKS_CLUSTER_NAME" >/dev/null
-  KUBE_CONTEXT="$AKS_CLUSTER_NAME"
-
-  # ACR login
-  log "Logging in to ACR '$ACR_NAME'..."
-  az acr login --name "$ACR_NAME" -o none
-
-elif [[ "$CLOUD_PROVIDER" == "scaleway" ]]; then
-  # ---- Scaleway: registry + kubeconfig from Terraform outputs ----
-  if [[ -z "${ACR_LOGIN_SERVER:-}" ]]; then
-    log "ERROR: registry_login_server not available from Terraform outputs." >&2
-    log "       Run 'make tf-apply ENVIRONMENT=scaleway-dev' first." >&2
-    exit 1
-  fi
-  if [[ -z "${INGRESS_PIP_IP:-}" ]]; then
-    log "ERROR: ingress_public_ip not available from Terraform outputs." >&2
-    log "       Run 'make tf-apply ENVIRONMENT=scaleway-dev' first." >&2
-    exit 1
-  fi
-
-  log "Using Scaleway cloud (region: $SCW_REGION)"
-  log "Infrastructure managed by Terraform — skipping resource provisioning."
-  log "Ingress Public IP: $INGRESS_PIP_IP"
-
-  # Kubeconfig via Scaleway CLI (uses cluster ID from kube_config_command output)
-  log "Fetching kubectl credentials for Scaleway cluster '$AKS_CLUSTER_NAME'..."
-  if [[ -n "${KUBE_CONFIG_COMMAND:-}" ]]; then
-    eval "$KUBE_CONFIG_COMMAND" >/dev/null
-  else
-    require_cmd scw
-    log "WARNING: kube_config_command not available; cannot auto-configure kubectl." >&2
-    log "         Set KUBE_CONTEXT manually or run 'make tf-apply' first." >&2
-  fi
-  # After 'scw k8s kubeconfig install', the current context is set to the cluster's context.
-  KUBE_CONTEXT="${KUBE_CONTEXT:-$(kubectl config current-context 2>/dev/null || echo "$AKS_CLUSTER_NAME")}"
-
-  # Scaleway Container Registry login (username is always "nologin", password = secret key)
-  if [[ -z "${SCW_SECRET_KEY:-}" ]] && command -v scw >/dev/null 2>&1; then
-    SCW_SECRET_KEY="$(scw config get secret-key 2>/dev/null || true)"
-  fi
-  if [[ -z "${SCW_SECRET_KEY:-}" ]]; then
-    log "ERROR: SCW_SECRET_KEY is not set and could not be read from Scaleway CLI config." >&2
-    log "       Set SCW_SECRET_KEY env var, or install/configure 'scw' via 'scw init'." >&2
-    exit 1
-  fi
-  log "Logging in to Scaleway Container Registry '$ACR_LOGIN_SERVER'..."
-  echo "${SCW_SECRET_KEY}" | docker login "$ACR_LOGIN_SERVER" -u nologin --password-stdin
+if az acr show --name "$ACR_NAME" >/dev/null 2>&1; then
+  log "ACR '$ACR_NAME' already exists."
+else
+  log "Creating ACR '$ACR_NAME'..."
+  az acr create --resource-group "$AKS_RESOURCE_GROUP" --name "$ACR_NAME" --sku Basic -o none
 fi
 
-AIRFLOW_IMAGE="${ACR_LOGIN_SERVER}/${AIRFLOW_IMAGE_REPO}:${AIRFLOW_IMAGE_TAG}"
-FRONTEND_IMAGE="${ACR_LOGIN_SERVER}/${FRONTEND_IMAGE_REPO}:${FRONTEND_IMAGE_TAG}"
-PORTAL_API_IMAGE="${ACR_LOGIN_SERVER}/${PORTAL_API_IMAGE_REPO}:${PORTAL_API_IMAGE_TAG}"
-JUPYTER_IMAGE="${ACR_LOGIN_SERVER}/${JUPYTER_IMAGE_REPO}:${JUPYTER_IMAGE_TAG}"
-MINIO_SSO_BRIDGE_IMAGE="${ACR_LOGIN_SERVER}/${MINIO_SSO_BRIDGE_IMAGE_REPO}:${MINIO_SSO_BRIDGE_IMAGE_TAG}"
+if az aks show --resource-group "$AKS_RESOURCE_GROUP" --name "$AKS_CLUSTER_NAME" >/dev/null 2>&1; then
+  log "AKS cluster '$AKS_CLUSTER_NAME' already exists."
+else
+  log "Creating AKS cluster '$AKS_CLUSTER_NAME' (this can take several minutes)..."
+  az aks create \
+    --resource-group "$AKS_RESOURCE_GROUP" \
+    --name "$AKS_CLUSTER_NAME" \
+    --location "$AKS_LOCATION" \
+    --node-count "$AKS_NODE_COUNT" \
+    --node-vm-size "$AKS_NODE_VM_SIZE" \
+    --tier free \
+    --enable-managed-identity \
+    --generate-ssh-keys \
+    --attach-acr "$ACR_NAME" \
+    -o none
+fi
+
+ensure_aks_nodepool_capacity
+
+if [[ "$AKS_FORCE_ATTACH_ACR" == "true" ]]; then
+  log "Ensuring AKS cluster can pull from ACR '$ACR_NAME'..."
+  az aks update \
+    --resource-group "$AKS_RESOURCE_GROUP" \
+    --name "$AKS_CLUSTER_NAME" \
+    --attach-acr "$ACR_NAME" \
+    -o none
+fi
+
+mkdir -p "$(dirname "$KUBECONFIG_PATH")"
+if [[ ! -f "$KUBECONFIG_PATH" ]]; then
+  cat > "$KUBECONFIG_PATH" <<'EOC'
+apiVersion: v1
+kind: Config
+clusters: []
+contexts: []
+current-context: ""
+users: []
+EOC
+  chmod 600 "$KUBECONFIG_PATH"
+elif ! grep -q '^clusters:' "$KUBECONFIG_PATH"; then
+  backup_path="${KUBECONFIG_PATH}.bak.$(date +%Y%m%d%H%M%S)"
+  cp "$KUBECONFIG_PATH" "$backup_path"
+  log "Backed up invalid kubeconfig to '$backup_path'."
+  cat > "$KUBECONFIG_PATH" <<'EOC'
+apiVersion: v1
+kind: Config
+clusters: []
+contexts: []
+current-context: ""
+users: []
+EOC
+  chmod 600 "$KUBECONFIG_PATH"
+fi
+
+log "Fetching kubectl credentials for '$AKS_CLUSTER_NAME'..."
+az aks get-credentials \
+  --resource-group "$AKS_RESOURCE_GROUP" \
+  --name "$AKS_CLUSTER_NAME" \
+  --overwrite-existing \
+  -o none
+
+kubectl config use-context "$AKS_CLUSTER_NAME" >/dev/null
+
+NODE_RESOURCE_GROUP="$(az aks show --resource-group "$AKS_RESOURCE_GROUP" --name "$AKS_CLUSTER_NAME" --query nodeResourceGroup -o tsv)"
+
+log "Ensuring static Public IP '$INGRESS_PIP_NAME' exists in node resource group '$NODE_RESOURCE_GROUP'..."
+if az network public-ip show --resource-group "$NODE_RESOURCE_GROUP" --name "$INGRESS_PIP_NAME" >/dev/null 2>&1; then
+  log "Public IP '$INGRESS_PIP_NAME' already exists."
+else
+  az network public-ip create \
+    --resource-group "$NODE_RESOURCE_GROUP" \
+    --name "$INGRESS_PIP_NAME" \
+    --location "$AKS_LOCATION" \
+    --sku Standard \
+    --allocation-method Static \
+    -o none
+fi
+
+INGRESS_PIP_IP="$(az network public-ip show --resource-group "$NODE_RESOURCE_GROUP" --name "$INGRESS_PIP_NAME" --query ipAddress -o tsv)"
+log "Ingress Public IP: $INGRESS_PIP_IP"
+
+log "Installing/upgrading ingress-nginx ($INGRESS_NGINX_VERSION)..."
+check_kube_api
+kubectl_ctx_apply "https://raw.githubusercontent.com/kubernetes/ingress-nginx/${INGRESS_NGINX_VERSION}/deploy/static/provider/cloud/deploy.yaml"
+
+log "Configuring ingress-nginx service to use Public IP '$INGRESS_PIP_NAME'..."
+for _ in {1..60}; do
+  if kubectl_ctx -n ingress-nginx get svc ingress-nginx-controller >/dev/null 2>&1; then
+    break
+  fi
+  sleep 2
+done
+
+kubectl_ctx -n ingress-nginx patch svc ingress-nginx-controller --type merge -p "$(cat <<EOF
+{
+  "metadata": {
+    "annotations": {
+      "service.beta.kubernetes.io/azure-load-balancer-resource-group": "${NODE_RESOURCE_GROUP}",
+      "service.beta.kubernetes.io/azure-pip-name": "${INGRESS_PIP_NAME}"
+    }
+  }
+}
+EOF
+)"
+
+log "Waiting for ingress-nginx controller to be ready..."
+wait_for_deployment_in_namespace ingress-nginx ingress-nginx-controller "$WAIT_TIMEOUT"
+
+log "Waiting for ingress-nginx external IP to match $INGRESS_PIP_IP..."
+for _ in {1..120}; do
+  svc_ip="$(kubectl_ctx -n ingress-nginx get svc ingress-nginx-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)"
+  if [[ -n "$svc_ip" && "$svc_ip" == "$INGRESS_PIP_IP" ]]; then
+    break
+  fi
+  sleep 5
+done
+
+svc_ip="$(kubectl_ctx -n ingress-nginx get svc ingress-nginx-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)"
+if [[ -z "$svc_ip" ]]; then
+  echo "[aks-up] ERROR: ingress-nginx service has no external IP after waiting." >&2
+  exit 1
+fi
+if [[ "$svc_ip" != "$INGRESS_PIP_IP" ]]; then
+  echo "[aks-up] ERROR: ingress-nginx external IP '$svc_ip' does not match expected '$INGRESS_PIP_IP'." >&2
+  exit 1
+fi
+
+log "Ensuring Azure DNS zone '$FRONTEND_DOMAIN' exists in resource group '$DNS_RESOURCE_GROUP'..."
+if ! az network dns zone show --resource-group "$DNS_RESOURCE_GROUP" --name "$FRONTEND_DOMAIN" >/dev/null 2>&1; then
+  az network dns zone create --resource-group "$DNS_RESOURCE_GROUP" --name "$FRONTEND_DOMAIN" -o none
+fi
+zone_ns="$(az network dns zone show --resource-group "$DNS_RESOURCE_GROUP" --name "$FRONTEND_DOMAIN" --query nameServers -o tsv | tr '\n' ' ')"
+log "DNS name servers: $zone_ns"
+
+log "Upserting DNS records for '$FRONTEND_DOMAIN' -> $INGRESS_PIP_IP ..."
+az network dns record-set a create --resource-group "$DNS_RESOURCE_GROUP" --zone-name "$FRONTEND_DOMAIN" --name "@" --ttl 300 -o none || true
+existing_a_ips="$(az network dns record-set a show --resource-group "$DNS_RESOURCE_GROUP" --zone-name "$FRONTEND_DOMAIN" --name "@" --query "ARecords[].ipv4Address" -o tsv 2>/dev/null || true)"
+if [[ -n "$existing_a_ips" ]]; then
+  while IFS= read -r old_ip; do
+    [[ -z "$old_ip" ]] && continue
+    if [[ "$old_ip" != "$INGRESS_PIP_IP" ]]; then
+      az network dns record-set a remove-record --resource-group "$DNS_RESOURCE_GROUP" --zone-name "$FRONTEND_DOMAIN" --record-set-name "@" --ipv4-address "$old_ip" -o none || true
+    fi
+  done <<< "$existing_a_ips"
+fi
+az network dns record-set a add-record --resource-group "$DNS_RESOURCE_GROUP" --zone-name "$FRONTEND_DOMAIN" --record-set-name "@" --ipv4-address "$INGRESS_PIP_IP" -o none || true
+
+for cname in www airflow minio minio-api keycloak datahub superset grafana jupyter prometheus alertmanager dbt-docs portal-api; do
+  az network dns record-set cname create --resource-group "$DNS_RESOURCE_GROUP" --zone-name "$FRONTEND_DOMAIN" --name "$cname" --ttl 300 -o none || true
+  az network dns record-set cname set-record --resource-group "$DNS_RESOURCE_GROUP" --zone-name "$FRONTEND_DOMAIN" --record-set-name "$cname" --cname "$FRONTEND_DOMAIN" -o none
+done
+
+log "Installing/upgrading cert-manager ($CERT_MANAGER_VERSION)..."
+kubectl_ctx apply -f "https://github.com/cert-manager/cert-manager/releases/download/${CERT_MANAGER_VERSION}/cert-manager.yaml"
+
+log "Waiting for cert-manager to be ready..."
+wait_for_deployment_in_namespace cert-manager cert-manager "$WAIT_TIMEOUT"
+wait_for_deployment_in_namespace cert-manager cert-manager-cainjector "$WAIT_TIMEOUT"
+wait_for_deployment_in_namespace cert-manager cert-manager-webhook "$WAIT_TIMEOUT"
+
+log "Logging in to ACR '$ACR_NAME'..."
+az acr login --name "$ACR_NAME" -o none
 
 warn_on_legacy_vite_url_vars
 
@@ -664,16 +1019,9 @@ build_and_push_image "$MINIO_SSO_BRIDGE_IMAGE" "$ROOT_DIR/ops/minio-sso-bridge/D
 log "Applying namespace..."
 render_and_apply "$ROOT_DIR/k8s/aks/namespace.yaml"
 
-if [[ "$CLOUD_PROVIDER" == "azure" && "$AKS_USE_KEY_VAULT" == "true" ]]; then
+if [[ "$AKS_USE_KEY_VAULT" == "true" ]]; then
   log "Creating/updating Kubernetes secret '$AKS_KEY_VAULT_SECRET_NAME' from Azure Key Vault..."
   ensure_key_vault_secret_sync
-elif [[ "$CLOUD_PROVIDER" == "scaleway" ]]; then
-  # On Scaleway, secrets are synced by external-secrets-operator (ESO) using the
-  # IAM API key that Terraform provisioned. ESO must be installed separately.
-  # Direct seeding from .env is used as a fallback / initial seed here.
-  log "Scaleway: creating/updating Kubernetes secret '$AKS_KEY_VAULT_SECRET_NAME' directly from .env..."
-  log "         (external-secrets-operator will sync from Scaleway Secret Manager at runtime)"
-  create_odp_env_secret_from_env_file
 else
   log "AKS_USE_KEY_VAULT=false; creating/updating Kubernetes secret '$AKS_KEY_VAULT_SECRET_NAME' directly from .env..."
   create_odp_env_secret_from_env_file
@@ -682,7 +1030,7 @@ fi
 if [[ -z "$(kubectl_ctx -n "$NAMESPACE" get secret "$AKS_KEY_VAULT_SECRET_NAME" -o jsonpath='{.data.AIRFLOW_OAUTH_DEFAULT_ROLE}' 2>/dev/null || true)" ]]; then
   log "AIRFLOW_OAUTH_DEFAULT_ROLE missing in .env; defaulting '$AKS_KEY_VAULT_SECRET_NAME' secret value to 'Viewer' (least privilege)."
   kubectl_ctx -n "$NAMESPACE" patch secret "$AKS_KEY_VAULT_SECRET_NAME" --type merge -p '{"stringData":{"AIRFLOW_OAUTH_DEFAULT_ROLE":"Viewer"}}'
-  if [[ "$CLOUD_PROVIDER" == "azure" && "$AKS_USE_KEY_VAULT" == "true" ]]; then
+  if [[ "$AKS_USE_KEY_VAULT" == "true" ]]; then
     set_key_vault_secret_with_retry \
       "$AKS_KEY_VAULT_NAME" \
       "$(env_key_to_key_vault_secret_name AIRFLOW_OAUTH_DEFAULT_ROLE)" \
@@ -884,25 +1232,18 @@ curl -sS -o /dev/null -D - --resolve "prometheus.${FRONTEND_DOMAIN}:443:${INGRES
 curl -sS -o /dev/null -D - --resolve "dbt-docs.${FRONTEND_DOMAIN}:443:${INGRESS_PIP_IP}" "https://dbt-docs.${FRONTEND_DOMAIN}/" | head -n 1
 echo | openssl s_client -servername "${FRONTEND_DOMAIN}" -connect "${INGRESS_PIP_IP}:443" 2>/dev/null | openssl x509 -noout -subject -issuer | sed -n '1,2p'
 
-if [[ "$CLOUD_PROVIDER" == "azure" && "$AKS_USE_KEY_VAULT" == "true" ]]; then
+if [[ "$AKS_USE_KEY_VAULT" == "true" ]]; then
   SECRET_SOURCE_SUMMARY="Azure Key Vault (${AKS_KEY_VAULT_NAME}) -> Kubernetes secret ${AKS_KEY_VAULT_SECRET_NAME}"
-elif [[ "$CLOUD_PROVIDER" == "scaleway" ]]; then
-  SECRET_SOURCE_SUMMARY="Scaleway Secret Manager (${AKS_KEY_VAULT_NAME}) + .env seed -> Kubernetes secret ${AKS_KEY_VAULT_SECRET_NAME}"
 else
   SECRET_SOURCE_SUMMARY=".env -> Kubernetes secret ${AKS_KEY_VAULT_SECRET_NAME} (AKS_USE_KEY_VAULT=false)"
 fi
 
-if [[ "$CLOUD_PROVIDER" == "azure" ]]; then
-  CLEANUP_CMD="  az group delete --name ${AKS_RESOURCE_GROUP} --yes --no-wait"
-else
-  CLEANUP_CMD="  make tf-destroy ENVIRONMENT=scaleway-dev   # or your active environment"
-fi
-
 cat <<EOT
 
-Cluster deployment is up! (cloud: $CLOUD_PROVIDER)
+AKS deployment is up.
 
 Cluster:       $AKS_CLUSTER_NAME
+ResourceGroup: $AKS_RESOURCE_GROUP
 Namespace:     $NAMESPACE
 Secret source: $SECRET_SOURCE_SUMMARY
 Airflow image: $AIRFLOW_IMAGE
@@ -925,6 +1266,6 @@ Access services with port-forward from your machine:
   kubectl -n $NAMESPACE port-forward svc/warehouse 5433:5432
 
 Cleanup when done (to avoid costs):
-$CLEANUP_CMD
+  az group delete --name $AKS_RESOURCE_GROUP --yes --no-wait
 
 EOT

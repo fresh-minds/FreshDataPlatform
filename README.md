@@ -146,6 +146,8 @@ During bootstrap dbt orchestration, `scripts/pipeline/run_dbt.sh` defaults to
 `DBT_THREADS=1` to avoid Postgres deadlocks; override with `DBT_THREADS=<n>` when needed.
 The default Superset bootstrap seeds committed dashboards, including `NL IT Job Market`
 and `ODP Staffing Demand`.
+It also seeds a metadata-driven operations dashboard, `Platform Metadata Operations`,
+from warehouse schema `platform_metadata`.
 
 Option B (just services):
 ```bash

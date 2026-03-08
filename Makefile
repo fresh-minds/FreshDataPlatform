@@ -1,5 +1,5 @@
 # Open Data Platform - Development Commands
-.PHONY: install dev-install test lint format format-check run clean help schema-validate schema-drift-check dbt-debug dbt-build-seed dbt-docs-generate dbt-docs-refresh dbt-docs-watch e2e-test test-e2e test-sso qa-test run-job-market-metadata warehouse-metadata-init warehouse-security create-warehouse-user fabric-import observability-verify k8s-aks-smoke bootstrap-all bootstrap_all k8s-dev-up k8s-dev-up-full k8s-dev-down k8s-sso-gateway-up k8s-sso-gateway-forward k8s-sso-gateway-forward-stop k8s-aks-up k8s-aks-update-images k8s-aks-down platform-init-domain platform-add-entity platform-validate platform-sync
+.PHONY: install dev-install test lint format format-check run clean help schema-validate schema-drift-check dbt-debug dbt-build-seed dbt-docs-generate dbt-docs-refresh dbt-docs-watch e2e-test test-e2e test-sso qa-test run-job-market-metadata warehouse-metadata-init warehouse-security create-warehouse-user fabric-import observability-verify k8s-aks-smoke bootstrap-all bootstrap_all k8s-dev-up k8s-dev-up-full k8s-dev-down k8s-sso-gateway-up k8s-sso-gateway-forward k8s-sso-gateway-forward-stop k8s-aks-up k8s-aks-update-images k8s-aks-down scaleway-destroy-all platform-init-domain platform-add-entity platform-validate platform-sync tf-init tf-validate tf-plan tf-apply tf-destroy tf-output tf-bootstrap-state
 
 # Default Python
 PYTHON := .venv/bin/python
@@ -190,17 +190,34 @@ k8s-aks-update-images:  ## Build/push selected app images and patch existing AKS
 k8s-aks-down:  ## Tear down AKS workloads; set TF_DESTROY=true to also destroy Terraform-managed infra
 	./scripts/aks/aks_down.sh
 
-tf-init:  ## Initialize Terraform (download providers, configure backend)
+scaleway-destroy-all:  ## Destroy all Terraform-managed Scaleway resources (use DRY_RUN=true for plan-only)
+	@if [ "$${DRY_RUN:-false}" = "true" ]; then \
+		PURGE_FLAG=""; \
+		if [ "$${PURGE_LEFTOVERS:-false}" = "true" ]; then PURGE_FLAG="--purge-leftovers"; fi; \
+		./scripts/aks/scaleway_destroy_all.sh --dry-run $$PURGE_FLAG --tf-vars-file "$${TF_VARS_FILE:-$$(pwd)/terraform/environments/scaleway-dev.tfvars}" --tf-dir "$${TF_DIR:-$$(pwd)/terraform/scaleway}"; \
+	else \
+		PURGE_FLAG=""; \
+		if [ "$${PURGE_LEFTOVERS:-false}" = "true" ]; then PURGE_FLAG="--purge-leftovers"; fi; \
+		./scripts/aks/scaleway_destroy_all.sh --yes $$PURGE_FLAG --tf-vars-file "$${TF_VARS_FILE:-$$(pwd)/terraform/environments/scaleway-dev.tfvars}" --tf-dir "$${TF_DIR:-$$(pwd)/terraform/scaleway}"; \
+	fi
+
+tf-init:  ## Initialize Terraform — downloads providers and configures backend
 	cd terraform && terraform init
 
-tf-plan:  ## Show Terraform plan for AKS infrastructure changes
+tf-validate:  ## Validate Terraform configuration syntax (no cloud credentials needed)
+	cd terraform && terraform init -backend=false -reconfigure -input=false && terraform validate
+
+tf-plan:  ## Preview infrastructure changes (ENVIRONMENT=dev|scaleway-dev|staging|prod)
 	cd terraform && terraform plan -var-file=environments/$${ENVIRONMENT:-dev}.tfvars
 
-tf-apply:  ## Apply Terraform changes to AKS infrastructure
+tf-apply:  ## Apply infrastructure changes (ENVIRONMENT=dev|scaleway-dev|staging|prod)
 	cd terraform && terraform apply -var-file=environments/$${ENVIRONMENT:-dev}.tfvars
 
-tf-destroy:  ## Destroy all Terraform-managed AKS infrastructure
+tf-destroy:  ## Destroy all Terraform-managed infrastructure (ENVIRONMENT=dev|scaleway-dev|...)
 	cd terraform && terraform destroy -var-file=environments/$${ENVIRONMENT:-dev}.tfvars
+
+tf-output:  ## Show current Terraform output values (ENVIRONMENT=dev|scaleway-dev|...)
+	cd terraform && terraform output
 
 tf-bootstrap-state:  ## One-time: create Azure Storage Account for Terraform remote state
 	./scripts/terraform/bootstrap_state.sh
