@@ -1,5 +1,5 @@
 # Open Data Platform - Development Commands
-.PHONY: install dev-install test lint format format-check run clean help schema-validate schema-drift-check dbt-debug dbt-build-seed dbt-docs-generate dbt-docs-refresh dbt-docs-watch e2e-test test-e2e test-sso qa-test run-job-market-metadata warehouse-metadata-init warehouse-security create-warehouse-user fabric-import observability-verify k8s-aks-smoke bootstrap-all bootstrap_all k8s-dev-up k8s-dev-up-full k8s-dev-down k8s-sso-gateway-up k8s-sso-gateway-forward k8s-sso-gateway-forward-stop k8s-aks-up k8s-aks-update-images k8s-aks-down scaleway-destroy-all platform-init-domain platform-add-entity platform-validate platform-sync tf-init tf-validate tf-plan tf-apply tf-destroy tf-output tf-bootstrap-state
+.PHONY: install dev-install test lint format format-check run clean help schema-validate schema-drift-check dbt-debug dbt-build-seed dbt-docs-generate dbt-docs-refresh dbt-docs-watch e2e-test test-e2e test-sso qa-test run-job-market-metadata warehouse-metadata-init warehouse-security create-warehouse-user fabric-import observability-verify k8s-aks-smoke bootstrap-all bootstrap_all k8s-dev-up k8s-dev-up-full k8s-dev-down k8s-sso-gateway-up k8s-sso-gateway-forward k8s-sso-gateway-forward-stop k8s-aks-up k8s-aks-update-images k8s-aks-down scaleway-redeploy-all scaleway-destroy-all platform-init-domain platform-add-entity platform-validate platform-sync tf-init tf-validate tf-plan tf-apply tf-destroy tf-output tf-bootstrap-state
 
 # Default Python
 PYTHON := .venv/bin/python
@@ -189,6 +189,14 @@ k8s-aks-update-images:  ## Build/push selected app images and patch existing AKS
 
 k8s-aks-down:  ## Tear down AKS workloads; set TF_DESTROY=true to also destroy Terraform-managed infra
 	./scripts/aks/aks_down.sh
+
+scaleway-redeploy-all:  ## One-command Scaleway redeploy (Terraform apply + workload deploy + smoke); set DRY_RUN=true for plan-only
+	@ARGS=""; \
+	if [ "$${DRY_RUN:-false}" = "true" ]; then ARGS="$$ARGS --dry-run"; fi; \
+	if [ "$${SKIP_TERRAFORM_APPLY:-false}" = "true" ]; then ARGS="$$ARGS --skip-terraform-apply"; fi; \
+	if [ "$${SKIP_DEPLOY:-false}" = "true" ]; then ARGS="$$ARGS --skip-deploy"; fi; \
+	if [ "$${SKIP_SMOKE:-false}" = "true" ]; then ARGS="$$ARGS --skip-smoke"; fi; \
+	./scripts/aks/scaleway_redeploy_all.sh --yes $$ARGS --tf-vars-file "$${TF_VARS_FILE:-$$(pwd)/terraform/environments/scaleway-dev.tfvars}" --tf-dir "$${TF_DIR:-$$(pwd)/terraform/scaleway}"
 
 scaleway-destroy-all:  ## Destroy all Terraform-managed Scaleway resources (use DRY_RUN=true for plan-only)
 	@if [ "$${DRY_RUN:-false}" = "true" ]; then \

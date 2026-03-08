@@ -16,6 +16,7 @@ canonical subfolder paths.
 - `scripts/testing/`: E2E/SSO/CI validation scripts.
 - `scripts/k8s/`: kind/Kubernetes helper scripts.
 - `scripts/aks/`: AKS provisioning/teardown scripts.
+- `scripts/aks/scaleway_redeploy_all.sh`: one-command Scaleway redeploy helper (Terraform + workloads + smoke checks).
 - `scripts/aks/scaleway_destroy_all.sh`: dedicated Terraform-backed Scaleway teardown helper.
 
 AKS modular helpers:
@@ -79,6 +80,55 @@ terraform -chdir=terraform/scaleway state list
 
 Expected result:
 - No resources are listed in Terraform state.
+
+## Scaleway redeploy script
+
+Summary:
+- `scripts/aks/scaleway_redeploy_all.sh` runs a full Scaleway redeploy flow in one command.
+- Default flow: Terraform apply in `terraform/scaleway`, then workload deployment via `scripts/aks/aks_up.sh`, then `scripts/testing/verify_aks_smoke.sh`.
+- Supports partial runs (`--skip-terraform-apply`, `--skip-deploy`, `--skip-smoke`) and dry-run Terraform plan (`--dry-run`).
+- Before deployment, it runs a registry preflight push check to fail fast when the active `SCW_SECRET_KEY` lacks push rights (`--skip-registry-preflight` to disable).
+- If Terraform apply hits Scaleway IAM 409 conflicts for pre-existing secrets-reader resources, the script attempts one automatic import+retry.
+- If Terraform apply hits a duplicate default pool-name conflict, the script attempts one automatic pool import+retry.
+- If `scw` CLI is unavailable but `KUBE_CONFIG_COMMAND` references `scw`, the script falls back to the current kubeconfig context.
+
+Prerequisites:
+- `terraform`, `kubectl`, `docker`, `jq`, `yq`, `kompose`, `curl`, and `openssl` installed.
+- `SCW_ACCESS_KEY`, `SCW_SECRET_KEY`, and `SCW_DEFAULT_PROJECT_ID` exported (for example via `.env`).
+- `terraform/environments/scaleway-dev.tfvars` present (or provide `--tf-vars-file`).
+
+Constraints:
+- The active Scaleway key must have Container Registry push permissions for the target registry namespace, otherwise image push fails with `insufficient_scope`.
+
+Dry-run (plan-only):
+
+```bash
+set -a && source .env && set +a
+./scripts/aks/scaleway_redeploy_all.sh --dry-run --tf-vars-file terraform/environments/scaleway-dev.tfvars
+```
+
+Full redeploy:
+
+```bash
+set -a && source .env && set +a
+./scripts/aks/scaleway_redeploy_all.sh --yes --tf-vars-file terraform/environments/scaleway-dev.tfvars
+```
+
+Partial examples:
+
+```bash
+./scripts/aks/scaleway_redeploy_all.sh --yes --skip-smoke
+./scripts/aks/scaleway_redeploy_all.sh --yes --skip-terraform-apply
+./scripts/aks/scaleway_redeploy_all.sh --yes --skip-registry-preflight
+```
+
+Make target wrapper:
+
+```bash
+DRY_RUN=true make scaleway-redeploy-all
+make scaleway-redeploy-all
+SKIP_SMOKE=true make scaleway-redeploy-all
+```
 
 ## Conventions for new scripts
 

@@ -172,13 +172,59 @@ build_and_push_image() {
   local dockerfile="$2"
   local context="$3"
   local label="$4"
+  local registry_host
+  local -a buildx_args
+  local -a docker_build_args
   shift 4
 
   log "Building and pushing ${label} image '${image}' (linux/amd64)..."
+
+  if [[ "${AKS_USE_CLASSIC_DOCKER_PUSH:-false}" == "true" ]]; then
+    docker_build_args=(
+      --platform linux/amd64
+      --tag "$image"
+      --file "$dockerfile"
+    )
+
+    if [[ "${AKS_DOCKER_NO_CACHE:-false}" == "true" ]]; then
+      docker_build_args+=(--no-cache)
+    fi
+
+    docker build \
+      "${docker_build_args[@]}" \
+      "$@" \
+      "$context"
+
+    registry_host="${image%%/*}"
+    if [[ -n "${SCW_SECRET_KEY:-}" && "$registry_host" == *"scw.cloud"* ]]; then
+      echo "${SCW_SECRET_KEY}" | docker login "$registry_host" -u nologin --password-stdin >/dev/null
+    fi
+
+    if ! docker push --platform linux/amd64 "$image"; then
+      if [[ -n "${SCW_SECRET_KEY:-}" && "$registry_host" == *"scw.cloud"* ]]; then
+        echo "${SCW_SECRET_KEY}" | docker login "$registry_host" -u nologin --password-stdin >/dev/null
+      fi
+      docker push "$image"
+    fi
+    return 0
+  fi
+
+  buildx_args=(
+    --platform linux/amd64
+    --tag "$image"
+    --file "$dockerfile"
+  )
+
+  if [[ "${AKS_DISABLE_BUILDX_ATTESTATIONS:-false}" == "true" ]]; then
+    buildx_args+=(--provenance=false --sbom=false)
+  fi
+
+  if [[ "${AKS_DOCKER_NO_CACHE:-false}" == "true" ]]; then
+    buildx_args+=(--no-cache)
+  fi
+
   docker buildx build \
-    --platform linux/amd64 \
-    --tag "$image" \
-    --file "$dockerfile" \
+    "${buildx_args[@]}" \
     "$@" \
     "$context" \
     --push
