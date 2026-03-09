@@ -12,6 +12,73 @@ SKIP_DEPLOY="false"
 SKIP_SMOKE="false"
 SKIP_REGISTRY_PREFLIGHT="false"
 MINIMAL_DEPLOY="false"
+SKIP_IMAGE_BUILD="false"
+
+load_scaleway_env_fallbacks() {
+  local env_file="$ROOT_DIR/.env"
+  if [[ ! -f "$env_file" ]]; then
+    return 0
+  fi
+
+  if [[ -z "${SCW_ACCESS_KEY:-}" ]]; then
+    SCW_ACCESS_KEY="$(awk -F= '/^SCW_ACCESS_KEY=/{v=$2; gsub(/^["\047]|["\047]$/, "", v); print v; exit}' "$env_file" 2>/dev/null || true)"
+    export SCW_ACCESS_KEY
+  fi
+
+  if [[ -z "${SCW_SECRET_KEY:-}" ]]; then
+    SCW_SECRET_KEY="$(awk -F= '/^SCW_SECRET_KEY=/{v=$2; gsub(/^["\047]|["\047]$/, "", v); print v; exit}' "$env_file" 2>/dev/null || true)"
+    export SCW_SECRET_KEY
+  fi
+
+  if [[ -z "${SCW_DEFAULT_PROJECT_ID:-}" ]]; then
+    SCW_DEFAULT_PROJECT_ID="$(awk -F= '/^SCW_DEFAULT_PROJECT_ID=/{v=$2; gsub(/^["\047]|["\047]$/, "", v); print v; exit}' "$env_file" 2>/dev/null || true)"
+    export SCW_DEFAULT_PROJECT_ID
+  fi
+
+  if [[ -z "${TF_PROJECT_ID:-}" ]]; then
+    TF_PROJECT_ID="${SCW_DEFAULT_PROJECT_ID:-}"
+  fi
+}
+
+retry_terraform_apply_if_cluster_unreachable() {
+  local tf_dir="$1"
+  local tf_vars_file="$2"
+  local project_id="$3"
+  local max_retries="${SCW_TERRAFORM_APPLY_RETRIES:-4}"
+  local retry_delay_seconds="${SCW_TERRAFORM_APPLY_RETRY_DELAY_SECONDS:-20}"
+
+  local attempt=0
+  while true; do
+    attempt=$((attempt + 1))
+
+    local apply_log
+    apply_log="$(mktemp)"
+
+    set +e
+    terraform -chdir="$tf_dir" apply \
+      -input=false \
+      -auto-approve \
+      -var-file="$tf_vars_file" \
+      -var "scw_project_id=$project_id" 2>&1 | tee "$apply_log"
+    local apply_exit=$?
+    set -e
+
+    if [[ $apply_exit -eq 0 ]]; then
+      rm -f "$apply_log"
+      return 0
+    fi
+
+    if grep -Eq "Kubernetes cluster unreachable|i/o timeout" "$apply_log" && [[ $attempt -le $max_retries ]]; then
+      log "Detected transient Kubernetes API timeout during Terraform apply (attempt ${attempt}/${max_retries}); retrying in ${retry_delay_seconds}s."
+      rm -f "$apply_log"
+      sleep "$retry_delay_seconds"
+      continue
+    fi
+
+    rm -f "$apply_log"
+    return $apply_exit
+  done
+}
 
 tf_state_has() {
   local address="$1"
@@ -273,6 +340,7 @@ Options:
   --skip-terraform-apply        Skip Terraform apply and reuse existing infra.
   --skip-deploy                 Skip workload deployment (aks_up.sh).
   --skip-smoke                  Skip post-deploy smoke checks.
+  --skip-image-build            Skip Docker build/push and reuse currently deployed images.
   --skip-registry-preflight     Skip Scaleway registry push-permission preflight.
   --tf-vars-file <path>         Path to Scaleway tfvars file.
   --tf-dir <path>               Path to Scaleway Terraform root module.
@@ -317,6 +385,10 @@ while [[ $# -gt 0 ]]; do
       SKIP_SMOKE="true"
       shift
       ;;
+    --skip-image-build)
+      SKIP_IMAGE_BUILD="true"
+      shift
+      ;;
     --skip-registry-preflight)
       SKIP_REGISTRY_PREFLIGHT="true"
       shift
@@ -344,6 +416,8 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+load_scaleway_env_fallbacks
 
 if [[ "$TF_DIR" != /* ]]; then
   TF_DIR="$ROOT_DIR/$TF_DIR"
@@ -406,12 +480,8 @@ if [[ "$SKIP_TERRAFORM_APPLY" != "true" ]]; then
   log "Applying Terraform infrastructure"
   APPLY_LOG="$(mktemp)"
   set +e
-  terraform -chdir="$TF_DIR" apply \
-    -input=false \
-    -auto-approve \
-    -var-file="$TF_VARS_FILE" \
-    -var "scw_project_id=$TF_PROJECT_ID" 2>&1 | tee "$APPLY_LOG"
-  apply_exit=$?
+  retry_terraform_apply_if_cluster_unreachable "$TF_DIR" "$TF_VARS_FILE" "$TF_PROJECT_ID" 2>&1 | tee "$APPLY_LOG"
+  apply_exit=${PIPESTATUS[0]}
   set -e
 
   if [[ $apply_exit -ne 0 ]]; then
@@ -462,7 +532,11 @@ require_cmd kompose
 require_cmd yq
 
 if [[ "$SKIP_REGISTRY_PREFLIGHT" != "true" ]]; then
-  verify_scaleway_registry_push_rights "$(get_registry_login_server)"
+  if [[ "$SKIP_IMAGE_BUILD" == "true" ]]; then
+    log "Skipping registry preflight because --skip-image-build is enabled."
+  else
+    verify_scaleway_registry_push_rights "$(get_registry_login_server)"
+  fi
 else
   log "Skipping registry preflight (--skip-registry-preflight)"
 fi
@@ -489,6 +563,8 @@ KUBE_CONFIG_COMMAND="$KUBE_CONFIG_COMMAND_FOR_DEPLOY" \
 AKS_DISABLE_BUILDX_ATTESTATIONS="true" \
 AKS_DOCKER_NO_CACHE="true" \
 AKS_USE_CLASSIC_DOCKER_PUSH="true" \
+AKS_USE_LEGACY_DOCKER_BUILDER="${AKS_USE_LEGACY_DOCKER_BUILDER:-true}" \
+SKIP_IMAGE_BUILD="$SKIP_IMAGE_BUILD" \
 AIRFLOW_IMAGE_REPO="$AIRFLOW_IMAGE_REPO_FOR_DEPLOY" \
 FRONTEND_IMAGE_REPO="$FRONTEND_IMAGE_REPO_FOR_DEPLOY" \
 PORTAL_API_IMAGE_REPO="$PORTAL_API_IMAGE_REPO_FOR_DEPLOY" \

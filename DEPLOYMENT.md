@@ -16,6 +16,32 @@
 docker compose up -d
 ```
 
+### Bring up bare minimum stack
+Use this to mirror the minimal Terraform deployment scope locally (no DataHub, no heavy observability, no jupyter).
+
+```bash
+make compose-up-minimal
+```
+
+`make compose-up-minimal` runs `scripts/testing/verify_compose_minimal.sh` automatically after startup.
+To skip this verification pass:
+
+```bash
+COMPOSE_MINIMAL_SMOKE_AFTER_UP=false make compose-up-minimal
+```
+
+To stop it:
+
+```bash
+make compose-down-minimal
+```
+
+Run minimal smoke checks manually:
+
+```bash
+./scripts/testing/verify_compose_minimal.sh
+```
+
 ### Full bootstrap (recommended)
 This sets up/validates env, starts services, and bootstraps MinIO/Superset/DataHub/warehouse assets.
 
@@ -34,6 +60,16 @@ Pass `--skip-dev-install` if you already manage a separate environment.
 - JupyterLab: `http://localhost:8888`
 - Grafana: `http://localhost:3001`
 - Prometheus: `http://localhost:9090`
+
+Bare minimum stack endpoints:
+- Airflow: `http://localhost:8080`
+- Superset: `http://localhost:8088`
+- MinIO API: `http://localhost:9000`
+- MinIO Console: `http://localhost:9001`
+- Keycloak: `http://localhost:8090`
+- dbt docs: `http://localhost:8089`
+- Portal: `http://localhost:3000`
+- Portal API: `http://localhost:8070`
 
 ### Verify observability ingestion (Docker Compose)
 

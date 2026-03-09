@@ -55,6 +55,37 @@ Superset map charts:
 docker compose up -d
 ```
 
+### Start bare minimum services (no DataHub, no heavy observability, no jupyter)
+```bash
+make compose-up-minimal
+```
+
+By default, this runs `scripts/testing/verify_compose_minimal.sh` after startup.
+The minimal profile also seeds Superset dashboards during startup:
+- `NL IT Job Market`
+- `ODP Staffing Demand`
+- `Platform Metadata Operations`
+It also generates dbt docs (`dbt docs generate`) before exposing `http://localhost:8089/`.
+
+Minimal smoke checks now use faster defaults:
+- `COMPOSE_MINIMAL_WAIT_TIMEOUT_SECONDS=120`
+- `COMPOSE_MINIMAL_RETRY_INTERVAL_SECONDS=2`
+- `COMPOSE_MINIMAL_DASHBOARD_WAIT_TIMEOUT_SECONDS=45`
+
+Skip smoke checks when needed:
+
+```bash
+COMPOSE_MINIMAL_SMOKE_AFTER_UP=false make compose-up-minimal
+```
+
+Tune smoke-check timing for slower machines:
+
+```bash
+COMPOSE_MINIMAL_WAIT_TIMEOUT_SECONDS=240 \
+COMPOSE_MINIMAL_DASHBOARD_WAIT_TIMEOUT_SECONDS=90 \
+make compose-up-minimal
+```
+
 ### Run pipeline flows
 ```bash
 make run-job-market
@@ -158,10 +189,14 @@ dbt docs + lineage workflow:
 - `make k8s-aks-up`: runs AKS smoke checks by default after deploy (`AKS_SMOKE_AFTER_UP` unset/empty = `true`) and uses Azure Key Vault as the default AKS secret source; reruns safely skip Key Vault provider re-enable when already active and can enforce minimum System nodepool capacity via `AKS_NODE_COUNT` (set `AKS_SMOKE_AFTER_UP=false` to skip smoke; set `AKS_USE_KEY_VAULT=false` to use direct `.env` -> Kubernetes secret)
   - Scaleway mode: `scw` CLI is only required when kubeconfig must be fetched dynamically or when `SCW_SECRET_KEY` is not already exported; if `KUBECONFIG`/`KUBE_CONTEXT` and `SCW_SECRET_KEY` are provided, deployment can run without `scw` installed.
 - `make tf-plan ENVIRONMENT=scaleway-dev`: for Scaleway-only planning in Azure CA-restricted tenants, run with `TF_VAR_azure_use_cli=false`; requires `SCW_ACCESS_KEY`, `SCW_SECRET_KEY`, and `SCW_DEFAULT_PROJECT_ID` in your shell
-- `make scaleway-redeploy-all`: one-command Scaleway redeploy (Terraform apply + workload deploy + smoke checks). Set `DRY_RUN=true` for Terraform plan-only; use `SKIP_TERRAFORM_APPLY=true`, `SKIP_DEPLOY=true`, or `SKIP_SMOKE=true` for partial runs.
+- `make scaleway-redeploy-all`: one-command Scaleway redeploy (Terraform apply + workload deploy + smoke checks). Set `DRY_RUN=true` for Terraform plan-only; use `SKIP_TERRAFORM_APPLY=true`, `SKIP_DEPLOY=true`, `SKIP_SMOKE=true`, or `SKIP_IMAGE_BUILD=true` for partial/fast runs.
   - The script auto-normalizes image repository names for Scaleway registry pushes and can auto-reconcile pre-existing secrets-reader IAM resources and default Kubernetes pool resources in Terraform state on first apply retry.
+  - The script retries Terraform apply when Helm provider steps fail with transient Kubernetes API timeout/unreachable errors (`SCW_TERRAFORM_APPLY_RETRIES`, `SCW_TERRAFORM_APPLY_RETRY_DELAY_SECONDS`).
   - The script runs a fast registry push-permission preflight before image builds; set `SKIP_REGISTRY_PREFLIGHT=true` to bypass it.
   - The script uses a safer classic Docker build/push mode (plus no-cache) to avoid Buildx cross-namespace cache/token authorization issues during Scaleway pushes.
+  - The script also defaults to legacy Docker builder for Scaleway pushes (`AKS_USE_LEGACY_DOCKER_BUILDER=true`) to avoid BuildKit-related layer push stalls with `insufficient_scope` + prolonged `Waiting` states.
+  - Image build platform defaults to `linux/amd64`; override with `AKS_DOCKER_BUILD_PLATFORM=<platform>` when needed.
+  - If legacy builder cannot satisfy the requested platform on your host, the script retries that build with `docker buildx build --load` for the same platform.
   - If pushes fail with `insufficient_scope`, verify `SCW_SECRET_KEY` has push rights for the selected Scaleway registry namespace.
 - `make scaleway-destroy-all`: destroy all Terraform-managed Scaleway resources in `terraform/scaleway` (set `DRY_RUN=true` for plan-only; set `PURGE_LEFTOVERS=true` to also remove leftover Registry namespaces and LB IPs)
 - Scaleway notes:
@@ -184,6 +219,7 @@ dbt docs + lineage workflow:
     - `DRY_RUN=true make scaleway-redeploy-all`
     - `make scaleway-redeploy-all`
     - `SKIP_SMOKE=true make scaleway-redeploy-all`
+    - `SKIP_TERRAFORM_APPLY=true SKIP_IMAGE_BUILD=true make scaleway-redeploy-all-minimal`
 - `make k8s-aks-update-images`: build/push selected app images and patch existing AKS deployments only (faster inner loop; no infra/parity apply); when `AKS_IMAGES` includes `airflow`, also refreshes `airflow-webserver-config` from `airflow/webserver_config.py` and refreshes dbt docs init image
 - `make dbt-docs-generate`: generate dbt docs site artifacts in `dbt/target/`
 - `make dbt-docs-refresh`: regenerate dbt docs and ensure static docs service is running

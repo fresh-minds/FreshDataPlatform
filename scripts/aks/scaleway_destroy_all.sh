@@ -11,6 +11,32 @@ AUTO_APPROVE="false"
 DRY_RUN="false"
 PURGE_LEFTOVERS="false"
 
+load_scaleway_env_fallbacks() {
+  local env_file="$ROOT_DIR/.env"
+  if [[ ! -f "$env_file" ]]; then
+    return 0
+  fi
+
+  if [[ -z "${SCW_ACCESS_KEY:-}" ]]; then
+    SCW_ACCESS_KEY="$(awk -F= '/^SCW_ACCESS_KEY=/{v=$2; gsub(/^["\047]|["\047]$/, "", v); print v; exit}' "$env_file" 2>/dev/null || true)"
+    export SCW_ACCESS_KEY
+  fi
+
+  if [[ -z "${SCW_SECRET_KEY:-}" ]]; then
+    SCW_SECRET_KEY="$(awk -F= '/^SCW_SECRET_KEY=/{v=$2; gsub(/^["\047]|["\047]$/, "", v); print v; exit}' "$env_file" 2>/dev/null || true)"
+    export SCW_SECRET_KEY
+  fi
+
+  if [[ -z "${SCW_DEFAULT_PROJECT_ID:-}" ]]; then
+    SCW_DEFAULT_PROJECT_ID="$(awk -F= '/^SCW_DEFAULT_PROJECT_ID=/{v=$2; gsub(/^["\047]|["\047]$/, "", v); print v; exit}' "$env_file" 2>/dev/null || true)"
+    export SCW_DEFAULT_PROJECT_ID
+  fi
+
+  if [[ -z "${TF_PROJECT_ID:-}" ]]; then
+    TF_PROJECT_ID="${SCW_DEFAULT_PROJECT_ID:-}"
+  fi
+}
+
 log() {
   echo "[scw-destroy] $*"
 }
@@ -162,6 +188,8 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+load_scaleway_env_fallbacks
 
 if [[ "$TF_DIR" != /* ]]; then
   TF_DIR="$ROOT_DIR/$TF_DIR"

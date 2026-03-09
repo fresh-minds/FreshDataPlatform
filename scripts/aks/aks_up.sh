@@ -79,9 +79,11 @@ AKS_HELPERS_LIB="$ROOT_DIR/scripts/aks/aks_up_lib.sh"
 KOMPOSE_LIB="$ROOT_DIR/scripts/k8s/k8s_kompose_lib.sh"
 
 MINIMAL_DEPLOY="${MINIMAL_DEPLOY:-false}"
+SKIP_IMAGE_BUILD="${SKIP_IMAGE_BUILD:-false}"
 for arg in "$@"; do
   case "$arg" in
     --minimal) MINIMAL_DEPLOY=true ;;
+    --skip-image-build) SKIP_IMAGE_BUILD=true ;;
   esac
 done
 
@@ -111,6 +113,29 @@ warn_on_legacy_vite_url_vars() {
 KUBE_CONTEXT="${KUBE_CONTEXT:-$AKS_CLUSTER_NAME}"
 kubectl_ctx() {
   kubectl --context "$KUBE_CONTEXT" "$@"
+}
+
+current_deployment_image() {
+  local deployment_name="$1"
+  kubectl_ctx -n "$NAMESPACE" get deployment "$deployment_name" -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || true
+}
+
+reuse_existing_image_or_fail() {
+  local deployment_name="$1"
+  local image_label="$2"
+  local image_var_name="$3"
+  local existing_image
+
+  existing_image="$(current_deployment_image "$deployment_name")"
+  if [[ -z "$existing_image" ]]; then
+    log "ERROR: SKIP_IMAGE_BUILD=true but deployment '$deployment_name' has no current image to reuse." >&2
+    log "       Run without SKIP_IMAGE_BUILD once, or provide explicit image tags and disable this fast path." >&2
+    exit 1
+  fi
+
+  printf -v "$image_var_name" '%s' "$existing_image"
+  export "$image_var_name"
+  log "Reusing ${image_label} image from deployment '$deployment_name': ${existing_image}"
 }
 
 ODP_ENV_KEYS=()
@@ -657,18 +682,29 @@ MINIO_SSO_BRIDGE_IMAGE="${ACR_LOGIN_SERVER}/${MINIO_SSO_BRIDGE_IMAGE_REPO}:${MIN
 
 warn_on_legacy_vite_url_vars
 
-build_and_push_image "$AIRFLOW_IMAGE" "$ROOT_DIR/airflow/Dockerfile" "$ROOT_DIR" "Airflow"
-build_and_push_image "$FRONTEND_IMAGE" "$ROOT_DIR/frontend/Dockerfile.k8s" "$ROOT_DIR/frontend" "Frontend" \
-  --build-arg "VITE_KEYCLOAK_URL=${AKS_VITE_KEYCLOAK_URL}" \
-  --build-arg "VITE_KEYCLOAK_REALM=${AKS_VITE_KEYCLOAK_REALM}" \
-  --build-arg "VITE_KEYCLOAK_CLIENT_ID=${AKS_VITE_KEYCLOAK_CLIENT_ID}" \
-  --build-arg "VITE_PORTAL_API_URL=${AKS_VITE_PORTAL_API_URL}" \
-  --build-arg "VITE_DBT_DOCS_URL=${AKS_VITE_DBT_DOCS_URL}"
-build_and_push_image "$PORTAL_API_IMAGE" "$ROOT_DIR/ops/portal-api/Dockerfile" "$ROOT_DIR" "Portal API"
-if [[ "$MINIMAL_DEPLOY" != "true" ]]; then
-  build_and_push_image "$JUPYTER_IMAGE" "$ROOT_DIR/notebooks/Dockerfile" "$ROOT_DIR/notebooks" "Jupyter"
+if [[ "$SKIP_IMAGE_BUILD" == "true" ]]; then
+  log "SKIP_IMAGE_BUILD=true: skipping Docker build/push and reusing currently deployed images."
+  reuse_existing_image_or_fail "airflow-webserver" "Airflow" "AIRFLOW_IMAGE"
+  reuse_existing_image_or_fail "frontend" "Frontend" "FRONTEND_IMAGE"
+  reuse_existing_image_or_fail "portal-api" "Portal API" "PORTAL_API_IMAGE"
+  if [[ "$MINIMAL_DEPLOY" != "true" ]]; then
+    reuse_existing_image_or_fail "jupyter" "Jupyter" "JUPYTER_IMAGE"
+  fi
+  reuse_existing_image_or_fail "minio-sso-bridge" "MinIO SSO bridge" "MINIO_SSO_BRIDGE_IMAGE"
+else
+  build_and_push_image "$AIRFLOW_IMAGE" "$ROOT_DIR/airflow/Dockerfile" "$ROOT_DIR" "Airflow"
+  build_and_push_image "$FRONTEND_IMAGE" "$ROOT_DIR/frontend/Dockerfile.k8s" "$ROOT_DIR/frontend" "Frontend" \
+    --build-arg "VITE_KEYCLOAK_URL=${AKS_VITE_KEYCLOAK_URL}" \
+    --build-arg "VITE_KEYCLOAK_REALM=${AKS_VITE_KEYCLOAK_REALM}" \
+    --build-arg "VITE_KEYCLOAK_CLIENT_ID=${AKS_VITE_KEYCLOAK_CLIENT_ID}" \
+    --build-arg "VITE_PORTAL_API_URL=${AKS_VITE_PORTAL_API_URL}" \
+    --build-arg "VITE_DBT_DOCS_URL=${AKS_VITE_DBT_DOCS_URL}"
+  build_and_push_image "$PORTAL_API_IMAGE" "$ROOT_DIR/ops/portal-api/Dockerfile" "$ROOT_DIR" "Portal API"
+  if [[ "$MINIMAL_DEPLOY" != "true" ]]; then
+    build_and_push_image "$JUPYTER_IMAGE" "$ROOT_DIR/notebooks/Dockerfile" "$ROOT_DIR/notebooks" "Jupyter"
+  fi
+  build_and_push_image "$MINIO_SSO_BRIDGE_IMAGE" "$ROOT_DIR/ops/minio-sso-bridge/Dockerfile" "$ROOT_DIR" "MinIO SSO bridge"
 fi
-build_and_push_image "$MINIO_SSO_BRIDGE_IMAGE" "$ROOT_DIR/ops/minio-sso-bridge/Dockerfile" "$ROOT_DIR" "MinIO SSO bridge"
 
 log "Applying namespace..."
 render_and_apply "$ROOT_DIR/k8s/aks/namespace.yaml"

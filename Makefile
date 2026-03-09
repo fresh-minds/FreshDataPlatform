@@ -1,5 +1,5 @@
 # Open Data Platform - Development Commands
-.PHONY: install dev-install test lint format format-check run clean help schema-validate schema-drift-check dbt-debug dbt-build-seed dbt-docs-generate dbt-docs-refresh dbt-docs-watch e2e-test test-e2e test-sso qa-test run-job-market-metadata warehouse-metadata-init warehouse-security create-warehouse-user fabric-import observability-verify k8s-aks-smoke bootstrap-all bootstrap_all k8s-dev-up k8s-dev-up-full k8s-dev-down k8s-sso-gateway-up k8s-sso-gateway-forward k8s-sso-gateway-forward-stop k8s-aks-up k8s-aks-update-images k8s-aks-down scaleway-redeploy-all scaleway-destroy-all platform-init-domain platform-add-entity platform-validate platform-sync tf-init tf-validate tf-plan tf-apply tf-destroy tf-output tf-bootstrap-state
+.PHONY: install dev-install test lint format format-check run clean help schema-validate schema-drift-check dbt-debug dbt-build-seed dbt-docs-generate dbt-docs-refresh dbt-docs-watch e2e-test test-e2e test-sso qa-test run-job-market-metadata warehouse-metadata-init warehouse-security create-warehouse-user fabric-import observability-verify k8s-aks-smoke bootstrap-all bootstrap_all compose-up-minimal compose-down-minimal k8s-dev-up k8s-dev-up-full k8s-dev-down k8s-sso-gateway-up k8s-sso-gateway-forward k8s-sso-gateway-forward-stop k8s-aks-up k8s-aks-update-images k8s-aks-down scaleway-redeploy-all scaleway-destroy-all platform-init-domain platform-add-entity platform-validate platform-sync tf-init tf-validate tf-plan tf-apply tf-destroy tf-output tf-bootstrap-state
 
 # Default Python
 PYTHON := .venv/bin/python
@@ -157,6 +157,18 @@ bootstrap-low-memory: ## Start core stack only (skips heavy observability)
 
 bootstrap_all: bootstrap-all  ## Alias for bootstrap-all
 
+compose-up-minimal:  ## Start bare-minimum local stack (no DataHub, no heavy observability, no jupyter)
+	docker compose -f docker-compose.minimal.yml up -d
+	@if [ "$${COMPOSE_MINIMAL_SMOKE_AFTER_UP:-true}" = "true" ]; then \
+		echo "Running minimal compose smoke checks (COMPOSE_MINIMAL_SMOKE_AFTER_UP=true)"; \
+		./scripts/testing/verify_compose_minimal.sh; \
+	else \
+		echo "Skipping minimal compose smoke checks (COMPOSE_MINIMAL_SMOKE_AFTER_UP=$${COMPOSE_MINIMAL_SMOKE_AFTER_UP})"; \
+	fi
+
+compose-down-minimal:  ## Stop bare-minimum local stack
+	docker compose -f docker-compose.minimal.yml down
+
 k8s-dev-up:  ## Start dev-like Kubernetes Phase A stack on a local kind cluster
 	./scripts/k8s/k8s_dev_up.sh
 
@@ -201,40 +213,48 @@ k8s-aks-down:  ## Tear down AKS workloads; set TF_DESTROY=true to also destroy T
 
 scaleway-redeploy-all:  ## One-command Scaleway redeploy (Terraform apply + workload deploy + smoke); set DRY_RUN=true for plan-only
 	@ARGS=""; \
+	PROJECT_ID="$${TF_PROJECT_ID:-$${SCW_DEFAULT_PROJECT_ID:-$$(awk -F= '/^SCW_DEFAULT_PROJECT_ID=/{v=$$2; gsub(/^["\047]|["\047]$$/, "", v); print v; exit}' .env 2>/dev/null)}}"; \
 	if [ "$${DRY_RUN:-false}" = "true" ]; then ARGS="$$ARGS --dry-run"; fi; \
 	if [ "$${SKIP_TERRAFORM_APPLY:-false}" = "true" ]; then ARGS="$$ARGS --skip-terraform-apply"; fi; \
 	if [ "$${SKIP_DEPLOY:-false}" = "true" ]; then ARGS="$$ARGS --skip-deploy"; fi; \
 	if [ "$${SKIP_SMOKE:-false}" = "true" ]; then ARGS="$$ARGS --skip-smoke"; fi; \
-	./scripts/aks/scaleway_redeploy_all.sh --yes $$ARGS --tf-vars-file "$${TF_VARS_FILE:-$$(pwd)/terraform/environments/scaleway-dev.tfvars}" --tf-dir "$${TF_DIR:-$$(pwd)/terraform/scaleway}"
+	if [ "$${SKIP_IMAGE_BUILD:-false}" = "true" ]; then ARGS="$$ARGS --skip-image-build"; fi; \
+	./scripts/aks/scaleway_redeploy_all.sh --yes $$ARGS --project-id "$$PROJECT_ID" --tf-vars-file "$${TF_VARS_FILE:-$$(pwd)/terraform/environments/scaleway-dev.tfvars}" --tf-dir "$${TF_DIR:-$$(pwd)/terraform/scaleway}"
 
 scaleway-redeploy-all-minimal:  ## One-command minimal Scaleway redeploy (no DataHub, no heavy observability, no jupyter)
 	@ARGS="--minimal"; \
+	PROJECT_ID="$${TF_PROJECT_ID:-$${SCW_DEFAULT_PROJECT_ID:-$$(awk -F= '/^SCW_DEFAULT_PROJECT_ID=/{v=$$2; gsub(/^["\047]|["\047]$$/, "", v); print v; exit}' .env 2>/dev/null)}}"; \
 	if [ "$${DRY_RUN:-false}" = "true" ]; then ARGS="$$ARGS --dry-run"; fi; \
 	if [ "$${SKIP_TERRAFORM_APPLY:-false}" = "true" ]; then ARGS="$$ARGS --skip-terraform-apply"; fi; \
 	if [ "$${SKIP_DEPLOY:-false}" = "true" ]; then ARGS="$$ARGS --skip-deploy"; fi; \
 	if [ "$${SKIP_SMOKE:-false}" = "true" ]; then ARGS="$$ARGS --skip-smoke"; fi; \
-	./scripts/aks/scaleway_redeploy_all.sh --yes $$ARGS --tf-vars-file "$${TF_VARS_FILE:-$$(pwd)/terraform/environments/scaleway-dev-minimal.tfvars}" --tf-dir "$${TF_DIR:-$$(pwd)/terraform/scaleway}"
+	if [ "$${SKIP_IMAGE_BUILD:-false}" = "true" ]; then ARGS="$$ARGS --skip-image-build"; fi; \
+	./scripts/aks/scaleway_redeploy_all.sh --yes $$ARGS --project-id "$$PROJECT_ID" --tf-vars-file "$${TF_VARS_FILE:-$$(pwd)/terraform/environments/scaleway-dev-minimal.tfvars}" --tf-dir "$${TF_DIR:-$$(pwd)/terraform/scaleway}"
 
 scaleway-destroy-all:  ## Destroy all Terraform-managed Scaleway resources (use DRY_RUN=true for plan-only; set TF_VARS_FILE to match deploy tfvars)
 	@if [ "$${DRY_RUN:-false}" = "true" ]; then \
+		PROJECT_ID="$${TF_PROJECT_ID:-$${SCW_DEFAULT_PROJECT_ID:-$$(awk -F= '/^SCW_DEFAULT_PROJECT_ID=/{v=$$2; gsub(/^["\047]|["\047]$$/, "", v); print v; exit}' .env 2>/dev/null)}}"; \
 		PURGE_FLAG=""; \
 		if [ "$${PURGE_LEFTOVERS:-false}" = "true" ]; then PURGE_FLAG="--purge-leftovers"; fi; \
-		./scripts/aks/scaleway_destroy_all.sh --dry-run $$PURGE_FLAG --tf-vars-file "$${TF_VARS_FILE:-$$(pwd)/terraform/environments/scaleway-dev.tfvars}" --tf-dir "$${TF_DIR:-$$(pwd)/terraform/scaleway}"; \
+		./scripts/aks/scaleway_destroy_all.sh --dry-run $$PURGE_FLAG --project-id "$$PROJECT_ID" --tf-vars-file "$${TF_VARS_FILE:-$$(pwd)/terraform/environments/scaleway-dev.tfvars}" --tf-dir "$${TF_DIR:-$$(pwd)/terraform/scaleway}"; \
 	else \
+		PROJECT_ID="$${TF_PROJECT_ID:-$${SCW_DEFAULT_PROJECT_ID:-$$(awk -F= '/^SCW_DEFAULT_PROJECT_ID=/{v=$$2; gsub(/^["\047]|["\047]$$/, "", v); print v; exit}' .env 2>/dev/null)}}"; \
 		PURGE_FLAG=""; \
 		if [ "$${PURGE_LEFTOVERS:-false}" = "true" ]; then PURGE_FLAG="--purge-leftovers"; fi; \
-		./scripts/aks/scaleway_destroy_all.sh --yes $$PURGE_FLAG --tf-vars-file "$${TF_VARS_FILE:-$$(pwd)/terraform/environments/scaleway-dev.tfvars}" --tf-dir "$${TF_DIR:-$$(pwd)/terraform/scaleway}"; \
+		./scripts/aks/scaleway_destroy_all.sh --yes $$PURGE_FLAG --project-id "$$PROJECT_ID" --tf-vars-file "$${TF_VARS_FILE:-$$(pwd)/terraform/environments/scaleway-dev.tfvars}" --tf-dir "$${TF_DIR:-$$(pwd)/terraform/scaleway}"; \
 	fi
 
 scaleway-destroy-all-minimal:  ## Destroy Scaleway resources deployed via scaleway-redeploy-all-minimal (uses scaleway-dev-minimal.tfvars)
 	@if [ "$${DRY_RUN:-false}" = "true" ]; then \
+		PROJECT_ID="$${TF_PROJECT_ID:-$${SCW_DEFAULT_PROJECT_ID:-$$(awk -F= '/^SCW_DEFAULT_PROJECT_ID=/{v=$$2; gsub(/^["\047]|["\047]$$/, "", v); print v; exit}' .env 2>/dev/null)}}"; \
 		PURGE_FLAG=""; \
 		if [ "$${PURGE_LEFTOVERS:-false}" = "true" ]; then PURGE_FLAG="--purge-leftovers"; fi; \
-		./scripts/aks/scaleway_destroy_all.sh --dry-run $$PURGE_FLAG --tf-vars-file "$${TF_VARS_FILE:-$$(pwd)/terraform/environments/scaleway-dev-minimal.tfvars}" --tf-dir "$${TF_DIR:-$$(pwd)/terraform/scaleway}"; \
+		./scripts/aks/scaleway_destroy_all.sh --dry-run $$PURGE_FLAG --project-id "$$PROJECT_ID" --tf-vars-file "$${TF_VARS_FILE:-$$(pwd)/terraform/environments/scaleway-dev-minimal.tfvars}" --tf-dir "$${TF_DIR:-$$(pwd)/terraform/scaleway}"; \
 	else \
+		PROJECT_ID="$${TF_PROJECT_ID:-$${SCW_DEFAULT_PROJECT_ID:-$$(awk -F= '/^SCW_DEFAULT_PROJECT_ID=/{v=$$2; gsub(/^["\047]|["\047]$$/, "", v); print v; exit}' .env 2>/dev/null)}}"; \
 		PURGE_FLAG=""; \
 		if [ "$${PURGE_LEFTOVERS:-false}" = "true" ]; then PURGE_FLAG="--purge-leftovers"; fi; \
-		./scripts/aks/scaleway_destroy_all.sh --yes $$PURGE_FLAG --tf-vars-file "$${TF_VARS_FILE:-$$(pwd)/terraform/environments/scaleway-dev-minimal.tfvars}" --tf-dir "$${TF_DIR:-$$(pwd)/terraform/scaleway}"; \
+		./scripts/aks/scaleway_destroy_all.sh --yes $$PURGE_FLAG --project-id "$$PROJECT_ID" --tf-vars-file "$${TF_VARS_FILE:-$$(pwd)/terraform/environments/scaleway-dev-minimal.tfvars}" --tf-dir "$${TF_DIR:-$$(pwd)/terraform/scaleway}"; \
 	fi
 
 tf-init:  ## Initialize Terraform — downloads providers and configures backend

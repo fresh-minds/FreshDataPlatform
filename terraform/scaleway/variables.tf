@@ -39,6 +39,11 @@ variable "cert_manager_version" {
   default = "v1.19.3"
 }
 
+variable "enable_helm_releases" {
+  type    = bool
+  default = true
+}
+
 variable "enable_secrets_manager" {
   type    = bool
   default = true

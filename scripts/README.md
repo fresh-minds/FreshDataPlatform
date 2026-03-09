@@ -14,6 +14,7 @@ canonical subfolder paths.
 - `scripts/sso/`: SSO/OIDC helpers and reporting.
 - `scripts/superset/`: Superset setup/bootstrap/config assets.
 - `scripts/testing/`: E2E/SSO/CI validation scripts.
+- `scripts/testing/verify_compose_minimal.sh`: smoke checks for the bare-minimum Docker Compose stack (`docker-compose.minimal.yml`).
 - `scripts/k8s/`: kind/Kubernetes helper scripts.
 - `scripts/aks/`: AKS provisioning/teardown scripts.
 - `scripts/aks/scaleway_redeploy_all.sh`: one-command Scaleway redeploy helper (Terraform + workloads + smoke checks).
@@ -86,10 +87,14 @@ Expected result:
 Summary:
 - `scripts/aks/scaleway_redeploy_all.sh` runs a full Scaleway redeploy flow in one command.
 - Default flow: Terraform apply in `terraform/scaleway`, then workload deployment via `scripts/aks/aks_up.sh`, then `scripts/testing/verify_aks_smoke.sh`.
-- Supports partial runs (`--skip-terraform-apply`, `--skip-deploy`, `--skip-smoke`) and dry-run Terraform plan (`--dry-run`).
+- Supports partial runs (`--skip-terraform-apply`, `--skip-deploy`, `--skip-smoke`, `--skip-image-build`) and dry-run Terraform plan (`--dry-run`).
 - Before deployment, it runs a registry preflight push check to fail fast when the active `SCW_SECRET_KEY` lacks push rights (`--skip-registry-preflight` to disable).
+- For Scaleway pushes, the flow defaults to classic Docker push plus legacy Docker builder (`AKS_USE_LEGACY_DOCKER_BUILDER=true`) to avoid intermittent BuildKit layer push stalls (`insufficient_scope` + prolonged `Waiting` states).
+- The build platform defaults to `linux/amd64` and can be overridden via `AKS_DOCKER_BUILD_PLATFORM`.
+- If legacy builder fails with a platform mismatch (`does not provide the specified platform`), the script automatically retries that image build using `docker buildx build --load` for the requested platform.
 - If Terraform apply hits Scaleway IAM 409 conflicts for pre-existing secrets-reader resources, the script attempts one automatic import+retry.
 - If Terraform apply hits a duplicate default pool-name conflict, the script attempts one automatic pool import+retry.
+- If Terraform apply hits a transient Kubernetes API timeout while creating Helm releases, the script retries apply automatically (`SCW_TERRAFORM_APPLY_RETRIES`, default `4`; `SCW_TERRAFORM_APPLY_RETRY_DELAY_SECONDS`, default `20`).
 - If `scw` CLI is unavailable but `KUBE_CONFIG_COMMAND` references `scw`, the script falls back to the current kubeconfig context.
 
 Prerequisites:
@@ -119,6 +124,7 @@ Partial examples:
 ```bash
 ./scripts/aks/scaleway_redeploy_all.sh --yes --skip-smoke
 ./scripts/aks/scaleway_redeploy_all.sh --yes --skip-terraform-apply
+./scripts/aks/scaleway_redeploy_all.sh --yes --skip-terraform-apply --skip-image-build --minimal
 ./scripts/aks/scaleway_redeploy_all.sh --yes --skip-registry-preflight
 ```
 
@@ -128,6 +134,7 @@ Make target wrapper:
 DRY_RUN=true make scaleway-redeploy-all
 make scaleway-redeploy-all
 SKIP_SMOKE=true make scaleway-redeploy-all
+SKIP_TERRAFORM_APPLY=true SKIP_IMAGE_BUILD=true make scaleway-redeploy-all-minimal
 ```
 
 ## Conventions for new scripts

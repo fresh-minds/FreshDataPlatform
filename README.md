@@ -154,6 +154,28 @@ Option B (just services):
 docker compose up -d
 ```
 
+Minimal local stack (no DataHub, no heavy observability, no jupyter) with
+seeded Superset dashboards:
+
+```bash
+make compose-up-minimal
+```
+
+This uses `docker-compose.minimal.yml` and seeds:
+- `NL IT Job Market`
+- `ODP Staffing Demand`
+- `Platform Metadata Operations`
+
+Option C (bare minimum services only, aligned with minimal Terraform deploy scope):
+```bash
+make compose-up-minimal
+```
+
+This starts a reduced local stack (no DataHub, no heavy observability, no jupyter)
+using `docker-compose.minimal.yml`.
+By default it also runs `scripts/testing/verify_compose_minimal.sh` at the end.
+Set `COMPOSE_MINIMAL_SMOKE_AFTER_UP=false` to skip post-start smoke checks.
+
 Optional notebook workspace:
 ```bash
 docker compose up -d jupyter
@@ -293,6 +315,16 @@ AKS rollout summary (label-aligned with deployment docs):
 - **Airflow reliability hardening**: probe tuning, guarded init retries, conservative rollout settings.
 - **DataHub and auth reliability hardening**: GMS cold-start probe hardening (socket startup + `/health` readiness/liveness with AKS tuning env overrides), staged rollout, ingress buffering for OIDC headers.
 - **Config safety and URL consistency**: AKS URL rewriting, Keycloak config reconciliation, placeholder validation before apply.
+
+Scaleway deploy convenience:
+- `make scaleway-redeploy-all` and `make scaleway-redeploy-all-minimal` now
+  resolve `--project-id` from `TF_PROJECT_ID`, then `SCW_DEFAULT_PROJECT_ID`,
+  then `.env` (`SCW_DEFAULT_PROJECT_ID`) when not exported in the shell.
+- Scaleway deploy/destroy scripts also load `SCW_ACCESS_KEY`, `SCW_SECRET_KEY`,
+  and `SCW_DEFAULT_PROJECT_ID` from `.env` as fallbacks when missing in env.
+- For faster redeploys, set `SKIP_IMAGE_BUILD=true` to reuse images already
+  running in the cluster and skip Docker build/push (best for config-only
+  rollout iterations).
 
 ## Data Model
 For medallion entities, serving tables, and governance metadata:

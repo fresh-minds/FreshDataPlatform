@@ -66,6 +66,7 @@ module "scaleway_secrets" {
 }
 
 module "scaleway_helm_releases" {
+  count                       = var.enable_helm_releases ? 1 : 0
   source                      = "../modules/scaleway/helm_releases"
   ingress_nginx_chart_version = var.ingress_nginx_chart_version
   cert_manager_version        = var.cert_manager_version

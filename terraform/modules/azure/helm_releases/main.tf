@@ -22,6 +22,13 @@ resource "helm_release" "ingress_nginx" {
     name  = "controller.service.loadBalancerIP"
     value = var.ingress_public_ip
   }
+
+  # Azure LB health probe: use /healthz (returns 200) instead of / (returns 404).
+  # Without this, the Azure HTTP probe fails and LB stops routing external traffic.
+  set {
+    name  = "controller.service.annotations.service\\.beta\\.kubernetes\\.io/azure-load-balancer-health-probe-request-path"
+    value = "/healthz"
+  }
 }
 
 resource "helm_release" "cert_manager" {

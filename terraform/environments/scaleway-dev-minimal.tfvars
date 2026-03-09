@@ -40,5 +40,9 @@ dns_cname_subdomains = [
 # Secrets management
 enable_secrets_manager = true
 
+# Minimal profile skips Terraform-managed Helm control-plane add-ons
+# (ingress-nginx + cert-manager) to keep redeploy scope lightweight.
+enable_helm_releases = false
+
 # Tagging
 scw_tags = ["project:ai-trial", "env:dev", "managed-by:terraform"]
