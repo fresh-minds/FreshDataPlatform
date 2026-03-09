@@ -1,0 +1,62 @@
+---
+import BaseLayout from './BaseLayout.astro';
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description } = Astro.props;
+const base = import.meta.env.BASE_URL;
+
+const sidebarLinks = [
+  { href: `${base}docs/architecture/`, label: 'Architecture' },
+  { href: `${base}docs/data-model/`, label: 'Data Model' },
+  { href: `${base}docs/deployment/`, label: 'Deployment' },
+  { href: `${base}docs/development/`, label: 'Development' },
+  { href: `${base}docs/ingestion-guide/`, label: 'Ingestion Guide' },
+  { href: `${base}docs/governance/`, label: 'Governance' },
+  { href: `${base}docs/cicd/`, label: 'CI/CD' },
+  { href: `${base}docs/testing/`, label: 'Testing' },
+];
+
+const currentPath = Astro.url.pathname;
+---
+
+<BaseLayout title={`${title} | Open Data Platform`} description={description}>
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="flex gap-8">
+      <!-- Sidebar -->
+      <aside class="hidden lg:block w-64 flex-shrink-0">
+        <nav class="sticky top-24">
+          <a href={`${base}docs/`} class="block text-sm font-bold text-navy mb-4 hover:text-cyan transition-colors">
+            &larr; All Docs
+          </a>
+          <ul class="space-y-1">
+            {sidebarLinks.map(link => (
+              <li>
+                <a
+                  href={link.href}
+                  class:list={[
+                    'block px-3 py-2 rounded-lg text-sm transition-colors',
+                    currentPath === link.href || currentPath === link.href.slice(0, -1)
+                      ? 'bg-cyan/10 text-cyan-dark font-semibold'
+                      : 'text-gray-600 hover:bg-gray-100 hover:text-navy',
+                  ]}
+                >
+                  {link.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      </aside>
+
+      <!-- Content -->
+      <article class="flex-1 min-w-0 prose">
+        <h1 class="!mt-0">{title}</h1>
+        <slot />
+      </article>
+    </div>
+  </div>
+</BaseLayout>

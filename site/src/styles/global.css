@@ -1,0 +1,113 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply font-body text-text-dark bg-white;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading font-bold;
+  }
+
+  code {
+    @apply font-mono;
+  }
+}
+
+@layer components {
+  .prose {
+    @apply max-w-none;
+  }
+
+  .prose h1 {
+    @apply text-3xl font-extrabold mt-10 mb-4 text-navy;
+  }
+
+  .prose h2 {
+    @apply text-2xl font-bold mt-8 mb-3 text-navy;
+  }
+
+  .prose h3 {
+    @apply text-xl font-semibold mt-6 mb-2 text-navy;
+  }
+
+  .prose p {
+    @apply my-3 leading-relaxed text-gray-700;
+  }
+
+  .prose ul, .prose ol {
+    @apply my-3 ml-6;
+  }
+
+  .prose ul {
+    @apply list-disc;
+  }
+
+  .prose ol {
+    @apply list-decimal;
+  }
+
+  .prose li {
+    @apply my-1 text-gray-700;
+  }
+
+  .prose a {
+    @apply text-cyan-dark hover:text-cyan underline;
+  }
+
+  .prose pre {
+    @apply rounded-lg my-4 p-4 overflow-x-auto text-sm;
+  }
+
+  .prose code:not(pre code) {
+    @apply bg-gray-100 text-navy px-1.5 py-0.5 rounded text-sm;
+  }
+
+  .prose table {
+    @apply w-full my-4 border-collapse;
+  }
+
+  .prose th {
+    @apply bg-navy text-white px-4 py-2 text-left text-sm font-semibold;
+  }
+
+  .prose td {
+    @apply border-b border-gray-200 px-4 py-2 text-sm;
+  }
+
+  .prose blockquote {
+    @apply border-l-4 border-cyan pl-4 my-4 italic text-gray-600;
+  }
+
+  .prose details {
+    @apply my-4 border border-gray-200 rounded-lg;
+  }
+
+  .prose summary {
+    @apply px-4 py-2 cursor-pointer font-semibold text-navy hover:bg-gray-50 rounded-lg;
+  }
+
+  .prose details[open] summary {
+    @apply border-b border-gray-200 rounded-b-none;
+  }
+
+  .prose details > :not(summary) {
+    @apply px-4;
+  }
+
+  .mermaid-container {
+    @apply my-6 p-4 bg-white rounded-lg border border-gray-200 overflow-x-auto;
+  }
+
+  .mermaid-container svg {
+    @apply mx-auto;
+  }
+}
