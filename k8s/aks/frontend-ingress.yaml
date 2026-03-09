@@ -16,7 +16,6 @@ spec:
         - airflow.__FRONTEND_DOMAIN__
         - minio.__FRONTEND_DOMAIN__
         - minio-api.__FRONTEND_DOMAIN__
-        - keycloak.__FRONTEND_DOMAIN__
         - superset.__FRONTEND_DOMAIN__
         - grafana.__FRONTEND_DOMAIN__
         - jupyter.__FRONTEND_DOMAIN__
@@ -87,16 +86,6 @@ spec:
                 name: minio
                 port:
                   number: 9000
-    - host: keycloak.__FRONTEND_DOMAIN__
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: keycloak
-                port:
-                  number: 8090
     - host: superset.__FRONTEND_DOMAIN__
       http:
         paths:

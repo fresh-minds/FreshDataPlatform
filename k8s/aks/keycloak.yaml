@@ -320,6 +320,22 @@ spec:
           ports:
             - containerPort: 8090
               name: http
+          readinessProbe:
+            httpGet:
+              path: /realms/master
+              port: 8090
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /realms/master
+              port: 8090
+            initialDelaySeconds: 90
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
           env:
             - name: KC_BOOTSTRAP_ADMIN_USERNAME
               valueFrom:

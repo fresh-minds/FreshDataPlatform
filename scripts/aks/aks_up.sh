@@ -410,7 +410,7 @@ ensure_key_vault_secret_sync() {
   fi
   AKS_KEY_VAULT_NAME="$(echo "$AKS_KEY_VAULT_NAME" | tr '[:upper:]' '[:lower:]')"
 
-  if [[ -z "$AKS_TENANT_ID" ]]; then
+  if [[ -z "${AKS_TENANT_ID:-}" ]]; then
     AKS_TENANT_ID="$(az account show --query tenantId -o tsv)"
   fi
 
@@ -685,7 +685,7 @@ warn_on_legacy_vite_url_vars
 if [[ "$SKIP_IMAGE_BUILD" == "true" ]]; then
   log "SKIP_IMAGE_BUILD=true: skipping Docker build/push and reusing currently deployed images."
   reuse_existing_image_or_fail "airflow-webserver" "Airflow" "AIRFLOW_IMAGE"
-  reuse_existing_image_or_fail "frontend" "Frontend" "FRONTEND_IMAGE"
+  reuse_existing_image_or_fail "portal" "Frontend" "FRONTEND_IMAGE"
   reuse_existing_image_or_fail "portal-api" "Portal API" "PORTAL_API_IMAGE"
   if [[ "$MINIMAL_DEPLOY" != "true" ]]; then
     reuse_existing_image_or_fail "jupyter" "Jupyter" "JUPYTER_IMAGE"
@@ -929,12 +929,16 @@ if [[ "$MINIMAL_DEPLOY" == "true" ]]; then
   render_and_apply "$ROOT_DIR/k8s/aks/frontend-ingress-minimal.yaml"
 else
   render_and_apply "$ROOT_DIR/k8s/aks/frontend-ingress.yaml"
+  render_and_apply "$ROOT_DIR/k8s/aks/keycloak-ingress.yaml"
   render_and_apply "$ROOT_DIR/k8s/aks/datahub-ingress.yaml"
 fi
 render_and_apply "$ROOT_DIR/k8s/aks/minio-sso-login-ingress.yaml"
 
 log "Waiting for TLS certificate to be Ready..."
 kubectl_ctx -n "$NAMESPACE" wait --for=condition=Ready certificate/frontend-tls --timeout=600s
+if [[ "$MINIMAL_DEPLOY" != "true" ]]; then
+  kubectl_ctx -n "$NAMESPACE" wait --for=condition=Ready certificate/keycloak-tls --timeout=600s
+fi
 
 log "Smoke test (bypass DNS with --resolve)..."
 curl -sS -o /dev/null -D - --resolve "${FRONTEND_DOMAIN}:80:${INGRESS_PIP_IP}" "http://${FRONTEND_DOMAIN}" | head -n 1

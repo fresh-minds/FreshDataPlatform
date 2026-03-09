@@ -20,7 +20,7 @@ spec:
       initContainers:
         - name: generate-dbt-docs
           image: __DBT_DOCS_GENERATOR_IMAGE__
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           env:
             - name: WAREHOUSE_HOST
               value: warehouse
@@ -47,7 +47,12 @@ spec:
             - |
               set -euo pipefail
               rm -rf /tmp/dbt_project
-              cp -r /opt/airflow/project/dbt /tmp/dbt_project
+              # Support both old (dbt_parallel) and new (dbt) image layouts
+              DBT_SRC="/opt/airflow/project/dbt"
+              if [[ ! -d "$DBT_SRC" ]]; then
+                DBT_SRC="/opt/airflow/project/dbt_parallel"
+              fi
+              cp -r "$DBT_SRC" /tmp/dbt_project
               dbt deps --project-dir /tmp/dbt_project --profiles-dir /tmp/dbt_project
               dbt docs generate --project-dir /tmp/dbt_project --profiles-dir /tmp/dbt_project --vars '{use_seed_data: true}'
               rm -rf /docs/*
