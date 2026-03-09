@@ -11,6 +11,7 @@ SKIP_TERRAFORM_APPLY="false"
 SKIP_DEPLOY="false"
 SKIP_SMOKE="false"
 SKIP_REGISTRY_PREFLIGHT="false"
+MINIMAL_DEPLOY="false"
 
 tf_state_has() {
   local address="$1"
@@ -268,6 +269,7 @@ Usage:
 Options:
   --dry-run                     Run Terraform plan only, then exit.
   --yes                         Skip confirmation prompt.
+  --minimal                     Deploy minimal stack (no DataHub, no heavy observability, no jupyter).
   --skip-terraform-apply        Skip Terraform apply and reuse existing infra.
   --skip-deploy                 Skip workload deployment (aks_up.sh).
   --skip-smoke                  Skip post-deploy smoke checks.
@@ -301,6 +303,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --skip-terraform-apply)
       SKIP_TERRAFORM_APPLY="true"
+      shift
+      ;;
+    --minimal)
+      MINIMAL_DEPLOY="true"
       shift
       ;;
     --skip-deploy)
@@ -367,7 +373,9 @@ fi
 
 if [[ "$DRY_RUN" != "true" && "$AUTO_APPROVE" != "true" ]]; then
   echo
-  echo "WARNING: This will redeploy the full Scaleway stack using:"
+  deploy_scope="full"
+  [[ "$MINIMAL_DEPLOY" == "true" ]] && deploy_scope="minimal"
+  echo "WARNING: This will redeploy the ${deploy_scope} Scaleway stack using:"
   echo "  TF_DIR=$TF_DIR"
   echo "  TF_VARS_FILE=$TF_VARS_FILE"
   if [[ -n "$TF_PROJECT_ID" ]]; then
@@ -473,9 +481,10 @@ PORTAL_API_IMAGE_REPO_FOR_DEPLOY="$(normalize_scaleway_repo "${PORTAL_API_IMAGE_
 JUPYTER_IMAGE_REPO_FOR_DEPLOY="$(normalize_scaleway_repo "${JUPYTER_IMAGE_REPO:-ai-trial/jupyter}")"
 MINIO_SSO_BRIDGE_IMAGE_REPO_FOR_DEPLOY="$(normalize_scaleway_repo "${MINIO_SSO_BRIDGE_IMAGE_REPO:-ai-trial/minio-sso-bridge}")"
 
-log "Deploying workloads via scripts/aks/aks_up.sh in Scaleway mode"
+log "Deploying workloads via scripts/aks/aks_up.sh in Scaleway ${MINIMAL_DEPLOY:+minimal }mode"
 TF_DIR="$TF_DIR" \
 CLOUD_PROVIDER="scaleway" \
+MINIMAL_DEPLOY="$MINIMAL_DEPLOY" \
 KUBE_CONFIG_COMMAND="$KUBE_CONFIG_COMMAND_FOR_DEPLOY" \
 AKS_DISABLE_BUILDX_ATTESTATIONS="true" \
 AKS_DOCKER_NO_CACHE="true" \

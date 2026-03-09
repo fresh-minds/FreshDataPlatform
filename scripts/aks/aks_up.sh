@@ -78,6 +78,13 @@ KOMPOSE_OVERRIDE_FILE="${KOMPOSE_OVERRIDE_FILE:-$ROOT_DIR/docker-compose.k8s.yml
 AKS_HELPERS_LIB="$ROOT_DIR/scripts/aks/aks_up_lib.sh"
 KOMPOSE_LIB="$ROOT_DIR/scripts/k8s/k8s_kompose_lib.sh"
 
+MINIMAL_DEPLOY="${MINIMAL_DEPLOY:-false}"
+for arg in "$@"; do
+  case "$arg" in
+    --minimal) MINIMAL_DEPLOY=true ;;
+  esac
+done
+
 log() {
   echo "[aks-up] $*"
 }
@@ -658,7 +665,9 @@ build_and_push_image "$FRONTEND_IMAGE" "$ROOT_DIR/frontend/Dockerfile.k8s" "$ROO
   --build-arg "VITE_PORTAL_API_URL=${AKS_VITE_PORTAL_API_URL}" \
   --build-arg "VITE_DBT_DOCS_URL=${AKS_VITE_DBT_DOCS_URL}"
 build_and_push_image "$PORTAL_API_IMAGE" "$ROOT_DIR/ops/portal-api/Dockerfile" "$ROOT_DIR" "Portal API"
-build_and_push_image "$JUPYTER_IMAGE" "$ROOT_DIR/notebooks/Dockerfile" "$ROOT_DIR/notebooks" "Jupyter"
+if [[ "$MINIMAL_DEPLOY" != "true" ]]; then
+  build_and_push_image "$JUPYTER_IMAGE" "$ROOT_DIR/notebooks/Dockerfile" "$ROOT_DIR/notebooks" "Jupyter"
+fi
 build_and_push_image "$MINIO_SSO_BRIDGE_IMAGE" "$ROOT_DIR/ops/minio-sso-bridge/Dockerfile" "$ROOT_DIR" "MinIO SSO bridge"
 
 log "Applying namespace..."
@@ -695,36 +704,38 @@ kubectl_ctx -n "$NAMESPACE" create configmap airflow-webserver-config \
   --from-file=webserver_config.py="$ROOT_DIR/airflow/webserver_config.py" \
   --dry-run=client -o yaml | kubectl_ctx apply -f -
 
-log "Creating/updating Alertmanager config ConfigMap..."
-kubectl_ctx -n "$NAMESPACE" create configmap alertmanager-config \
-  --from-file=alertmanager.yml="$ROOT_DIR/ops/observability/alertmanager.yml" \
-  --dry-run=client -o yaml | kubectl_ctx apply -f -
+if [[ "$MINIMAL_DEPLOY" != "true" ]]; then
+  log "Creating/updating Alertmanager config ConfigMap..."
+  kubectl_ctx -n "$NAMESPACE" create configmap alertmanager-config \
+    --from-file=alertmanager.yml="$ROOT_DIR/ops/observability/alertmanager.yml" \
+    --dry-run=client -o yaml | kubectl_ctx apply -f -
 
-log "Creating/updating observability config ConfigMaps..."
-kubectl_ctx -n "$NAMESPACE" create configmap loki-config \
-  --from-file=local-config.yaml="$ROOT_DIR/ops/observability/loki.yml" \
-  --dry-run=client -o yaml | kubectl_ctx apply -f -
-kubectl_ctx -n "$NAMESPACE" create configmap prometheus-config \
-  --from-file=prometheus.yml="$ROOT_DIR/ops/observability/prometheus.yml" \
-  --from-file=alerts.yml="$ROOT_DIR/ops/observability/alerts.yml" \
-  --dry-run=client -o yaml | kubectl_ctx apply -f -
-kubectl_ctx -n "$NAMESPACE" create configmap promtail-config \
-  --from-file=config.yml="$ROOT_DIR/ops/observability/promtail.yml" \
-  --dry-run=client -o yaml | kubectl_ctx apply -f -
-kubectl_ctx -n "$NAMESPACE" create configmap tempo-config \
-  --from-file=tempo.yml="$ROOT_DIR/ops/observability/tempo.yml" \
-  --dry-run=client -o yaml | kubectl_ctx apply -f -
-kubectl_ctx -n "$NAMESPACE" create configmap otel-collector-config \
-  --from-file=otel-collector.yml="$ROOT_DIR/ops/observability/otel-collector.yml" \
-  --dry-run=client -o yaml | kubectl_ctx apply -f -
-kubectl_ctx -n "$NAMESPACE" create configmap grafana-config \
-  --from-file=datasources.yml="$ROOT_DIR/ops/observability/grafana/datasources.yml" \
-  --from-file=dashboards.yml="$ROOT_DIR/ops/observability/grafana/dashboards.yml" \
-  --dry-run=client -o yaml | kubectl_ctx apply -f -
-kubectl_ctx -n "$NAMESPACE" create configmap grafana-dashboards \
-  --from-file=data_quality.json="$ROOT_DIR/ops/observability/grafana/dashboards/data_quality.json" \
-  --from-file=platform_overview.json="$ROOT_DIR/ops/observability/grafana/dashboards/platform_overview.json" \
-  --dry-run=client -o yaml | kubectl_ctx apply -f -
+  log "Creating/updating observability config ConfigMaps..."
+  kubectl_ctx -n "$NAMESPACE" create configmap loki-config \
+    --from-file=local-config.yaml="$ROOT_DIR/ops/observability/loki.yml" \
+    --dry-run=client -o yaml | kubectl_ctx apply -f -
+  kubectl_ctx -n "$NAMESPACE" create configmap prometheus-config \
+    --from-file=prometheus.yml="$ROOT_DIR/ops/observability/prometheus.yml" \
+    --from-file=alerts.yml="$ROOT_DIR/ops/observability/alerts.yml" \
+    --dry-run=client -o yaml | kubectl_ctx apply -f -
+  kubectl_ctx -n "$NAMESPACE" create configmap promtail-config \
+    --from-file=config.yml="$ROOT_DIR/ops/observability/promtail.yml" \
+    --dry-run=client -o yaml | kubectl_ctx apply -f -
+  kubectl_ctx -n "$NAMESPACE" create configmap tempo-config \
+    --from-file=tempo.yml="$ROOT_DIR/ops/observability/tempo.yml" \
+    --dry-run=client -o yaml | kubectl_ctx apply -f -
+  kubectl_ctx -n "$NAMESPACE" create configmap otel-collector-config \
+    --from-file=otel-collector.yml="$ROOT_DIR/ops/observability/otel-collector.yml" \
+    --dry-run=client -o yaml | kubectl_ctx apply -f -
+  kubectl_ctx -n "$NAMESPACE" create configmap grafana-config \
+    --from-file=datasources.yml="$ROOT_DIR/ops/observability/grafana/datasources.yml" \
+    --from-file=dashboards.yml="$ROOT_DIR/ops/observability/grafana/dashboards.yml" \
+    --dry-run=client -o yaml | kubectl_ctx apply -f -
+  kubectl_ctx -n "$NAMESPACE" create configmap grafana-dashboards \
+    --from-file=data_quality.json="$ROOT_DIR/ops/observability/grafana/dashboards/data_quality.json" \
+    --from-file=platform_overview.json="$ROOT_DIR/ops/observability/grafana/dashboards/platform_overview.json" \
+    --dry-run=client -o yaml | kubectl_ctx apply -f -
+fi
 
 log "Applying core services (postgres, warehouse, minio, keycloak)..."
 render_and_apply "$ROOT_DIR/k8s/aks/postgres-airflow.yaml"
@@ -795,46 +806,61 @@ kompose_postprocess_aks
 kompose_normalise_services
 kompose_fix_deployments
 
-GMS_MANIFEST="$TMP_DIR/datahub-gms-deployment.yaml"
-FRONTEND_MANIFEST="$TMP_DIR/datahub-frontend-deployment.yaml"
-kompose_hold_datahub
+if [[ "$MINIMAL_DEPLOY" == "true" ]]; then
+  log "Minimal deploy: removing DataHub, heavy observability, and jupyter manifests..."
+  kompose_remove_non_essential
+fi
 
-log "Applying AKS full-stack parity manifests..."
+if [[ "$MINIMAL_DEPLOY" != "true" ]]; then
+  GMS_MANIFEST="$TMP_DIR/datahub-gms-deployment.yaml"
+  FRONTEND_MANIFEST="$TMP_DIR/datahub-frontend-deployment.yaml"
+  kompose_hold_datahub
+fi
+
+log "Applying AKS ${MINIMAL_DEPLOY:+minimal }manifests..."
 kubectl_ctx -n "$NAMESPACE" apply -f "$TMP_DIR"
 
-if [[ "$SKIP_MSTEAMS" == "true" ]]; then
-  kubectl_ctx -n "$NAMESPACE" delete deployment prometheus-msteams service prometheus-msteams --ignore-not-found
-fi
+if [[ "$MINIMAL_DEPLOY" != "true" ]]; then
+  if [[ "$SKIP_MSTEAMS" == "true" ]]; then
+    kubectl_ctx -n "$NAMESPACE" delete deployment prometheus-msteams service prometheus-msteams --ignore-not-found
+  fi
 
-log "Waiting for DataHub dependencies..."
-for deployment in "${DATAHUB_DEPS[@]}"; do
-  wait_for_deployment "$deployment" "600s"
-done
+  log "Waiting for DataHub dependencies..."
+  for deployment in "${DATAHUB_DEPS[@]}"; do
+    wait_for_deployment "$deployment" "600s"
+  done
 
-run_datahub_setup_jobs
+  run_datahub_setup_jobs
 
-HAS_GMS_HOLD=false
-HAS_FRONTEND_HOLD=false
-[[ -f "$TMP_DIR/.datahub-gms-deployment.hold" ]] && HAS_GMS_HOLD=true
-[[ -f "$TMP_DIR/.datahub-frontend-deployment.hold" ]] && HAS_FRONTEND_HOLD=true
+  HAS_GMS_HOLD=false
+  HAS_FRONTEND_HOLD=false
+  [[ -f "$TMP_DIR/.datahub-gms-deployment.hold" ]] && HAS_GMS_HOLD=true
+  [[ -f "$TMP_DIR/.datahub-frontend-deployment.hold" ]] && HAS_FRONTEND_HOLD=true
 
-if [[ "$HAS_GMS_HOLD" == "true" || "$HAS_FRONTEND_HOLD" == "true" ]]; then
-  kompose_restore_datahub
-fi
+  if [[ "$HAS_GMS_HOLD" == "true" || "$HAS_FRONTEND_HOLD" == "true" ]]; then
+    kompose_restore_datahub
+  fi
 
-if [[ "$HAS_GMS_HOLD" == "true" ]]; then
-  kubectl_ctx -n "$NAMESPACE" apply -f "$GMS_MANIFEST"
-fi
-if [[ "$HAS_FRONTEND_HOLD" == "true" ]]; then
-  kubectl_ctx -n "$NAMESPACE" apply -f "$FRONTEND_MANIFEST"
+  if [[ "$HAS_GMS_HOLD" == "true" ]]; then
+    kubectl_ctx -n "$NAMESPACE" apply -f "$GMS_MANIFEST"
+  fi
+  if [[ "$HAS_FRONTEND_HOLD" == "true" ]]; then
+    kubectl_ctx -n "$NAMESPACE" apply -f "$FRONTEND_MANIFEST"
+  fi
 fi
 
 log "Deploying AKS dbt-docs service (regenerated at rollout via initContainer)..."
 render_and_apply "$ROOT_DIR/k8s/aks/dbt-docs.yaml"
 
-log "Waiting for extended deployments..."
+if [[ "$MINIMAL_DEPLOY" == "true" ]]; then
+  ACTIVE_DEPLOYMENTS=("${MINIMAL_DEPLOYMENTS[@]}")
+else
+  ACTIVE_DEPLOYMENTS=("${EXTENDED_DEPLOYMENTS[@]}")
+fi
+
+log "Waiting for ${MINIMAL_DEPLOY:+minimal }deployments..."
 datahub_gms_heal_attempted=false
-for deployment in "${EXTENDED_DEPLOYMENTS[@]}" dbt-docs; do
+for deployment in "${ACTIVE_DEPLOYMENTS[@]}" dbt-docs; do
   if [[ "$deployment" == "datahub-gms" ]]; then
     if ! wait_for_deployment "$deployment" "600s"; then
       if [[ "$datahub_gms_heal_attempted" == "false" ]]; then
@@ -857,14 +883,18 @@ for deployment in "${EXTENDED_DEPLOYMENTS[@]}" dbt-docs; do
   fi
 done
 
-if [[ "$SKIP_MSTEAMS" == "false" ]]; then
+if [[ "$MINIMAL_DEPLOY" != "true" && "$SKIP_MSTEAMS" == "false" ]]; then
   wait_for_deployment prometheus-msteams "600s"
 fi
 
 log "Applying cert issuer + ingress..."
 render_and_apply "$ROOT_DIR/k8s/aks/cert-issuer-letsencrypt-prod.yaml"
-render_and_apply "$ROOT_DIR/k8s/aks/frontend-ingress.yaml"
-render_and_apply "$ROOT_DIR/k8s/aks/datahub-ingress.yaml"
+if [[ "$MINIMAL_DEPLOY" == "true" ]]; then
+  render_and_apply "$ROOT_DIR/k8s/aks/frontend-ingress-minimal.yaml"
+else
+  render_and_apply "$ROOT_DIR/k8s/aks/frontend-ingress.yaml"
+  render_and_apply "$ROOT_DIR/k8s/aks/datahub-ingress.yaml"
+fi
 render_and_apply "$ROOT_DIR/k8s/aks/minio-sso-login-ingress.yaml"
 
 log "Waiting for TLS certificate to be Ready..."
@@ -877,11 +907,13 @@ curl -sS -o /dev/null -D - --resolve "airflow.${FRONTEND_DOMAIN}:443:${INGRESS_P
 curl -sS -o /dev/null -D - --resolve "minio.${FRONTEND_DOMAIN}:443:${INGRESS_PIP_IP}" "https://minio.${FRONTEND_DOMAIN}/" | head -n 1
 curl -sS -o /dev/null -D - --resolve "minio-api.${FRONTEND_DOMAIN}:443:${INGRESS_PIP_IP}" "https://minio-api.${FRONTEND_DOMAIN}/minio/health/live" | head -n 1
 curl -sS -o /dev/null -D - --resolve "keycloak.${FRONTEND_DOMAIN}:443:${INGRESS_PIP_IP}" "https://keycloak.${FRONTEND_DOMAIN}/" | head -n 1
-curl -sS -o /dev/null -D - --resolve "datahub.${FRONTEND_DOMAIN}:443:${INGRESS_PIP_IP}" "https://datahub.${FRONTEND_DOMAIN}/" | head -n 1
 curl -sS -o /dev/null -D - --resolve "superset.${FRONTEND_DOMAIN}:443:${INGRESS_PIP_IP}" "https://superset.${FRONTEND_DOMAIN}/health" | head -n 1
-curl -sS -o /dev/null -D - --resolve "grafana.${FRONTEND_DOMAIN}:443:${INGRESS_PIP_IP}" "https://grafana.${FRONTEND_DOMAIN}/api/health" | head -n 1
-curl -sS -o /dev/null -D - --resolve "prometheus.${FRONTEND_DOMAIN}:443:${INGRESS_PIP_IP}" "https://prometheus.${FRONTEND_DOMAIN}/-/healthy" | head -n 1
 curl -sS -o /dev/null -D - --resolve "dbt-docs.${FRONTEND_DOMAIN}:443:${INGRESS_PIP_IP}" "https://dbt-docs.${FRONTEND_DOMAIN}/" | head -n 1
+if [[ "$MINIMAL_DEPLOY" != "true" ]]; then
+  curl -sS -o /dev/null -D - --resolve "datahub.${FRONTEND_DOMAIN}:443:${INGRESS_PIP_IP}" "https://datahub.${FRONTEND_DOMAIN}/" | head -n 1
+  curl -sS -o /dev/null -D - --resolve "grafana.${FRONTEND_DOMAIN}:443:${INGRESS_PIP_IP}" "https://grafana.${FRONTEND_DOMAIN}/api/health" | head -n 1
+  curl -sS -o /dev/null -D - --resolve "prometheus.${FRONTEND_DOMAIN}:443:${INGRESS_PIP_IP}" "https://prometheus.${FRONTEND_DOMAIN}/-/healthy" | head -n 1
+fi
 echo | openssl s_client -servername "${FRONTEND_DOMAIN}" -connect "${INGRESS_PIP_IP}:443" 2>/dev/null | openssl x509 -noout -subject -issuer | sed -n '1,2p'
 
 if [[ "$CLOUD_PROVIDER" == "azure" && "$AKS_USE_KEY_VAULT" == "true" ]]; then
@@ -898,9 +930,12 @@ else
   CLEANUP_CMD="  make tf-destroy ENVIRONMENT=scaleway-dev   # or your active environment"
 fi
 
+DEPLOY_MODE="full"
+[[ "$MINIMAL_DEPLOY" == "true" ]] && DEPLOY_MODE="minimal"
+
 cat <<EOT
 
-Cluster deployment is up! (cloud: $CLOUD_PROVIDER)
+Cluster deployment is up! (cloud: $CLOUD_PROVIDER, mode: $DEPLOY_MODE)
 
 Cluster:       $AKS_CLUSTER_NAME
 Namespace:     $NAMESPACE
@@ -911,13 +946,21 @@ Airflow URL:   https://airflow.$FRONTEND_DOMAIN
 MinIO URL:     https://minio.$FRONTEND_DOMAIN
 MinIO API URL: https://minio-api.$FRONTEND_DOMAIN
 Keycloak URL:  https://keycloak.$FRONTEND_DOMAIN
-DataHub URL:   https://datahub.$FRONTEND_DOMAIN
 Superset URL:  https://superset.$FRONTEND_DOMAIN
+dbt Docs URL:  https://dbt-docs.$FRONTEND_DOMAIN
+Portal API URL:https://portal-api.$FRONTEND_DOMAIN
+EOT
+
+if [[ "$MINIMAL_DEPLOY" != "true" ]]; then
+  cat <<EOT
+DataHub URL:   https://datahub.$FRONTEND_DOMAIN
 Grafana URL:   https://grafana.$FRONTEND_DOMAIN
 Jupyter URL:   https://jupyter.$FRONTEND_DOMAIN
 Prometheus URL:https://prometheus.$FRONTEND_DOMAIN
-dbt Docs URL:  https://dbt-docs.$FRONTEND_DOMAIN
-Portal API URL:https://portal-api.$FRONTEND_DOMAIN
+EOT
+fi
+
+cat <<EOT
 
 Access services with port-forward from your machine:
   kubectl -n $NAMESPACE port-forward svc/airflow-webserver 8080:8080

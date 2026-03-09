@@ -184,6 +184,15 @@ k8s-aks-up:  ## Provision AKS infra deploy stack, then run AKS smoke checks (set
 		echo "Skipping post-deploy AKS smoke checks (AKS_SMOKE_AFTER_UP=$${AKS_SMOKE_AFTER_UP})"; \
 	fi
 
+k8s-aks-up-minimal:  ## Deploy minimal stack to AKS (no DataHub, no heavy observability, no jupyter)
+	./scripts/aks/aks_up.sh --minimal
+	@if [ "$${AKS_SMOKE_AFTER_UP:-true}" = "true" ]; then \
+		echo "Running post-deploy AKS smoke checks (AKS_SMOKE_AFTER_UP=true)"; \
+		./scripts/testing/verify_aks_smoke.sh; \
+	else \
+		echo "Skipping post-deploy AKS smoke checks (AKS_SMOKE_AFTER_UP=$${AKS_SMOKE_AFTER_UP})"; \
+	fi
+
 k8s-aks-update-images:  ## Build/push selected app images and patch existing AKS deployments only (no infra/parity reapply)
 	./scripts/aks/aks_update_images.sh
 
@@ -198,7 +207,15 @@ scaleway-redeploy-all:  ## One-command Scaleway redeploy (Terraform apply + work
 	if [ "$${SKIP_SMOKE:-false}" = "true" ]; then ARGS="$$ARGS --skip-smoke"; fi; \
 	./scripts/aks/scaleway_redeploy_all.sh --yes $$ARGS --tf-vars-file "$${TF_VARS_FILE:-$$(pwd)/terraform/environments/scaleway-dev.tfvars}" --tf-dir "$${TF_DIR:-$$(pwd)/terraform/scaleway}"
 
-scaleway-destroy-all:  ## Destroy all Terraform-managed Scaleway resources (use DRY_RUN=true for plan-only)
+scaleway-redeploy-all-minimal:  ## One-command minimal Scaleway redeploy (no DataHub, no heavy observability, no jupyter)
+	@ARGS="--minimal"; \
+	if [ "$${DRY_RUN:-false}" = "true" ]; then ARGS="$$ARGS --dry-run"; fi; \
+	if [ "$${SKIP_TERRAFORM_APPLY:-false}" = "true" ]; then ARGS="$$ARGS --skip-terraform-apply"; fi; \
+	if [ "$${SKIP_DEPLOY:-false}" = "true" ]; then ARGS="$$ARGS --skip-deploy"; fi; \
+	if [ "$${SKIP_SMOKE:-false}" = "true" ]; then ARGS="$$ARGS --skip-smoke"; fi; \
+	./scripts/aks/scaleway_redeploy_all.sh --yes $$ARGS --tf-vars-file "$${TF_VARS_FILE:-$$(pwd)/terraform/environments/scaleway-dev-minimal.tfvars}" --tf-dir "$${TF_DIR:-$$(pwd)/terraform/scaleway}"
+
+scaleway-destroy-all:  ## Destroy all Terraform-managed Scaleway resources (use DRY_RUN=true for plan-only; set TF_VARS_FILE to match deploy tfvars)
 	@if [ "$${DRY_RUN:-false}" = "true" ]; then \
 		PURGE_FLAG=""; \
 		if [ "$${PURGE_LEFTOVERS:-false}" = "true" ]; then PURGE_FLAG="--purge-leftovers"; fi; \
@@ -207,6 +224,17 @@ scaleway-destroy-all:  ## Destroy all Terraform-managed Scaleway resources (use 
 		PURGE_FLAG=""; \
 		if [ "$${PURGE_LEFTOVERS:-false}" = "true" ]; then PURGE_FLAG="--purge-leftovers"; fi; \
 		./scripts/aks/scaleway_destroy_all.sh --yes $$PURGE_FLAG --tf-vars-file "$${TF_VARS_FILE:-$$(pwd)/terraform/environments/scaleway-dev.tfvars}" --tf-dir "$${TF_DIR:-$$(pwd)/terraform/scaleway}"; \
+	fi
+
+scaleway-destroy-all-minimal:  ## Destroy Scaleway resources deployed via scaleway-redeploy-all-minimal (uses scaleway-dev-minimal.tfvars)
+	@if [ "$${DRY_RUN:-false}" = "true" ]; then \
+		PURGE_FLAG=""; \
+		if [ "$${PURGE_LEFTOVERS:-false}" = "true" ]; then PURGE_FLAG="--purge-leftovers"; fi; \
+		./scripts/aks/scaleway_destroy_all.sh --dry-run $$PURGE_FLAG --tf-vars-file "$${TF_VARS_FILE:-$$(pwd)/terraform/environments/scaleway-dev-minimal.tfvars}" --tf-dir "$${TF_DIR:-$$(pwd)/terraform/scaleway}"; \
+	else \
+		PURGE_FLAG=""; \
+		if [ "$${PURGE_LEFTOVERS:-false}" = "true" ]; then PURGE_FLAG="--purge-leftovers"; fi; \
+		./scripts/aks/scaleway_destroy_all.sh --yes $$PURGE_FLAG --tf-vars-file "$${TF_VARS_FILE:-$$(pwd)/terraform/environments/scaleway-dev-minimal.tfvars}" --tf-dir "$${TF_DIR:-$$(pwd)/terraform/scaleway}"; \
 	fi
 
 tf-init:  ## Initialize Terraform — downloads providers and configures backend

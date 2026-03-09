@@ -110,6 +110,39 @@ kompose_remove_phase_a() {
 }
 
 # ---------------------------------------------------------------------------
+# kompose_remove_non_essential – remove DataHub, heavy observability, jupyter
+#   Used by --minimal deploys to keep only core pipeline + portal + dbt-docs.
+# ---------------------------------------------------------------------------
+kompose_remove_non_essential() {
+  local before_count after_count removed_count
+  before_count="$(_kompose_count_manifests '*.yaml')"
+  kompose_log_event "INFO" "kompose_remove_non_essential" "start" "Removing non-essential manifests for minimal deploy."
+
+  # Remove DataHub (all components)
+  rm -f "$KOMPOSE_OUT_DIR"/datahub-*.yaml
+
+  # Remove heavy observability (keep postgres-exporter-*)
+  rm -f \
+    "$KOMPOSE_OUT_DIR"/prometheus-deployment.yaml \
+    "$KOMPOSE_OUT_DIR"/prometheus-service.yaml \
+    "$KOMPOSE_OUT_DIR"/prometheus-msteams-*.yaml \
+    "$KOMPOSE_OUT_DIR"/alertmanager-*.yaml \
+    "$KOMPOSE_OUT_DIR"/grafana-*.yaml \
+    "$KOMPOSE_OUT_DIR"/loki-*.yaml \
+    "$KOMPOSE_OUT_DIR"/promtail-*.yaml \
+    "$KOMPOSE_OUT_DIR"/tempo-*.yaml \
+    "$KOMPOSE_OUT_DIR"/otel-collector-*.yaml \
+    "$KOMPOSE_OUT_DIR"/statsd-exporter-*.yaml
+
+  # Remove jupyter
+  rm -f "$KOMPOSE_OUT_DIR"/jupyter-*.yaml
+
+  after_count="$(_kompose_count_manifests '*.yaml')"
+  removed_count="$((before_count - after_count))"
+  kompose_log_event "INFO" "kompose_remove_non_essential" "success" "Removed ${removed_count} manifests; ${after_count} remain."
+}
+
+# ---------------------------------------------------------------------------
 # kompose_normalise_services – fix service port collisions
 # ---------------------------------------------------------------------------
 kompose_normalise_services() {
@@ -983,4 +1016,15 @@ DATAHUB_SETUP_JOBS=(
   datahub-elasticsearch-setup
   datahub-kafka-setup
   datahub-upgrade
+)
+
+# Deployments waited on in --minimal mode (no DataHub, no heavy observability, no jupyter)
+MINIMAL_DEPLOYMENTS=(
+  minio-sso-bridge
+  superset-db
+  superset
+  portal
+  portal-api
+  postgres-exporter-airflow
+  postgres-exporter-warehouse
 )
