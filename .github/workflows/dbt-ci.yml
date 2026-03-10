@@ -28,6 +28,7 @@ env:
   WAREHOUSE_PASSWORD: postgres
   WAREHOUSE_DB: open_data_platform_dw
   DBT_SCHEMA: dbt_ci_${{ github.run_id }}
+  FACT_AANVRAGEN_DEPRECATION_DEADLINE: "2026-09-30"
 
 jobs:
   # ── dbt compile + test (no warehouse needed) ────────────────────
@@ -51,6 +52,37 @@ jobs:
 
       - name: Install dbt packages
         run: dbt deps --project-dir dbt --profiles-dir dbt
+
+      - name: Guard legacy fact_aanvragen references
+        run: |
+          set -euo pipefail
+
+          disallowed_refs="$(grep -RInE "ref\('fact_aanvragen'\)|gold\.fact_aanvragen|\"fact_aanvragen\"" \
+            dbt/models dags scripts schema/warehouse.dbml DATA_MODEL.md \
+            | grep -v "dbt/models/gold/odp_staffing_demand/fact_aanvragen.sql" \
+            | grep -v "dbt/models/gold/odp_staffing_demand/_gold_odp_staffing_demand__models.yml" \
+            | grep -v "schema/warehouse.dbml" \
+            | grep -v "DATA_MODEL.md" \
+            || true)"
+
+          if [ -n "$disallowed_refs" ]; then
+            echo "Found disallowed fact_aanvragen references outside compatibility files:"
+            echo "$disallowed_refs"
+            exit 1
+          fi
+
+      - name: Enforce fact_aanvragen deprecation window
+        run: |
+          set -euo pipefail
+
+          today="$(date -u +%F)"
+          deadline="${FACT_AANVRAGEN_DEPRECATION_DEADLINE}"
+
+          if [[ "$today" > "$deadline" ]] && [ -f "dbt/models/gold/odp_staffing_demand/fact_aanvragen.sql" ]; then
+            echo "Compatibility model dbt/models/gold/odp_staffing_demand/fact_aanvragen.sql is past its deprecation window ($deadline)."
+            echo "Remove the compatibility model and references, then update this CI rule."
+            exit 1
+          fi
 
       - name: dbt parse (validate SQL + YAML)
         run: dbt parse --project-dir dbt --profiles-dir dbt
@@ -101,8 +133,8 @@ jobs:
       - name: Create source schema and seed tables
         run: |
           PGPASSWORD=postgres psql -h localhost -U postgres -d open_data_platform_dw -c "
-            CREATE SCHEMA IF NOT EXISTS job_market_nl;
-            CREATE TABLE IF NOT EXISTS job_market_nl.it_market_snapshot (
+            CREATE SCHEMA IF NOT EXISTS odp_staffing_demand;
+            CREATE TABLE IF NOT EXISTS odp_staffing_demand.it_market_snapshot (
               period_key TEXT NOT NULL,
               period_label TEXT,
               sector_name TEXT,
@@ -111,12 +143,12 @@ jobs:
               job_ads_count INTEGER NOT NULL,
               loaded_at TIMESTAMPTZ NOT NULL DEFAULT now()
             );
-            CREATE TABLE IF NOT EXISTS job_market_nl.it_market_top_skills (
+            CREATE TABLE IF NOT EXISTS odp_staffing_demand.it_market_top_skills (
               skill TEXT NOT NULL,
               count INTEGER NOT NULL,
               loaded_at TIMESTAMPTZ NOT NULL DEFAULT now()
             );
-            CREATE TABLE IF NOT EXISTS job_market_nl.it_market_region_distribution (
+            CREATE TABLE IF NOT EXISTS odp_staffing_demand.it_market_region_distribution (
               region TEXT NOT NULL,
               job_ads_count INTEGER NOT NULL,
               share_pct DOUBLE PRECISION NOT NULL,
@@ -124,7 +156,7 @@ jobs:
               longitude DOUBLE PRECISION NOT NULL,
               loaded_at TIMESTAMPTZ NOT NULL DEFAULT now()
             );
-            CREATE TABLE IF NOT EXISTS job_market_nl.it_market_job_ads_geo (
+            CREATE TABLE IF NOT EXISTS odp_staffing_demand.it_market_job_ads_geo (
               job_id TEXT NOT NULL,
               region TEXT NOT NULL,
               latitude DOUBLE PRECISION NOT NULL,
@@ -134,19 +166,19 @@ jobs:
             );
 
             -- Insert minimal seed data for tests
-            INSERT INTO job_market_nl.it_market_snapshot
+            INSERT INTO odp_staffing_demand.it_market_snapshot
               (period_key, period_label, sector_name, vacancies, vacancy_rate, job_ads_count)
             VALUES ('2024Q1', '2024 Q1', 'Information and communication', 12000, 3.2, 150);
 
-            INSERT INTO job_market_nl.it_market_top_skills (skill, count)
+            INSERT INTO odp_staffing_demand.it_market_top_skills (skill, count)
             VALUES ('Python', 45), ('SQL', 38), ('Kubernetes', 22);
 
-            INSERT INTO job_market_nl.it_market_region_distribution
+            INSERT INTO odp_staffing_demand.it_market_region_distribution
               (region, job_ads_count, share_pct, latitude, longitude)
             VALUES ('Noord-Holland', 50, 33.3, 52.5279, 4.9500),
                    ('Zuid-Holland', 45, 30.0, 51.9851, 4.4883);
 
-            INSERT INTO job_market_nl.it_market_job_ads_geo
+            INSERT INTO odp_staffing_demand.it_market_job_ads_geo
               (job_id, region, latitude, longitude, location_label)
             VALUES ('ad-001', 'Noord-Holland', 52.37, 4.90, 'Amsterdam'),
                    ('ad-002', 'Zuid-Holland', 51.92, 4.48, 'Rotterdam');

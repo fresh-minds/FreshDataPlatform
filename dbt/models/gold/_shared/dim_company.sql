@@ -5,7 +5,7 @@ with harvey_nash_companies as (
 
     select distinct
         company
-    from {{ ref('brz_job_market_nl__harvey_nash_vacatures') }}
+    from {{ ref('brz_odp_staffing_demand__harvey_nash_vacatures') }}
     where company is not null
       and company <> ''
 
@@ -15,7 +15,7 @@ fabric_companies as (
 
     select distinct
         organisatie as company
-    from {{ ref('brz_job_market_nl__fl_dim_organisatie') }}
+    from {{ ref('brz_odp_staffing_demand__fl_dim_organisatie') }}
     where organisatie is not null
       and organisatie <> ''
 

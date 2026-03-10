@@ -7,7 +7,7 @@ with regions as (
         region,
         latitude,
         longitude
-    from {{ ref('brz_job_market_nl__it_market_region_distribution') }}
+    from {{ ref('brz_odp_staffing_demand__it_market_region_distribution') }}
     where region is not null
 
 )

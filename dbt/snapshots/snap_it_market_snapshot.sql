@@ -23,6 +23,6 @@ select
     vacancy_rate,
     job_ads_count,
     loaded_at
-from {{ source('job_market_nl', 'it_market_snapshot') }}
+from {{ source('odp_staffing_demand', 'it_market_snapshot') }}
 
 {% endsnapshot %}

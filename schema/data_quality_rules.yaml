@@ -5,14 +5,18 @@ defaults:
     - high
   default_severity: high
 
+# Phase 2 note:
+# - Dataset keys are canonicalized to odp_staffing_demand.*.
+# - Transitional physical schema/table names remain odp_staffing_demand.* during migration.
+
 # =====================================================================
 # BRONZE LAYER — Schema validation and volume checks
 # =====================================================================
 
 datasets:
   # --- Bronze CBS ---
-  job_market_nl.cbs_vacancy_rate_raw:
-    domain: job_market_nl
+  odp_staffing_demand.cbs_vacancy_rate_raw:
+    domain: odp_staffing_demand
     layer: bronze
     table: cbs_vacancy_rate_raw
     missing_behavior: warn
@@ -30,8 +34,8 @@ datasets:
         max_null_pct: 0
 
   # --- Bronze Adzuna ---
-  job_market_nl.adzuna_job_ads_raw:
-    domain: job_market_nl
+  odp_staffing_demand.adzuna_job_ads_raw:
+    domain: odp_staffing_demand
     layer: bronze
     table: adzuna_job_ads_raw
     missing_behavior: warn
@@ -49,8 +53,8 @@ datasets:
         max_null_pct: 0
 
   # --- Bronze UWV ---
-  job_market_nl.uwv_open_match_raw:
-    domain: job_market_nl
+  odp_staffing_demand.uwv_open_match_raw:
+    domain: odp_staffing_demand
     layer: bronze
     table: uwv_open_match_raw
     missing_behavior: warn
@@ -69,8 +73,8 @@ datasets:
 # =====================================================================
 
   # --- Silver CBS ---
-  job_market_nl.cbs_vacancy_rate:
-    domain: job_market_nl
+  odp_staffing_demand.cbs_vacancy_rate:
+    domain: odp_staffing_demand
     layer: silver
     table: cbs_vacancy_rate
     missing_behavior: warn
@@ -99,8 +103,8 @@ datasets:
         max_invalid_pct: 5
 
   # --- Silver Adzuna ---
-  job_market_nl.adzuna_job_ads:
-    domain: job_market_nl
+  odp_staffing_demand.adzuna_job_ads:
+    domain: odp_staffing_demand
     layer: silver
     table: adzuna_job_ads
     missing_behavior: warn
@@ -124,8 +128,8 @@ datasets:
 # GOLD LAYER — KPI validation and business rules
 # =====================================================================
 
-  job_market_nl.job_market_snapshot:
-    domain: job_market_nl
+  odp_staffing_demand.job_market_snapshot:
+    domain: odp_staffing_demand
     layer: gold
     table: job_market_snapshot
     missing_behavior: warn
@@ -147,8 +151,8 @@ datasets:
         min: 0
         max_invalid_pct: 0
 
-  job_market_nl.job_market_top_skills:
-    domain: job_market_nl
+  odp_staffing_demand.job_market_top_skills:
+    domain: odp_staffing_demand
     layer: gold
     table: job_market_top_skills
     missing_behavior: warn
@@ -169,8 +173,8 @@ datasets:
         type: unique
         columns: [skill]
 
-  job_market_nl.it_market_region_distribution:
-    domain: job_market_nl
+  odp_staffing_demand.it_market_region_distribution:
+    domain: odp_staffing_demand
     layer: gold
     table: it_market_region_distribution
     missing_behavior: warn
@@ -192,8 +196,8 @@ datasets:
         type: unique
         columns: [region]
 
-  job_market_nl.it_market_job_ads_geo:
-    domain: job_market_nl
+  odp_staffing_demand.it_market_job_ads_geo:
+    domain: odp_staffing_demand
     layer: gold
     table: it_market_job_ads_geo
     missing_behavior: warn

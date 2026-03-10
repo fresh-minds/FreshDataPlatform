@@ -144,7 +144,7 @@ def _check_entity_has_dataset_config(domain: str, entity: Dict, entity_path: Pat
         return errors
 
     # Build a list of candidate file names.  Existing dataset configs may use
-    # shortened domain prefixes (e.g. "job_market_" instead of "job_market_nl_")
+    # shortened domain prefixes (e.g. "job_market_" instead of "odp_staffing_demand_")
     # so we also try common prefix variants.
     domain_prefixes = [domain]
     # Add a shorter prefix by stripping trailing locale codes like _nl, _de, _us

@@ -7,9 +7,10 @@ Project open_data_platform_dw {
 }
 
 // ===========================================
-// JOB MARKET NL Domain
-// Pipeline: dags/job_market_nl_dag.py
-// dbt: dbt/models/job_market_nl/
+// ODP Staffing Demand Domain (logical canonical)
+// Canonical pipeline: dags/odp_staffing_demand_dag.py
+// Legacy compatibility shim: dags/odp_staffing_demand_dag.py
+// Transitional physical schema remains odp_staffing_demand
 // ===========================================
 
 Table it_market_snapshot {
@@ -20,14 +21,14 @@ Table it_market_snapshot {
   vacancy_rate double [note: 'Vacancy rate as percentage (vacancies / total positions)']
   job_ads_count int [not null, note: 'Number of IT job ads found from Adzuna']
   loaded_at timestamptz [not null, default: `now()`, note: 'Pipeline load timestamp']
-  Note: 'Latest IT market snapshot combining CBS vacancy rate with Adzuna job ads counts. Refreshed daily by job_market_nl_pipeline DAG.'
+  Note: 'Latest IT market snapshot combining CBS vacancy rate with Adzuna job ads counts. Refreshed daily by odp_staffing_demand_pipeline (legacy odp_staffing_demand_pipeline delegates during migration).'
 }
 
 Table it_market_top_skills {
   skill text [pk, not null, note: 'Skill name extracted from job ad descriptions']
   count int [not null, note: 'Number of job ads mentioning this skill']
   loaded_at timestamptz [not null, default: `now()`, note: 'Pipeline load timestamp']
-  Note: 'Top skills extracted from IT job advertisements, ranked by frequency. Refreshed daily by job_market_nl_pipeline DAG.'
+  Note: 'Top skills extracted from IT job advertisements, ranked by frequency. Refreshed daily by odp_staffing_demand_pipeline (legacy odp_staffing_demand_pipeline delegates during migration).'
 }
 
 Table it_market_region_distribution {
@@ -37,7 +38,7 @@ Table it_market_region_distribution {
   latitude double [not null, note: 'Province centroid latitude']
   longitude double [not null, note: 'Province centroid longitude']
   loaded_at timestamptz [not null, default: `now()`, note: 'Pipeline load timestamp']
-  Note: 'Regional distribution of IT job ads across Dutch provinces. Refreshed daily by job_market_nl_pipeline DAG.'
+  Note: 'Regional distribution of IT job ads across Dutch provinces. Refreshed daily by odp_staffing_demand_pipeline (legacy odp_staffing_demand_pipeline delegates during migration).'
 }
 
 Table it_market_job_ads_geo {
@@ -47,14 +48,14 @@ Table it_market_job_ads_geo {
   longitude double [not null, note: 'Longitude of the job ad location']
   location_label text [note: 'Human-readable location label']
   loaded_at timestamptz [not null, default: `now()`, note: 'Pipeline load timestamp']
-  Note: 'Geo-coded individual IT job ad locations for map visualizations. Refreshed daily by job_market_nl_pipeline DAG.'
+  Note: 'Geo-coded individual IT job ad locations for map visualizations. Refreshed daily by odp_staffing_demand_pipeline (legacy odp_staffing_demand_pipeline delegates during migration).'
 }
 
 // ==========================================================================
 // GOLD LAYER — Conformed Dimensions
 // Schema: gold
 // Built by: dbt run --select gold
-// Triggered by: dags/job_market_nl_dag.py > gold.run_dbt_gold
+// Triggered by: dags/odp_staffing_demand_dag.py > gold.run_dbt_gold
 // Source: dbt/models/gold/_shared/
 // ==========================================================================
 
@@ -81,13 +82,13 @@ Table gold.dim_region {
 Table gold.dim_company {
   company_sk   text [pk, not null, note: 'Surrogate key — MD5 hash of company_name']
   company_name text [not null, unique]
-  Note: 'Conformed dimension: hiring companies. Sourced from harvey_nash_vacatures. Shared across job_market_nl, finance, and HR domains.'
+  Note: 'Conformed dimension: hiring companies. Sourced from harvey_nash_vacatures. Shared across odp_staffing_demand, finance, and HR domains.'
 }
 
 // ==========================================================================
-// GOLD LAYER — job_market_nl Domain Facts and Dimensions
+// GOLD LAYER — ODP Staffing Demand Domain Facts and Dimensions
 // Schema: gold
-// Source: dbt/models/gold/job_market_nl/
+// Transitional source path: dbt/models/gold/odp_staffing_demand/
 // ==========================================================================
 
 Table gold.dim_period {
@@ -130,14 +131,23 @@ Table gold.fact_it_market_top_skills {
 }
 
 Table gold.fact_job_postings {
-  posting_sk          text        [pk, not null, note: 'Surrogate key — MD5 hash of job_id']
-  region_sk           text        [ref: > gold.dim_region.region_sk, note: 'nullable — unresolved province']
+  posting_sk          text        [pk, not null, note: 'Surrogate key — MD5 hash of source_system + posting_id']
+  posting_id          text        [not null, note: 'Canonical business key (job_id or aanvraag_id)']
+  posting_type        text        [not null, note: 'external_posting or internal_request']
+  source_system       text        [not null, note: 'harvey_nash or fabric_landing']
+  date_sk             text        [ref: > gold.dim_date.date_sk, note: 'nullable; mainly internal_request']
+  region_sk           text        [ref: > gold.dim_region.region_sk, note: 'nullable; mainly external_posting']
   company_sk          text        [ref: > gold.dim_company.company_sk]
-  job_id              text        [not null]
-  title               text        [not null]
-  company             text
-  location            text        [note: 'City name']
-  province            text        [note: 'Dutch province (nullable)']
+  role_sk             text        [ref: > gold.dim_role.role_sk, note: 'nullable; mainly internal_request']
+  unit_sk             text        [ref: > gold.dim_unit.unit_sk, note: 'nullable; mainly internal_request']
+  location_sk         text        [ref: > gold.dim_location.location_sk, note: 'nullable; mainly internal_request']
+  job_id              text        [note: 'Legacy external posting ID']
+  aanvraag_id         text        [note: 'Legacy internal request ID']
+  title               text
+  company_name        text
+  location_name       text
+  location            text        [note: 'External city name']
+  province            text        [note: 'Dutch province (external postings)']
   contract_type       text
   description         text
   salary_min          float
@@ -145,15 +155,22 @@ Table gold.fact_job_postings {
   salary_raw          text
   url                 text
   posted_date         timestamptz
-  source              text        [not null, note: 'Always HARVEY_NASH']
-  ingestion_timestamp timestamptz [not null]
-  Note: 'Harvey Nash job postings fact table with FK references to dim_region and dim_company.'
+  date_received       timestamptz
+  source              text        [not null]
+  ingestion_timestamp timestamptz
+  sender_name         text
+  subject_edited      text
+  role_name           text
+  role_cluster        text
+  unit_name           text
+  deadline            text
+  Note: 'Canonical staffing demand fact table consolidating external postings and internal requests.'
 }
 
 // ==========================================================================
 // GOLD LAYER — Fabric Landing Dimensions & Facts
 // Schema: gold
-// Source: dbt/models/gold/job_market_nl/ (dim_role, dim_unit, dim_location, fact_aanvragen)
+// Source: dbt/models/gold/odp_staffing_demand/ (dim_role, dim_unit, dim_location)
 // ==========================================================================
 
 Table gold.dim_role {
@@ -176,14 +193,14 @@ Table gold.dim_location {
 }
 
 Table gold.fact_aanvragen {
-  aanvraag_sk    text        [pk, not null, note: 'Surrogate key — MD5 hash of aanvraag_id']
+  aanvraag_sk    text        [pk, not null, note: 'Compatibility key derived from posting_id']
   date_sk        text        [ref: > gold.dim_date.date_sk, note: 'nullable']
   company_sk     text        [ref: > gold.dim_company.company_sk, note: 'nullable']
   role_sk        text        [ref: > gold.dim_role.role_sk, note: 'nullable']
   unit_sk        text        [ref: > gold.dim_unit.unit_sk, note: 'nullable']
   location_sk    text        [ref: > gold.dim_location.location_sk, note: 'nullable']
   aanvraag_id    text        [not null, unique]
-  source         text        [note: 'mail_info, mail_das, or mail_aanvragen']
+  source         text        [not null, note: 'mail_info, mail_das, or mail_aanvragen']
   sender_name    text
   subject_edited text
   role_name      text        [note: 'Denormalized from dim_role']
@@ -193,5 +210,5 @@ Table gold.fact_aanvragen {
   location_name  text        [note: 'Denormalized from dim_location']
   deadline       text
   date_received  timestamptz [not null]
-  Note: 'Staffing/recruitment requests from fabric_landing (Sep 2020 — Jan 2026, 79k rows). 5 FK refs to shared and domain dims.'
+  Note: 'Compatibility view over gold.fact_job_postings filtered to posting_type=internal_request.'
 }

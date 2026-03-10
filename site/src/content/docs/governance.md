@@ -10,7 +10,7 @@ Define a pragmatic governance model that improves speed, trust, and compliance f
 
 ## Scope
 
-- Domains: `job_market_nl`
+- Domains: `odp_staffing_demand`
 - Data lifecycle: ingest, transform, serve, retain, archive, delete
 - Analytics scope: BI metrics, semantic models, dashboards, AI extraction and model outputs
 

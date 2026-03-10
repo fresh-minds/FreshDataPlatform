@@ -72,14 +72,14 @@ flowchart LR
 
 ## Runtime Data Flow
 
-The primary domain flow implemented today is `odp_staffing_demand` (job market NL).
+The primary domain flow implemented today is `odp_staffing_demand`.
 
 ```mermaid
 flowchart TD
   A["CBS / Adzuna / UWV"] --> B["Bronze tables"]
   B --> C["Silver tables"]
   C --> D["Gold tables"]
-  D --> E["Postgres warehouse schema: job_market_nl"]
+  D --> E["Postgres warehouse schema: odp_staffing_demand"]
   E --> F["Superset dashboards"]
 
   D --> G["dbt models"]

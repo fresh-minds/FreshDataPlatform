@@ -3,7 +3,7 @@ import os
 
 spark = get_spark_session("VerifyMinIO")
 try:
-    path = "s3a://gold/job_market_nl/it_market_snapshot"
+    path = "s3a://gold/odp_staffing_demand/it_market_snapshot"
     print(f"Checking path: {path}")
     df = spark.read.format("delta").load(path)
     print(f"Successfully read {df.count()} records from {path}")

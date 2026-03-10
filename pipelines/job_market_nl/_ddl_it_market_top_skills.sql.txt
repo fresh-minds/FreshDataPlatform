@@ -1,9 +1,0 @@
--- Add this block to pipelines/job_market_nl/postgres_pipeline.py ensure_tables():
-
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS job_market_nl.it_market_top_skills (
-              skill TEXT NOT NULL,
-              count INTEGER NOT NULL,
-              ingestion_timestamp TIMESTAMPTZ NOT NULL DEFAULT now()
-            )
-        """)

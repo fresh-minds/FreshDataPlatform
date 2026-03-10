@@ -54,7 +54,7 @@ WAREHOUSE_PASSWORD = os.getenv("WAREHOUSE_PASSWORD", "admin")
 LAYER_TAGS = {"gold": "urn:li:tag:Gold", "silver": "urn:li:tag:Silver", "bronze": "urn:li:tag:Bronze"}
 
 DOMAIN_TAGS = {
-    "job_market_nl": "urn:li:tag:JobMarket",
+    "odp_staffing_demand": "urn:li:tag:JobMarket",
 }
 
 
@@ -159,7 +159,7 @@ def determine_layer_and_domain(schema_name: str, table_name: str):
     domain = None
 
     schema_lower = schema_name.lower()
-    # dbt schemas are often prefixed by the target schema (e.g., dbt_job_market_nl_dbt)
+    # dbt schemas are often prefixed by the target schema (e.g., dbt_odp_staffing_demand_dbt)
     if schema_lower.startswith("dbt_"):
         schema_lower = schema_lower[len("dbt_") :]
 
@@ -184,7 +184,7 @@ def determine_layer_and_domain(schema_name: str, table_name: str):
         # Fall back to heuristics on table name when schema doesn't map cleanly.
         table_lower = table_name.lower()
         if "job_market" in table_lower or "vacancy" in table_lower or "skill" in table_lower:
-            domain = "job_market_nl"
+            domain = "odp_staffing_demand"
 
     return layer, domain
 

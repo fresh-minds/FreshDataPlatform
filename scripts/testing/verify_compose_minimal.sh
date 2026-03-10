@@ -152,8 +152,7 @@ cur.execute("select dashboard_title from dashboards")
 print("\\n".join(sorted([row[0] for row in cur.fetchall()])))
 PY' 2>/dev/null || true)"
 
-    if echo "$titles" | grep -q "NL IT Job Market" \
-      && echo "$titles" | grep -q "ODP Staffing Demand" \
+    if echo "$titles" | grep -q "ODP Staffing Demand" \
       && echo "$titles" | grep -q "Platform Metadata Operations"; then
       record_result "GREEN" "$check_name" "seeded dashboards present"
       return 0

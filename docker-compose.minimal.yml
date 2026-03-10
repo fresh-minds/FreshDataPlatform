@@ -244,7 +244,7 @@ services:
       - WAREHOUSE_DB=${WAREHOUSE_DB:-open_data_platform_dw}
       - WAREHOUSE_USER=${WAREHOUSE_USER:?Set WAREHOUSE_USER}
       - WAREHOUSE_PASSWORD=${WAREHOUSE_PASSWORD:?Set WAREHOUSE_PASSWORD}
-      - JOB_MARKET_SCHEMA=job_market_nl
+      - STAFFING_DEMAND_SCHEMA=${STAFFING_DEMAND_SCHEMA:-gold}
     depends_on:
       - superset-db
       - warehouse
@@ -258,7 +258,7 @@ services:
         SERVER_PID=$$! &&
         echo \"[Superset] Waiting for /health...\" &&
         for i in $$(seq 1 60); do curl -sSf http://localhost:8088/health >/dev/null && break || sleep 2; done &&
-        python /app/scripts/superset/superset_bootstrap_job_market.py || true &&
+        python /app/scripts/superset/superset_bootstrap_odp_staffing_demand.py || true &&
         python /app/scripts/superset/superset_bootstrap_gold_dashboards.py || true &&
         python /app/scripts/superset/superset_bootstrap_platform_metadata.py || true &&
         wait $$SERVER_PID"

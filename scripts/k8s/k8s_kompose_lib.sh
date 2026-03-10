@@ -197,7 +197,7 @@ kompose_fix_deployments() {
     yq -i '.spec.template.spec.containers[0].args = [
       "sh",
       "-c",
-      "pip install --no-cache-dir authlib && superset fab create-admin --username admin --firstname Superset --lastname Admin --email admin@superset.com --password admin || true && superset db upgrade && superset init && /usr/bin/run-server.sh & SERVER_PID=$! && echo [Superset] Waiting for /health... && for i in $(seq 1 60); do curl -sSf http://localhost:8088/health >/dev/null && break || sleep 2; done && python /app/scripts/superset/superset_bootstrap_job_market.py || true && wait $SERVER_PID"
+      "pip install --no-cache-dir authlib && superset fab create-admin --username admin --firstname Superset --lastname Admin --email admin@superset.com --password admin || true && superset db upgrade && superset init && /usr/bin/run-server.sh & SERVER_PID=$! && echo [Superset] Waiting for /health... && for i in $(seq 1 60); do curl -sSf http://localhost:8088/health >/dev/null && break || sleep 2; done && python /app/scripts/superset/superset_bootstrap_odp_staffing_demand.py || true && wait $SERVER_PID"
     ]' "$KOMPOSE_OUT_DIR/superset-deployment.yaml"
   fi
 
@@ -730,7 +730,7 @@ kompose_postprocess_aks() {
   local datahub_public_url="https://datahub.${FRONTEND_DOMAIN}"
   local keycloak_discovery_url="${keycloak_public_url}/realms/odp/.well-known/openid-configuration"
   local superset_config_file="$ROOT_DIR/scripts/superset/superset_config.py"
-  local superset_bootstrap_file="$ROOT_DIR/scripts/superset/superset_bootstrap_job_market.py"
+  local superset_bootstrap_file="$ROOT_DIR/scripts/superset/superset_bootstrap_odp_staffing_demand.py"
 
   set_or_add_env_var() {
     local target_manifest="$1"
@@ -845,7 +845,7 @@ EOF
   }
 
   render_configmap_from_file "superset-config" "superset_config.py" "$superset_config_file" "$KOMPOSE_OUT_DIR/superset-config-configmap.yaml"
-  render_configmap_from_file "superset-bootstrap" "superset_bootstrap_job_market.py" "$superset_bootstrap_file" "$KOMPOSE_OUT_DIR/superset-bootstrap-configmap.yaml"
+  render_configmap_from_file "superset-bootstrap" "superset_bootstrap_odp_staffing_demand.py" "$superset_bootstrap_file" "$KOMPOSE_OUT_DIR/superset-bootstrap-configmap.yaml"
 
   for manifest in "$KOMPOSE_OUT_DIR"/*-deployment.yaml; do
     [[ -f "$manifest" ]] || continue
@@ -924,8 +924,8 @@ EOF
       },
       {
         "name": "superset-bootstrap",
-        "mountPath": "/app/scripts/superset/superset_bootstrap_job_market.py",
-        "subPath": "superset_bootstrap_job_market.py"
+        "mountPath": "/app/scripts/superset/superset_bootstrap_odp_staffing_demand.py",
+        "subPath": "superset_bootstrap_odp_staffing_demand.py"
       }
     ]' "$KOMPOSE_OUT_DIR/superset-deployment.yaml"
     yq -i '.spec.template.spec.volumes = [
@@ -947,8 +947,8 @@ EOF
           "name": "superset-bootstrap",
           "items": [
             {
-              "key": "superset_bootstrap_job_market.py",
-              "path": "superset_bootstrap_job_market.py"
+              "key": "superset_bootstrap_odp_staffing_demand.py",
+              "path": "superset_bootstrap_odp_staffing_demand.py"
             }
           ]
         }

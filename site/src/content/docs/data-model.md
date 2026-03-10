@@ -11,9 +11,9 @@ The platform uses a medallion model with domain-scoped tables:
 - **Silver**: normalized/cleaned business entities
 - **Gold**: analytics-ready aggregates and serving entities
 
-Primary domain currently implemented: `job_market_nl`.
+Primary domain currently implemented: `odp_staffing_demand`.
 
-## Lakehouse Entities (`job_market_nl`)
+## Lakehouse Entities (`odp_staffing_demand`)
 
 ### Bronze
 - `cbs_vacancy_rate_raw`
@@ -33,7 +33,7 @@ Primary domain currently implemented: `job_market_nl`.
 
 Gold tables are exported to the warehouse for BI consumption.
 
-## Warehouse Serving Schema (`job_market_nl`)
+## Warehouse Serving Schema (`odp_staffing_demand`)
 
 The Postgres pipeline creates and refreshes these serving tables:
 
@@ -78,8 +78,8 @@ The Postgres pipeline creates and refreshes these serving tables:
 ## dbt Parallel Model Layer
 
 `dbt/` provides SQL-native models over serving sources:
-- Model: `job_market_snapshot` ← source `job_market_nl.it_market_snapshot`
-- Model: `job_market_top_skills` ← source `job_market_nl.it_market_top_skills`
+- Model: `job_market_snapshot` <- source `odp_staffing_demand.it_market_snapshot`
+- Model: `job_market_top_skills` <- source `odp_staffing_demand.it_market_top_skills`
 
 This enables dbt testing/snapshots and supports parity checks against Python/Spark flows.
 
@@ -101,7 +101,7 @@ Contract and policy checks are config-driven:
 
 Execution paths:
 ```bash
-make dq-check DATASET=job_market_nl.job_market_snapshot
+make dq-check DATASET=odp_staffing_demand.job_market_snapshot
 make qa-test
 make test-e2e
 ```
@@ -122,8 +122,8 @@ flowchart LR
   S2 --> G1
   S2 --> G2["gold.it_market_top_skills"]
 
-  G1 --> W1["warehouse.job_market_nl.it_market_snapshot"]
-  G2 --> W2["warehouse.job_market_nl.it_market_top_skills"]
+  G1 --> W1["warehouse.odp_staffing_demand.it_market_snapshot"]
+  G2 --> W2["warehouse.odp_staffing_demand.it_market_top_skills"]
 
   W1 --> D1["dbt model: job_market_snapshot"]
   W2 --> D2["dbt model: job_market_top_skills"]

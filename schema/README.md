@@ -78,5 +78,9 @@ To regenerate DBML from the current PostgreSQL warehouse:
 
 ```bash
 python scripts/warehouse/introspect_warehouse.py \
-  --schemas job_market_nl,job_market_nl_dbt,snapshots,public
+  --schemas odp_staffing_demand,odp_staffing_demand_dbt,snapshots,public
 ```
+
+Phase 2 domain rename note:
+- Canonical logical domain and dataset IDs use `odp_staffing_demand`.
+- Transitional physical schemas remain `odp_staffing_demand` and `odp_staffing_demand_dbt` until full cutover is complete.

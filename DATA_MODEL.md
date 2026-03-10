@@ -6,9 +6,12 @@ The platform uses a medallion model with domain-scoped tables:
 - Silver: normalized/cleaned business entities
 - Gold: analytics-ready aggregates and serving entities
 
-Primary domain currently implemented: `job_market_nl`.
+Primary domain currently implemented: `odp_staffing_demand` (logical canonical domain).
 
-## Lakehouse Entities (`job_market_nl`)
+Canonical domain naming (Phase 2): `odp_staffing_demand`.
+Transitional physical schemas remain `odp_staffing_demand` / `odp_staffing_demand_dbt`.
+
+## Lakehouse Entities (`odp_staffing_demand` logical domain)
 ### Bronze
 - `cbs_vacancy_rate_raw`
 - `cbs_vacancy_rate_dim_sic2008`
@@ -27,7 +30,7 @@ Primary domain currently implemented: `job_market_nl`.
 
 Gold tables are exported to the warehouse for BI consumption.
 
-## Warehouse Serving Schema (`job_market_nl`)
+## Warehouse Serving Schema (transitional physical: `odp_staffing_demand`)
 The Postgres pipeline creates and refreshes these serving tables:
 
 ### `it_market_snapshot`
@@ -62,8 +65,16 @@ The Postgres pipeline creates and refreshes these serving tables:
 
 ## dbt Parallel Model Layer
 `dbt/` provides SQL-native models over serving sources:
-- Model: `job_market_snapshot` <- source `job_market_nl.it_market_snapshot`
-- Model: `job_market_top_skills` <- source `job_market_nl.it_market_top_skills`
+- Canonical shim models in Phase 2:
+  - `brz_odp_staffing_demand__*` -> `ref('brz_odp_staffing_demand__*')`
+  - `slv_odp_staffing_demand__*` -> `ref('slv_odp_staffing_demand__*')`
+- Gold consolidation:
+  - `gold.fact_job_postings` is the canonical staffing-demand fact table.
+  - It combines external job postings and internal requests with `posting_type`.
+  - `gold.fact_aanvragen` is retained as a backward-compatible view filtered to internal requests.
+- Physical source relation examples remain:
+  - `odp_staffing_demand.it_market_snapshot`
+  - `odp_staffing_demand.it_market_top_skills`
 
 This enables dbt testing/snapshots and supports parity checks against Python/Spark flows.
 
@@ -82,7 +93,7 @@ Contract and policy checks are config-driven:
 - Environment behavior: `tests/configs/environments.yml`
 
 Execution paths:
-- `make dq-check DATASET=job_market_nl.job_market_snapshot`
+- `make dq-check DATASET=odp_staffing_demand.job_market_snapshot`
 - `make qa-test`
 - `make test-e2e`
 
@@ -101,8 +112,8 @@ flowchart LR
   S2 --> G1
   S2 --> G2["gold.it_market_top_skills"]
 
-  G1 --> W1["warehouse.job_market_nl.it_market_snapshot"]
-  G2 --> W2["warehouse.job_market_nl.it_market_top_skills"]
+  G1 --> W1["warehouse.odp_staffing_demand.it_market_snapshot (transitional physical)"]
+  G2 --> W2["warehouse.odp_staffing_demand.it_market_top_skills (transitional physical)"]
 
   W1 --> D1["dbt model: job_market_snapshot"]
   W2 --> D2["dbt model: job_market_top_skills"]

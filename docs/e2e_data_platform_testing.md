@@ -5,8 +5,8 @@ This repository now includes a config-driven QA framework that validates medalli
 ## Platform Mapping (Detected)
 
 - Orchestrator: Airflow DAGs in `dags/`.
-- Transformation engine: dbt project in `dbt/` with source tables in `job_market_nl` and serving models in `job_market_nl_dbt`.
-- Warehouse/Serving: PostgreSQL warehouse (`job_market_nl` schema), plus Superset SQL templates.
+- Transformation engine: dbt project in `dbt/` for the canonical `odp_staffing_demand` use case; during migration, physical source tables remain in `odp_staffing_demand` and serving models in `odp_staffing_demand_dbt`.
+- Warehouse/Serving: PostgreSQL warehouse for ODP Staffing Demand, with transitional physical schema `odp_staffing_demand`, plus Superset SQL templates.
 - Contracts: dbt model YAML + config-driven dataset contracts in `tests/configs/datasets/*.yml`.
 - Governance metadata: `schema/metrics.yaml`, governance validation script, and QA governance policies in `tests/configs/policies/governance_policies.yml`.
 
@@ -63,7 +63,7 @@ Minimum required fields:
 dataset: schema.table
 owner: team@example.com
 description: "What this dataset is for"
-domain: job_market_nl
+domain: odp_staffing_demand
 layer: gold
 classification: confidential
 sensitivity: internal

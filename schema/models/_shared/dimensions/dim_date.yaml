@@ -41,4 +41,4 @@ attributes:
 
 source_of_truth: seed
 dbt_model: dim_date
-domains_using: [job_market_nl]
+domains_using: [odp_staffing_demand]

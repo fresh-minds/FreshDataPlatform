@@ -12,7 +12,7 @@ The file is a CSV or ZIP-wrapped CSV.
               and push them to XCom.  Falls back to a small mock dataset when
               the URL is not set or LOCAL_MOCK_EXTERNAL=true.
   2. Silver — clean, deduplicate, and TRUNCATE + INSERT all rows into the
-              Postgres warehouse table `job_market_nl.uwv_vacancies`.
+              Postgres warehouse table `odp_staffing_demand.uwv_vacancies`.
 
 Schedule: daily at 02:00 UTC.
 """
@@ -200,14 +200,14 @@ def _fetch_uwv_data(**kwargs):
 def _load_uwv_to_warehouse(**kwargs):
     """
     Silver: pull the UWV rows from XCom, normalise the required columns,
-    and TRUNCATE + INSERT into `job_market_nl.uwv_vacancies`.
+    and TRUNCATE + INSERT into `odp_staffing_demand.uwv_vacancies`.
     Registers lineage and dataset metadata.
     """
     from datetime import datetime, timezone
 
     from psycopg2.extras import execute_values
 
-    from pipelines.job_market_nl.postgres_pipeline import _connect_warehouse, ensure_tables
+    from pipelines.odp_staffing_demand.postgres_pipeline import _connect_warehouse, ensure_tables
     from src.ingestion.common.dag_helpers import try_get_conn
     from src.ingestion.common.metadata_store import (
         insert_dataset_version,
@@ -255,11 +255,11 @@ def _load_uwv_to_warehouse(**kwargs):
     try:
         ensure_tables(conn)
         with conn.cursor() as cur:
-            cur.execute("TRUNCATE TABLE job_market_nl.uwv_vacancies")
+            cur.execute("TRUNCATE TABLE odp_staffing_demand.uwv_vacancies")
             execute_values(
                 cur,
                 """
-                INSERT INTO job_market_nl.uwv_vacancies
+                INSERT INTO odp_staffing_demand.uwv_vacancies
                   (vacancy_id, occupation, region, posted_date, employment_type,
                    work_time, ingestion_timestamp)
                 VALUES %s
@@ -267,7 +267,7 @@ def _load_uwv_to_warehouse(**kwargs):
                 rows,
             )
         conn.commit()
-        print(f"[UWV Silver] ✓ Loaded {len(rows)} rows into job_market_nl.uwv_vacancies")
+        print(f"[UWV Silver] ✓ Loaded {len(rows)} rows into odp_staffing_demand.uwv_vacancies")
     finally:
         conn.close()
 
@@ -276,10 +276,10 @@ def _load_uwv_to_warehouse(**kwargs):
     meta_conn = try_get_conn("postgres_warehouse")
 
     upsert_dataset_registry(
-        dataset_id="job_market_nl.uwv_vacancies",
+        dataset_id="odp_staffing_demand.uwv_vacancies",
         layer="silver",
-        domain="job_market_nl",
-        schema_name="job_market_nl",
+        domain="odp_staffing_demand",
+        schema_name="odp_staffing_demand",
         table_name="uwv_vacancies",
         owner="data-platform",
         classification="internal",
@@ -289,7 +289,7 @@ def _load_uwv_to_warehouse(**kwargs):
         conn=meta_conn,
     )
     insert_dataset_version(
-        dataset_id="job_market_nl.uwv_vacancies",
+        dataset_id="odp_staffing_demand.uwv_vacancies",
         version_label=run_id,
         schema_hash=None,
         column_schema=[],
@@ -303,7 +303,7 @@ def _load_uwv_to_warehouse(**kwargs):
         run_id=run_id,
         pipeline_name=_DAG_ID,
         upstream_dataset="bronze.uwv_open_match_csv",
-        downstream_dataset="job_market_nl.uwv_vacancies",
+        downstream_dataset="odp_staffing_demand.uwv_vacancies",
         transformation_type="CLEANED",
         metadata={"task": "load_uwv_to_warehouse", "rows_loaded": len(rows)},
         conn=meta_conn,

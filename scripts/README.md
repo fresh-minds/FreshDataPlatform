@@ -142,6 +142,29 @@ SKIP_TERRAFORM_APPLY=true SKIP_IMAGE_BUILD=true make scaleway-redeploy-all-minim
 - Put domain-specific scripts in the matching subfolder.
 - If relocating an existing script, update Makefile/CI/docs references in the same change.
 
+## ODP Staffing Demand entrypoints (Phase 1)
+
+Summary:
+- Canonical pipeline entrypoints are now exposed under `odp_staffing_demand` names.
+- Legacy `job_market` entrypoints remain as compatibility aliases during migration.
+
+Canonical scripts:
+- `scripts/pipeline/run_odp_staffing_demand_pipeline.py`
+- `scripts/pipeline/run_odp_staffing_demand_metadata_pipeline.py`
+- `scripts/superset/superset_bootstrap_odp_staffing_demand.py`
+
+Verification:
+```bash
+make run-odp-staffing-demand
+make run-odp-staffing-demand-metadata
+```
+
+Phase 2 additions:
+- Canonical import path package added: `pipelines/odp_staffing_demand/`.
+- `scripts/pipeline/run_local.py` now accepts canonical pipeline IDs like:
+  - `odp_staffing_demand.bronze_adzuna_jobs`
+- Legacy `odp_staffing_demand.*` pipeline IDs remain available as compatibility aliases.
+
 ## Superset metadata dashboard bootstrap
 
 Summary:

@@ -78,14 +78,15 @@ flowchart LR
 - AKS secret manager path via Azure Key Vault + Secrets Store CSI sync (`scripts/aks/aks_up.sh`, `k8s/aks/keyvault-sync.yaml`)
 
 ## Runtime Data Flow
-The primary domain flow implemented today is `job_market_nl`.
+The primary domain flow implemented today is `odp_staffing_demand` (logical canonical domain).
+Transitional physical warehouse tables remain under schema `odp_staffing_demand` during migration.
 
 ```mermaid
 flowchart TD
   A["CBS / Adzuna / UWV"] --> B["Bronze tables"]
   B --> C["Silver tables"]
   C --> D["Gold tables"]
-  D --> E["Postgres warehouse schema: job_market_nl"]
+  D --> E["Postgres warehouse schema: odp_staffing_demand"]
   E --> F["Superset dashboards"]
 
   D --> G["dbt models"]

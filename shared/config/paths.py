@@ -44,7 +44,7 @@ def get_lakehouse_table_path(
     Args:
         table_name: Name of the table (e.g., "verkooporders")
         layer: Medallion layer (bronze, silver, gold)
-        domain: Data domain (e.g., sales, hr, job_market_nl)
+        domain: Data domain (e.g., sales, hr, odp_staffing_demand)
         workspace_id: Fabric workspace ID (optional, uses settings if not provided)
         lakehouse_id: Fabric lakehouse ID (optional, uses settings if not provided)
         is_local: Override environment detection (optional)

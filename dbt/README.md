@@ -5,7 +5,8 @@ plus the SQL-native transformation layer for ingestion sources.
 
 ## What this project does
 
-- Recreates SQL-native transformations for `job_market_nl`.
+- Recreates SQL-native transformations for the canonical `odp_staffing_demand` domain.
+- During migration, canonical bronze/silver shims in `odp_staffing_demand` `ref()` transitional legacy `odp_staffing_demand` models.
 - Provides medallion dbt models for ingestion sources:
   - bronze (`brz_*`) source-aligned normalization
   - silver (`slv_*`) enrichment
@@ -23,8 +24,10 @@ dbt/
 ├── models/
 │   ├── bronze/
 │   │   └── <source>/               brz_<source>__<dataset> (view)
+│   │   └── odp_staffing_demand/    canonical shim views -> legacy brz_odp_staffing_demand__*
 │   ├── silver/
 │   │   └── <source>/               slv_<source>__<dataset>_enriched (view)
+│   │   └── odp_staffing_demand/    canonical shim views -> legacy slv_odp_staffing_demand__*
 │   ├── gold/
 │   │   └── <source>/               dim_* and fct_<dataset> models
 ├── _model_templates/               Templates for adding new sources

@@ -1,6 +1,7 @@
 import importlib
 import os
 import sys
+from datetime import datetime, timedelta
 from pathlib import Path
 from types import ModuleType
 from unittest.mock import MagicMock
@@ -61,6 +62,25 @@ def _install_airflow_mocks() -> None:
     empty_module.EmptyOperator = _MockDependencyNode
     sys.modules["airflow.operators.empty"] = empty_module
 
+    trigger_module = ModuleType("airflow.operators.trigger_dagrun")
+    trigger_module.TriggerDagRunOperator = _MockDependencyNode
+    sys.modules["airflow.operators.trigger_dagrun"] = trigger_module
+
+    dagrun_module = ModuleType("airflow.operators.dagrun_operator")
+    dagrun_module.TriggerDagRunOperator = _MockDependencyNode
+    sys.modules["airflow.operators.dagrun_operator"] = dagrun_module
+
+    utils_module = ModuleType("airflow.utils")
+    sys.modules["airflow.utils"] = utils_module
+
+    dates_module = ModuleType("airflow.utils.dates")
+
+    def _days_ago(n: int):
+        return datetime.now() - timedelta(days=n)
+
+    dates_module.days_ago = _days_ago
+    sys.modules["airflow.utils.dates"] = dates_module
+
     task_group_module = ModuleType("airflow.utils.task_group")
     task_group_module.TaskGroup = MockTaskGroup
     sys.modules["airflow.utils.task_group"] = task_group_module
@@ -68,7 +88,7 @@ def _install_airflow_mocks() -> None:
 
 def _dag_modules(dags_dir: Path) -> list[str]:
     expected_files = [
-        "job_market_nl_dag.py",
+        "odp_staffing_demand_dag.py",
     ]
     modules: list[str] = []
     for file_name in expected_files:

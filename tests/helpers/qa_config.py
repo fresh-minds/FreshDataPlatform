@@ -127,7 +127,7 @@ def load_environment_config(repo_root: Path) -> QAEnvironment:
         password=_resolve_str(
             "QA_AIRFLOW_PASSWORD", "AIRFLOW_ADMIN_PASSWORD", str(airflow_payload.get("password", "admin"))
         ),
-        dag_id=str(airflow_payload.get("dag_id", "job_market_nl_pipeline")),
+        dag_id=str(airflow_payload.get("dag_id", "odp_staffing_demand_pipeline")),
     )
 
     metadata = MetadataConfig(

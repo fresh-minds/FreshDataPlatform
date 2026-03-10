@@ -62,7 +62,6 @@ make compose-up-minimal
 
 By default, this runs `scripts/testing/verify_compose_minimal.sh` after startup.
 The minimal profile also seeds Superset dashboards during startup:
-- `NL IT Job Market`
 - `ODP Staffing Demand`
 - `Platform Metadata Operations`
 It also generates dbt docs (`dbt docs generate`) before exposing `http://localhost:8089/`.
@@ -88,9 +87,9 @@ make compose-up-minimal
 
 ### Run pipeline flows
 ```bash
-make run-job-market
-make run-job-market-metadata
-LOCAL_MOCK_PIPELINES=false make run PIPELINE=job_market_nl.bronze_cbs_vacancy_rate
+make run-odp-staffing-demand
+make run-odp-staffing-demand-metadata
+LOCAL_MOCK_PIPELINES=false make run PIPELINE=odp_staffing_demand.bronze_cbs_vacancy_rate
 ```
 
 ### Run quality checks
@@ -107,8 +106,8 @@ Governance suite note:
   stable without requiring a prior E2E pipeline execution.
 - Platform-wide metadata registry tables live in schema `platform_metadata`; initialize with:
   - `make warehouse-metadata-init`
-- `dags/job_market_nl_dag.py` (`job_market_nl_pipeline`) writes run/task/quality/lineage metadata
-  to `platform_metadata` during DAG execution.
+- `dags/odp_staffing_demand_dag.py` (`odp_staffing_demand_pipeline`) is the canonical DAG ID and executes the full pipeline implementation.
+- Run/task/quality/lineage metadata continues to be written to `platform_metadata` during DAG execution.
 
 ### Run full E2E suites
 ```bash
@@ -180,6 +179,15 @@ dbt docs + lineage workflow:
   `DBT_THREADS=1` to avoid local Postgres deadlocks during parallel DDL.
   Override with `DBT_THREADS=<n>` if needed.
 - Open docs UI directly at `http://localhost:8089` or via `/platform` -> "docs and horizontal technical lineage".
+
+dbt CI guardrails for gold fact consolidation:
+- `.github/workflows/dbt-ci.yml` blocks new non-compatibility references to `fact_aanvragen`.
+- Allowed temporary compatibility files:
+  - `dbt/models/gold/odp_staffing_demand/fact_aanvragen.sql`
+  - `dbt/models/gold/odp_staffing_demand/_gold_odp_staffing_demand__models.yml`
+  - `schema/warehouse.dbml`
+  - `DATA_MODEL.md`
+- The workflow also enforces `FACT_AANVRAGEN_DEPRECATION_DEADLINE` (currently `2026-09-30`) and fails once the date has passed while the compatibility model still exists.
 
 ## Useful Make Targets
 - `make help`: list available targets
@@ -281,7 +289,7 @@ Full walkthrough: [Data Ingestion Guide](docs/INGESTION_GUIDE.md)
 - Services not healthy:
   - `docker compose ps`
   - `docker compose logs --tail=200`
-- `job_market_nl_pipeline` fails on `gold.run_dbt_gold` with `dbt executable not found`:
+- `odp_staffing_demand_pipeline` fails on `gold.run_dbt_gold` with `dbt executable not found`:
   - Ensure Airflow services are running (`docker compose up -d airflow-webserver airflow-scheduler airflow-worker`)
   - Verify `dbt` is available in the worker runtime (`docker compose exec airflow-worker which dbt`)
   - Rebuild Airflow image if needed (`docker compose up -d --build airflow-webserver airflow-scheduler airflow-worker`)

@@ -20,7 +20,7 @@ Usage: $(basename "$0") [options]
 Bootstraps the local Docker stack and (re)populates:
 - MinIO buckets (uploads deterministic fixture files)
 - Warehouse baseline schemas (dbt + base schemas)
-- Superset (datasets + seeded dashboards: NL IT Job Market + ODP Staffing Demand)
+- Superset (datasets + seeded dashboards: ODP Staffing Demand)
 - DataHub (schema/glossary sync + warehouse catalog registration)
 
 Options:
@@ -510,7 +510,7 @@ if [[ "$SKIP_MINIO" != "true" ]]; then
     log "Skipping MinIO golden fixtures; missing tests/fixtures/golden."
   fi
 
-  if [[ "${JOB_MARKET_USE_SPARK:-false}" == "true" ]]; then
+  if [[ "${STAFFING_DEMAND_USE_SPARK:-false}" == "true" ]]; then
     if command -v java >/dev/null 2>&1 && java -version >/dev/null 2>&1; then
       log "Java runtime detected; generating a small Delta sample into MinIO (best-effort)..."
       USE_MINIO=true \
@@ -521,7 +521,7 @@ if [[ "$SKIP_MINIO" != "true" ]]; then
       log "Java runtime not available; skipping Spark-based Delta writes to MinIO."
     fi
   else
-    log "JOB_MARKET_USE_SPARK!=true; skipping Spark-based Delta writes to MinIO."
+    log "STAFFING_DEMAND_USE_SPARK!=true; skipping Spark-based Delta writes to MinIO."
   fi
 else
   log "Skipping MinIO population (--skip-minio)."
@@ -550,13 +550,13 @@ log "Ensuring platform metadata schema and tables..."
 log "Applying warehouse security baseline (roles/grants/RLS/masking)..."
 "$PYTHON" "$ROOT_DIR/scripts/warehouse/apply_warehouse_security.py"
 
-log "Populating job market demo tables in the warehouse (Spark-free pipeline)..."
-"$PYTHON" "$ROOT_DIR/scripts/pipeline/run_job_market_pipeline.py" || true
+log "Populating ODP Staffing Demand demo tables in the warehouse (Spark-free pipeline)..."
+"$PYTHON" "$ROOT_DIR/scripts/pipeline/run_odp_staffing_demand_pipeline.py" || true
 
 if [[ "$SKIP_SUPERSET" != "true" ]]; then
   log "Running Superset onboarding (datasets + seeded dashboards)..."
   docker exec open-data-platform-superset python /app/scripts/superset/superset_setup.py || true
-  docker exec open-data-platform-superset python /app/scripts/superset/superset_bootstrap_job_market.py || true
+  docker exec open-data-platform-superset python /app/scripts/superset/superset_bootstrap_odp_staffing_demand.py || true
   docker exec open-data-platform-superset python /app/scripts/superset/superset_bootstrap_gold_dashboards.py || true
   docker exec open-data-platform-superset python /app/scripts/superset/superset_bootstrap_platform_metadata.py || true
 else

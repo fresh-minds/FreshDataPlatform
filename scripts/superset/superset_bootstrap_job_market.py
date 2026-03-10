@@ -17,7 +17,7 @@ WAREHOUSE_PASSWORD = os.getenv("WAREHOUSE_PASSWORD", "admin")
 
 DATABASE_NAME = os.getenv("SUPERSET_WAREHOUSE_NAME", "Platform Warehouse")
 DASHBOARD_TITLE = os.getenv("SUPERSET_JOB_MARKET_DASHBOARD", "NL IT Job Market")
-SCHEMA_NAME = os.getenv("JOB_MARKET_SCHEMA", "job_market_nl")
+SCHEMA_NAME = os.getenv("JOB_MARKET_SCHEMA", "odp_staffing_demand")
 
 DATASETS = [
     "it_market_snapshot",

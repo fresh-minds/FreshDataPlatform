@@ -25,4 +25,4 @@ attributes:
 
 source_of_truth: dbt_model
 dbt_model: dim_region
-domains_using: [job_market_nl]
+domains_using: [odp_staffing_demand]

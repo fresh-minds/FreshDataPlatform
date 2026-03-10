@@ -93,7 +93,7 @@ flowchart LR
 - Metadata and governance:
   - DataHub registration scripts publish schema, tags, and lineage
   - Warehouse `platform_metadata` schema stores run/task/artifact/lineage/quality metadata events
-  - `job_market_nl_pipeline` DAG emits operational metadata into `platform_metadata` by default
+  - `odp_staffing_demand_pipeline` is the canonical DAG ID; legacy `odp_staffing_demand_pipeline` delegates to it during migration
   - Governance policies and contract checks live under `tests/configs/`
 
 ## Repository Structure
@@ -104,7 +104,7 @@ src/ingestion/           Source ingestion framework (common helpers + per-source
   common/                Shared: source_config, postgres, dag_helpers, minio, provenance
   _template/             Python templates for new sources
   <source>/              Per-source config, extractor, parser
-pipelines/               Domain pipeline logic (job_market_nl)
+pipelines/               Domain pipeline logic (`odp_staffing_demand` canonical, `odp_staffing_demand` legacy compatibility)
 shared/                  Shared runtime/config/connectors/utilities
 scripts/                 Bootstrap, QA, governance, and ops scripts
 dbt/            Parallel dbt project, seeds, and model templates
@@ -144,8 +144,8 @@ and install bootstrap dependencies via `pip install -e ".[dev,pipeline]"`.
 Use `--skip-dev-install` only if you want to manage dependencies yourself.
 During bootstrap dbt orchestration, `scripts/pipeline/run_dbt.sh` defaults to
 `DBT_THREADS=1` to avoid Postgres deadlocks; override with `DBT_THREADS=<n>` when needed.
-The default Superset bootstrap seeds committed dashboards, including `NL IT Job Market`
-and `ODP Staffing Demand`.
+The default Superset bootstrap seeds committed dashboards, including
+`ODP Staffing Demand`.
 It also seeds a metadata-driven operations dashboard, `Platform Metadata Operations`,
 from warehouse schema `platform_metadata`.
 
@@ -162,7 +162,6 @@ make compose-up-minimal
 ```
 
 This uses `docker-compose.minimal.yml` and seeds:
-- `NL IT Job Market`
 - `ODP Staffing Demand`
 - `Platform Metadata Operations`
 
@@ -199,15 +198,15 @@ make warehouse-metadata-init
 ```
 
 ### 3) Run a pipeline
-Postgres-only end-to-end job market pipeline:
+Postgres-only end-to-end ODP Staffing Demand pipeline:
 ```bash
-make run-job-market
-make run-job-market-metadata
+make run-odp-staffing-demand
+make run-odp-staffing-demand-metadata
 ```
 
 Run a specific pipeline entrypoint:
 ```bash
-LOCAL_MOCK_PIPELINES=false make run PIPELINE=job_market_nl.bronze_cbs_vacancy_rate
+LOCAL_MOCK_PIPELINES=false make run PIPELINE=odp_staffing_demand.bronze_cbs_vacancy_rate
 ```
 
 ### 4) Run tests
@@ -348,7 +347,7 @@ guide are provided:
 - dbt model templates: `dbt/_model_templates/`
 
 ## Roadmap (Inferred)
-- Expand beyond `job_market_nl` into additional governed domains
+- Expand beyond `odp_staffing_demand` into additional governed domains
 - Increase dbt model parity with Python/Spark transformations
 - Harden AKS path from dev-like to production-grade defaults
 - Add more automated lineage and policy gates in CI

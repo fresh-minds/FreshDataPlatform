@@ -503,7 +503,7 @@ All ingestion DAGs should write a `code_version` value to metadata using
 `resolve_code_version()` from `src/ingestion/common/dag_helpers.py`.
 
 The same helper is also used by metadata scripts (for example
-`scripts/pipeline/run_job_market_metadata_pipeline.py` and
+`scripts/pipeline/run_odp_staffing_demand_metadata_pipeline.py` and
 `tests/e2e/scripts/log_pipeline_run.py`) so audit records are consistent
 between Airflow-triggered runs and script-triggered runs.
 

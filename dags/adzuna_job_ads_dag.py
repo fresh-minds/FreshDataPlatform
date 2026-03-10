@@ -7,11 +7,11 @@ Orchestrates the bronze → silver ingestion of IT job ads from the Adzuna API
   1. Bronze — fetch job ads from the Adzuna API (or mock data when credentials
               are absent / LOCAL_MOCK_EXTERNAL=true).
   2. Silver — build aggregated outputs from the raw ads and load them into:
-              - `job_market_nl.it_market_top_skills`
-              - `job_market_nl.it_market_region_distribution`
-              - `job_market_nl.it_market_job_ads_geo`
+              - `odp_staffing_demand.it_market_top_skills`
+              - `odp_staffing_demand.it_market_region_distribution`
+              - `odp_staffing_demand.it_market_job_ads_geo`
 
-The three silver tables are consumed by `job_market_nl_dag.py` (gold layer) to
+The three silver tables are consumed by `odp_staffing_demand_dag.py` (gold layer) to
 build the `it_market_snapshot` fact table and to populate geo/skills dashboards.
 
 Schedule: daily at 01:30 UTC (runs before the gold DAG).
@@ -105,7 +105,7 @@ def _fetch_job_ads(**kwargs):
 
     Pushes the raw list of job-ad dicts to XCom under key ``job_ads``.
     """
-    from pipelines.job_market_nl.postgres_pipeline import _fetch_job_ads_mock_or_adzuna
+    from pipelines.odp_staffing_demand.postgres_pipeline import _fetch_job_ads_mock_or_adzuna
 
     job_ads = _fetch_job_ads_mock_or_adzuna()
     kwargs["ti"].xcom_push(key="job_ads", value=job_ads)
@@ -125,13 +125,13 @@ def _build_and_load_silver(**kwargs):
     into the three silver Postgres tables.
 
     Tables written:
-      - job_market_nl.it_market_top_skills
-      - job_market_nl.it_market_region_distribution
-      - job_market_nl.it_market_job_ads_geo
+      - odp_staffing_demand.it_market_top_skills
+      - odp_staffing_demand.it_market_region_distribution
+      - odp_staffing_demand.it_market_job_ads_geo
     """
     from psycopg2.extras import execute_values
 
-    from pipelines.job_market_nl.postgres_pipeline import (
+    from pipelines.odp_staffing_demand.postgres_pipeline import (
         _connect_warehouse,
         build_job_ads_geo,
         build_region_distribution,
@@ -167,14 +167,14 @@ def _build_and_load_silver(**kwargs):
     try:
         ensure_tables(conn)
         with conn.cursor() as cur:
-            cur.execute("TRUNCATE TABLE job_market_nl.it_market_top_skills")
-            cur.execute("TRUNCATE TABLE job_market_nl.it_market_region_distribution")
-            cur.execute("TRUNCATE TABLE job_market_nl.it_market_job_ads_geo")
+            cur.execute("TRUNCATE TABLE odp_staffing_demand.it_market_top_skills")
+            cur.execute("TRUNCATE TABLE odp_staffing_demand.it_market_region_distribution")
+            cur.execute("TRUNCATE TABLE odp_staffing_demand.it_market_job_ads_geo")
 
             if top_skills_tuples:
                 execute_values(
                     cur,
-                    "INSERT INTO job_market_nl.it_market_top_skills (skill, count) VALUES %s",
+                    "INSERT INTO odp_staffing_demand.it_market_top_skills (skill, count) VALUES %s",
                     top_skills_tuples,
                 )
 
@@ -182,7 +182,7 @@ def _build_and_load_silver(**kwargs):
                 execute_values(
                     cur,
                     """
-                    INSERT INTO job_market_nl.it_market_region_distribution
+                    INSERT INTO odp_staffing_demand.it_market_region_distribution
                       (region, job_ads_count, share_pct, latitude, longitude)
                     VALUES %s
                     """,
@@ -193,7 +193,7 @@ def _build_and_load_silver(**kwargs):
                 execute_values(
                     cur,
                     """
-                    INSERT INTO job_market_nl.it_market_job_ads_geo
+                    INSERT INTO odp_staffing_demand.it_market_job_ads_geo
                       (job_id, region, latitude, longitude, location_label)
                     VALUES %s
                     """,
@@ -212,16 +212,16 @@ def _build_and_load_silver(**kwargs):
     meta_conn = try_get_conn("postgres_warehouse")
 
     datasets = [
-        ("job_market_nl.it_market_top_skills", len(top_skills_tuples)),
-        ("job_market_nl.it_market_region_distribution", len(region_tuples)),
-        ("job_market_nl.it_market_job_ads_geo", len(geo_tuples)),
+        ("odp_staffing_demand.it_market_top_skills", len(top_skills_tuples)),
+        ("odp_staffing_demand.it_market_region_distribution", len(region_tuples)),
+        ("odp_staffing_demand.it_market_job_ads_geo", len(geo_tuples)),
     ]
     for dataset_id, row_count in datasets:
         schema_name, table_name = dataset_id.split(".", 1)
         upsert_dataset_registry(
             dataset_id=dataset_id,
             layer="silver",
-            domain="job_market_nl",
+            domain="odp_staffing_demand",
             schema_name=schema_name,
             table_name=table_name,
             owner="data-platform",
@@ -305,7 +305,7 @@ with DAG(
     description=(
         "Adzuna NL job ads pipeline: API fetch → Postgres warehouse "
         "(bronze → silver). Populates top_skills, region_distribution, and "
-        "job_ads_geo tables consumed by the gold job_market_nl_dag."
+        "job_ads_geo tables consumed by the gold odp_staffing_demand_dag."
     ),
     schedule_interval="30 1 * * *",  # 01:30 UTC daily — runs before gold DAG
     catchup=False,

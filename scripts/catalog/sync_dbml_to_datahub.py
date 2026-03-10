@@ -182,7 +182,7 @@ def infer_domain(table_name: str) -> Optional[str]:
     """Infer domain from table name."""
     name_lower = table_name.lower()
     if 'job_market' in name_lower or 'vacancy' in name_lower or 'skill' in name_lower:
-        return 'job_market_nl'
+        return 'odp_staffing_demand'
     return None
 
 

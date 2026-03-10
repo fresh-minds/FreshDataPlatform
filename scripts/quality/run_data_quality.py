@@ -4,7 +4,7 @@ Run centralized data quality checks from a single YAML rules file.
 
 Usage examples:
   python scripts/quality/run_data_quality.py --list-datasets
-  python scripts/quality/run_data_quality.py --dataset job_market_nl.it_market_snapshot
+    python scripts/quality/run_data_quality.py --dataset odp_staffing_demand.it_market_snapshot
   python scripts/quality/run_data_quality.py --all
 """
 
@@ -38,6 +38,8 @@ if str(PROJECT_ROOT) not in sys.path:
 RULES_FILE_DEFAULT = PROJECT_ROOT / "schema" / "data_quality_rules.yaml"
 ALLOWED_SEVERITIES = {"low", "medium", "high"}
 ALLOWED_MISSING_BEHAVIOR = {"fail", "warn", "skip"}
+LEGACY_DOMAIN = "odp_staffing_demand"
+CANONICAL_DOMAIN = "odp_staffing_demand"
 
 
 @dataclass
@@ -71,6 +73,7 @@ class DataQualityRunner:
         return sorted(self.datasets.keys())
 
     def run_dataset(self, dataset_key: str, fail_on: set[str]) -> Tuple[list[CheckResult], bool]:
+        dataset_key = self._resolve_dataset_alias(dataset_key)
         if dataset_key not in self.datasets:
             raise DataQualityError(f"dataset `{dataset_key}` is not defined in {self.rules_file}")
 
@@ -172,6 +175,20 @@ class DataQualityRunner:
 
     def _dataset_config(self, dataset_key: str) -> dict[str, Any]:
         return self.datasets[dataset_key]
+
+    def _resolve_dataset_alias(self, dataset_key: str) -> str:
+        """Resolve canonical/legacy dataset key aliases during migration."""
+        if dataset_key in self.datasets:
+            return dataset_key
+        if dataset_key.startswith(f"{CANONICAL_DOMAIN}."):
+            legacy_key = dataset_key.replace(f"{CANONICAL_DOMAIN}.", f"{LEGACY_DOMAIN}.", 1)
+            if legacy_key in self.datasets:
+                return legacy_key
+        if dataset_key.startswith(f"{LEGACY_DOMAIN}."):
+            canonical_key = dataset_key.replace(f"{LEGACY_DOMAIN}.", f"{CANONICAL_DOMAIN}.", 1)
+            if canonical_key in self.datasets:
+                return canonical_key
+        return dataset_key
 
     def _resolve_path(self, dataset_key: str, dataset_cfg: dict[str, Any]) -> str:
         from shared.config.paths import LakehouseLayer, get_lakehouse_table_path
@@ -529,7 +546,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
         default=str(RULES_FILE_DEFAULT),
         help=f"Path to rules YAML (default: {RULES_FILE_DEFAULT})",
     )
-    parser.add_argument("--dataset", help="Dataset key from rules file (e.g. job_market_nl.it_market_snapshot)")
+    parser.add_argument("--dataset", help="Dataset key from rules file (e.g. odp_staffing_demand.it_market_snapshot)")
     parser.add_argument("--all", action="store_true", help="Run checks for all datasets")
     parser.add_argument(
         "--fail-on",

@@ -22,8 +22,8 @@ class SeedSpec:
 
 SEED_SPECS = [
     SeedSpec(
-        target_schema="job_market_nl",
-        source_schema="job_market_nl_dbt",
+        target_schema="odp_staffing_demand",
+        source_schema="odp_staffing_demand_dbt",
         tables=[
             "job_market_snapshot",
             "job_market_top_skills",

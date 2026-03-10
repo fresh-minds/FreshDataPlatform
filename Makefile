@@ -1,5 +1,5 @@
 # Open Data Platform - Development Commands
-.PHONY: install dev-install test lint format format-check run clean help schema-validate schema-drift-check dbt-debug dbt-build-seed dbt-docs-generate dbt-docs-refresh dbt-docs-watch e2e-test test-e2e test-sso qa-test run-job-market-metadata warehouse-metadata-init warehouse-security create-warehouse-user fabric-import observability-verify k8s-aks-smoke bootstrap-all bootstrap_all compose-up-minimal compose-down-minimal k8s-dev-up k8s-dev-up-full k8s-dev-down k8s-sso-gateway-up k8s-sso-gateway-forward k8s-sso-gateway-forward-stop k8s-aks-up k8s-aks-update-images k8s-aks-down scaleway-redeploy-all scaleway-destroy-all platform-init-domain platform-add-entity platform-validate platform-sync tf-init tf-validate tf-plan tf-apply tf-destroy tf-output tf-bootstrap-state
+.PHONY: install dev-install test lint format format-check run clean help schema-validate schema-drift-check dbt-debug dbt-build-seed dbt-docs-generate dbt-docs-refresh dbt-docs-watch e2e-test test-e2e test-sso qa-test run-odp-staffing-demand run-odp-staffing-demand-metadata warehouse-metadata-init warehouse-security create-warehouse-user fabric-import observability-verify k8s-aks-smoke bootstrap-all bootstrap_all compose-up-minimal compose-down-minimal k8s-dev-up k8s-dev-up-full k8s-dev-down k8s-sso-gateway-up k8s-sso-gateway-forward k8s-sso-gateway-forward-stop k8s-aks-up k8s-aks-update-images k8s-aks-down scaleway-redeploy-all scaleway-destroy-all platform-init-domain platform-add-entity platform-validate platform-sync tf-init tf-validate tf-plan tf-apply tf-destroy tf-output tf-bootstrap-state
 
 # Default Python
 PYTHON := .venv/bin/python
@@ -44,11 +44,11 @@ type-check:  ## Run type checker
 run:  ## Run local pipeline (use PIPELINE=domain.layer_job)
 	$(PYTHON) scripts/pipeline/run_local.py --pipeline $(PIPELINE)
 
-run-job-market:  ## Run NL job market pipeline end-to-end (mock data ok)
-	$(PYTHON) scripts/pipeline/run_job_market_pipeline.py
+run-odp-staffing-demand:  ## Run ODP Staffing Demand pipeline end-to-end (mock data ok)
+	$(PYTHON) scripts/pipeline/run_odp_staffing_demand_pipeline.py
 
-run-job-market-metadata:  ## Run NL job market pipeline and ingest metadata into platform_metadata
-	$(PYTHON) scripts/pipeline/run_job_market_metadata_pipeline.py
+run-odp-staffing-demand-metadata:  ## Run ODP Staffing Demand pipeline and ingest metadata into platform_metadata
+	$(PYTHON) scripts/pipeline/run_odp_staffing_demand_metadata_pipeline.py
 
 run-job-connectors:  ## Run job aggregator connectors (RSS + sitemap)
 	$(PYTHON) scripts/pipeline/run_job_connectors.py

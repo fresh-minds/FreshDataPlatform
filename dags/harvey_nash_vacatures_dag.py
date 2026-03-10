@@ -7,7 +7,7 @@ https://www.harveynash.nl/vacatures into the Postgres warehouse.
   1. Bronze — scrape the Harvey Nash vacatures page with Playwright and
               push raw job records to XCom.
   2. Silver — clean, normalize, and load the records into the warehouse
-              table `job_market_nl.harvey_nash_vacatures`, which is the
+              table `odp_staffing_demand.harvey_nash_vacatures`, which is the
               source table for the dbt bronze/silver/gold models.
 
 The Playwright Chromium browser is pre-installed in the Airflow image
@@ -28,7 +28,7 @@ _DAG_ID = "harvey_nash_vacatures_pipeline"
 
 
 # ---------------------------------------------------------------------------
-# Shared metadata helpers (mirrors job_market_nl_dag.py pattern)
+# Shared metadata helpers (mirrors odp_staffing_demand_dag.py pattern)
 # ---------------------------------------------------------------------------
 
 def _metadata_context(**kwargs):
@@ -105,7 +105,7 @@ def _scrape_vacatures(**kwargs):
     """
     import os
 
-    from pipelines.job_market_nl.bronze_harvey_nash_vacatures import (
+    from pipelines.odp_staffing_demand.bronze_harvey_nash_vacatures import (
         HARVEY_NASH_URL,
         _MOCK_JOBS,
         _scrape_with_playwright,
@@ -132,14 +132,14 @@ def _scrape_vacatures(**kwargs):
 def _load_to_warehouse(**kwargs):
     """
     Silver: pull the raw vacatures from XCom, clean/normalize each record,
-    and TRUNCATE + INSERT into `job_market_nl.harvey_nash_vacatures` within a
+    and TRUNCATE + INSERT into `odp_staffing_demand.harvey_nash_vacatures` within a
     single Postgres transaction.  Also registers lineage and dataset metadata.
     """
     from datetime import datetime, timezone
 
     from psycopg2.extras import execute_values
 
-    from pipelines.job_market_nl.postgres_pipeline import _connect_warehouse, ensure_tables
+    from pipelines.odp_staffing_demand.postgres_pipeline import _connect_warehouse, ensure_tables
     from src.ingestion.common.dag_helpers import try_get_conn
     from src.ingestion.common.metadata_store import (
         insert_dataset_version,
@@ -186,12 +186,12 @@ def _load_to_warehouse(**kwargs):
             ))
 
         with conn.cursor() as cur:
-            cur.execute("TRUNCATE TABLE job_market_nl.harvey_nash_vacatures")
+            cur.execute("TRUNCATE TABLE odp_staffing_demand.harvey_nash_vacatures")
             if rows:
                 execute_values(
                     cur,
                     """
-                    INSERT INTO job_market_nl.harvey_nash_vacatures
+                    INSERT INTO odp_staffing_demand.harvey_nash_vacatures
                       (id, title, company, location, province, contract_type,
                        description, salary_min, salary_max, salary_raw,
                        url, posted_date, ingestion_timestamp)
@@ -211,10 +211,10 @@ def _load_to_warehouse(**kwargs):
     meta_conn = try_get_conn("postgres_warehouse")
 
     upsert_dataset_registry(
-        dataset_id="job_market_nl.harvey_nash_vacatures",
+        dataset_id="odp_staffing_demand.harvey_nash_vacatures",
         layer="silver",
-        domain="job_market_nl",
-        schema_name="job_market_nl",
+        domain="odp_staffing_demand",
+        schema_name="odp_staffing_demand",
         table_name="harvey_nash_vacatures",
         owner="data-platform",
         classification="internal",
@@ -224,7 +224,7 @@ def _load_to_warehouse(**kwargs):
         conn=meta_conn,
     )
     insert_dataset_version(
-        dataset_id="job_market_nl.harvey_nash_vacatures",
+        dataset_id="odp_staffing_demand.harvey_nash_vacatures",
         version_label=run_id,
         schema_hash=None,
         column_schema=[],
@@ -238,7 +238,7 @@ def _load_to_warehouse(**kwargs):
         run_id=run_id,
         pipeline_name=_DAG_ID,
         upstream_dataset="bronze.harvey_nash_nl_scrape",
-        downstream_dataset="job_market_nl.harvey_nash_vacatures",
+        downstream_dataset="odp_staffing_demand.harvey_nash_vacatures",
         transformation_type="CLEANED",
         metadata={"task": "load_to_warehouse", "rows_loaded": rows_loaded},
         conn=meta_conn,
@@ -287,7 +287,7 @@ with DAG(
     default_args=default_args,
     description=(
         "Harvey Nash NL vacatures pipeline: Playwright scrape → Postgres warehouse "
-        "(bronze → silver). Source for dbt brz_job_market_nl__harvey_nash_vacatures "
+        "(bronze → silver). Source for dbt brz_odp_staffing_demand__harvey_nash_vacatures "
         "and downstream silver/gold models."
     ),
     schedule_interval="@daily",

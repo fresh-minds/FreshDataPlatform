@@ -3,7 +3,7 @@ superset_bootstrap_gold_dashboards.py
 Bootstrap a comprehensive Superset dashboard from the gold star schema.
 
 Creates:
-  - 4 physical datasets  (fact_aanvragen, fact_it_market_snapshot,
+    - 3 physical datasets  (fact_it_market_snapshot,
                            fact_it_market_top_skills, fact_job_postings)
   - 2 virtual SQL datasets (vw_aanvragen_monthly, vw_aanvragen_unit_monthly)
   - 10 charts across 5 rows
@@ -45,7 +45,6 @@ SCHEMA_NAME = "gold"
 # ── Physical Datasets ────────────────────────────────────────────────────────
 
 PHYSICAL_DATASETS = [
-    "fact_aanvragen",
     "fact_it_market_snapshot",
     "fact_it_market_top_skills",
     "fact_job_postings",
@@ -60,7 +59,8 @@ VIRTUAL_DATASETS = [
             "SELECT\n"
             "    TO_CHAR(DATE_TRUNC('month', date_received), 'YYYY-MM') AS month,\n"
             "    COUNT(*) AS request_count\n"
-            "FROM gold.fact_aanvragen\n"
+            "FROM gold.fact_job_postings\n"
+            "WHERE posting_type = 'internal_request'\n"
             "GROUP BY 1\n"
             "ORDER BY 1"
         ),
@@ -72,8 +72,9 @@ VIRTUAL_DATASETS = [
             "    TO_CHAR(DATE_TRUNC('month', date_received), 'YYYY-MM') AS month,\n"
             "    unit_name AS unit,\n"
             "    COUNT(*) AS request_count\n"
-            "FROM gold.fact_aanvragen\n"
-            "WHERE unit_name IS NOT NULL\n"
+            "FROM gold.fact_job_postings\n"
+            "WHERE posting_type = 'internal_request'\n"
+            "  AND unit_name IS NOT NULL\n"
             "GROUP BY 1, 2\n"
             "ORDER BY 1, 2"
         ),
@@ -86,26 +87,36 @@ CHART_SPECS: List[Dict[str, Any]] = [
     # ── Row 1: KPI cards ──────────────────────────────────────────────
     {
         "name": "Total Staffing Requests",
-        "dataset": "fact_aanvragen",
+        "dataset": "fact_job_postings",
         "viz_type": "big_number_total",
         "form_data": {
             "viz_type": "big_number_total",
             "metric": {
                 "expressionType": "SIMPLE",
-                "column": {"column_name": "aanvraag_id"},
+                "column": {"column_name": "posting_id"},
                 "aggregate": "COUNT",
-                "label": "COUNT(aanvraag_id)",
+                "label": "COUNT(posting_id)",
                 "hasCustomLabel": True,
                 "optionName": "metric_total_requests",
             },
             "subheader": "Staffing requests since Sep 2020",
-            "adhoc_filters": [],
+            "adhoc_filters": [
+                {
+                    "clause": "WHERE",
+                    "comparator": "",
+                    "expressionType": "SQL",
+                    "operator": "",
+                    "sqlExpression": "posting_type = 'internal_request'",
+                    "subject": "",
+                    "filterOptionName": "filter_internal_requests_total",
+                }
+            ],
             "row_limit": 1000,
         },
     },
     {
         "name": "Unique Companies",
-        "dataset": "fact_aanvragen",
+        "dataset": "fact_job_postings",
         "viz_type": "big_number_total",
         "form_data": {
             "viz_type": "big_number_total",
@@ -118,7 +129,17 @@ CHART_SPECS: List[Dict[str, Any]] = [
                 "optionName": "metric_unique_companies",
             },
             "subheader": "Distinct hiring organisations",
-            "adhoc_filters": [],
+            "adhoc_filters": [
+                {
+                    "clause": "WHERE",
+                    "comparator": "",
+                    "expressionType": "SQL",
+                    "operator": "",
+                    "sqlExpression": "posting_type = 'internal_request'",
+                    "subject": "",
+                    "filterOptionName": "filter_internal_requests_companies",
+                }
+            ],
             "row_limit": 1000,
         },
     },
@@ -176,22 +197,32 @@ CHART_SPECS: List[Dict[str, Any]] = [
     # ── Row 3: Pie + Bar ──────────────────────────────────────────────
     {
         "name": "Request Source Breakdown",
-        "dataset": "fact_aanvragen",
+        "dataset": "fact_job_postings",
         "viz_type": "pie",
         "form_data": {
             "viz_type": "pie",
             "metrics": [
                 {
                     "expressionType": "SIMPLE",
-                    "column": {"column_name": "aanvraag_id"},
+                    "column": {"column_name": "posting_id"},
                     "aggregate": "COUNT",
-                    "label": "COUNT(aanvraag_id)",
+                    "label": "COUNT(posting_id)",
                     "hasCustomLabel": False,
                     "optionName": "metric_source_count",
                 }
             ],
             "groupby": ["source"],
-            "adhoc_filters": [],
+            "adhoc_filters": [
+                {
+                    "clause": "WHERE",
+                    "comparator": "",
+                    "expressionType": "SQL",
+                    "operator": "",
+                    "sqlExpression": "posting_type = 'internal_request'",
+                    "subject": "",
+                    "filterOptionName": "filter_internal_requests_source",
+                }
+            ],
             "row_limit": 10,
             "donut": True,
             "show_labels": True,
@@ -202,16 +233,16 @@ CHART_SPECS: List[Dict[str, Any]] = [
     },
     {
         "name": "Business Unit Distribution",
-        "dataset": "fact_aanvragen",
+        "dataset": "fact_job_postings",
         "viz_type": "pie",
         "form_data": {
             "viz_type": "pie",
             "metrics": [
                 {
                     "expressionType": "SIMPLE",
-                    "column": {"column_name": "aanvraag_id"},
+                    "column": {"column_name": "posting_id"},
                     "aggregate": "COUNT",
-                    "label": "COUNT(aanvraag_id)",
+                    "label": "COUNT(posting_id)",
                     "hasCustomLabel": False,
                     "optionName": "metric_unit_count",
                 }
@@ -226,6 +257,15 @@ CHART_SPECS: List[Dict[str, Any]] = [
                     "sqlExpression": "unit_name IS NOT NULL",
                     "subject": "",
                     "filterOptionName": "filter_unit_not_null",
+                },
+                {
+                    "clause": "WHERE",
+                    "comparator": "",
+                    "expressionType": "SQL",
+                    "operator": "",
+                    "sqlExpression": "posting_type = 'internal_request'",
+                    "subject": "",
+                    "filterOptionName": "filter_internal_requests_unit",
                 }
             ],
             "row_limit": 20,
@@ -238,14 +278,14 @@ CHART_SPECS: List[Dict[str, Any]] = [
     },
     {
         "name": "Top 15 Locations",
-        "dataset": "fact_aanvragen",
+        "dataset": "fact_job_postings",
         "viz_type": "dist_bar",
         "form_data": {
             "viz_type": "dist_bar",
             "metrics": [
                 {
                     "expressionType": "SIMPLE",
-                    "column": {"column_name": "aanvraag_id"},
+                    "column": {"column_name": "posting_id"},
                     "aggregate": "COUNT",
                     "label": "Requests",
                     "hasCustomLabel": True,
@@ -262,6 +302,15 @@ CHART_SPECS: List[Dict[str, Any]] = [
                     "sqlExpression": "location_name IS NOT NULL",
                     "subject": "",
                     "filterOptionName": "filter_location_not_null",
+                },
+                {
+                    "clause": "WHERE",
+                    "comparator": "",
+                    "expressionType": "SQL",
+                    "operator": "",
+                    "sqlExpression": "posting_type = 'internal_request'",
+                    "subject": "",
+                    "filterOptionName": "filter_internal_requests_location",
                 }
             ],
             "row_limit": 15,
@@ -310,14 +359,14 @@ CHART_SPECS: List[Dict[str, Any]] = [
     },
     {
         "name": "Top 20 Companies by Requests",
-        "dataset": "fact_aanvragen",
+        "dataset": "fact_job_postings",
         "viz_type": "table",
         "form_data": {
             "viz_type": "table",
             "metrics": [
                 {
                     "expressionType": "SIMPLE",
-                    "column": {"column_name": "aanvraag_id"},
+                    "column": {"column_name": "posting_id"},
                     "aggregate": "COUNT",
                     "label": "Requests",
                     "hasCustomLabel": True,
@@ -335,6 +384,15 @@ CHART_SPECS: List[Dict[str, Any]] = [
                     "sqlExpression": "company_name IS NOT NULL",
                     "subject": "",
                     "filterOptionName": "filter_company_not_null",
+                },
+                {
+                    "clause": "WHERE",
+                    "comparator": "",
+                    "expressionType": "SQL",
+                    "operator": "",
+                    "sqlExpression": "posting_type = 'internal_request'",
+                    "subject": "",
+                    "filterOptionName": "filter_internal_requests_company",
                 }
             ],
             "row_limit": 20,

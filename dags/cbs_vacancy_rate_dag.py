@@ -8,9 +8,9 @@ vacancy rate and unfilled vacancies for the IT sector.
               - 80567ENG  (vacancy rate)
               - 80472ENG  (unfilled vacancies)
   2. Silver — clean and load the data into the Postgres warehouse table
-              `job_market_nl.cbs_vacancy_rate`.
+              `odp_staffing_demand.cbs_vacancy_rate`.
 
-The silver table is consumed by `job_market_nl_dag.py` (gold layer) to build
+The silver table is consumed by `odp_staffing_demand_dag.py` (gold layer) to build
 the `it_market_snapshot` fact table.
 
 Schedule: daily at 01:00 UTC (runs before the gold DAG).
@@ -102,7 +102,7 @@ def _fetch_cbs_data(**kwargs):
 
     Pushes a dict to XCom under key ``cbs_data``.
     """
-    from pipelines.job_market_nl.postgres_pipeline import (
+    from pipelines.odp_staffing_demand.postgres_pipeline import (
         CBS_IT_SECTOR_KEY,
         CBS_VACANCIES_TABLE,
         CBS_VACANCY_RATE_TABLE,
@@ -154,12 +154,12 @@ def _fetch_cbs_data(**kwargs):
 def _load_cbs_to_warehouse(**kwargs):
     """
     Silver: pull CBS data from XCom and INSERT a new row into
-    `job_market_nl.cbs_vacancy_rate` (append — keeps history).
+    `odp_staffing_demand.cbs_vacancy_rate` (append — keeps history).
     Registers lineage and dataset metadata.
     """
     from datetime import datetime, timezone
 
-    from pipelines.job_market_nl.postgres_pipeline import _connect_warehouse, ensure_tables
+    from pipelines.odp_staffing_demand.postgres_pipeline import _connect_warehouse, ensure_tables
     from src.ingestion.common.dag_helpers import try_get_conn
     from src.ingestion.common.metadata_store import (
         insert_dataset_version,
@@ -183,7 +183,7 @@ def _load_cbs_to_warehouse(**kwargs):
         with conn.cursor() as cur:
             cur.execute(
                 """
-                INSERT INTO job_market_nl.cbs_vacancy_rate
+                INSERT INTO odp_staffing_demand.cbs_vacancy_rate
                   (period_key, period_label, sector_name, vacancies, vacancy_rate,
                    ingestion_timestamp)
                 VALUES (%s, %s, %s, %s, %s, %s)
@@ -200,7 +200,7 @@ def _load_cbs_to_warehouse(**kwargs):
         conn.commit()
         print(
             f"[CBS Silver] ✓ Inserted period={cbs_data['period_key']!r} "
-            f"into job_market_nl.cbs_vacancy_rate"
+            f"into odp_staffing_demand.cbs_vacancy_rate"
         )
     finally:
         conn.close()
@@ -210,10 +210,10 @@ def _load_cbs_to_warehouse(**kwargs):
     meta_conn = try_get_conn("postgres_warehouse")
 
     upsert_dataset_registry(
-        dataset_id="job_market_nl.cbs_vacancy_rate",
+        dataset_id="odp_staffing_demand.cbs_vacancy_rate",
         layer="silver",
-        domain="job_market_nl",
-        schema_name="job_market_nl",
+        domain="odp_staffing_demand",
+        schema_name="odp_staffing_demand",
         table_name="cbs_vacancy_rate",
         owner="data-platform",
         classification="internal",
@@ -223,7 +223,7 @@ def _load_cbs_to_warehouse(**kwargs):
         conn=meta_conn,
     )
     insert_dataset_version(
-        dataset_id="job_market_nl.cbs_vacancy_rate",
+        dataset_id="odp_staffing_demand.cbs_vacancy_rate",
         version_label=run_id,
         schema_hash=None,
         column_schema=[],
@@ -237,7 +237,7 @@ def _load_cbs_to_warehouse(**kwargs):
         run_id=run_id,
         pipeline_name=_DAG_ID,
         upstream_dataset="bronze.cbs_odata_api",
-        downstream_dataset="job_market_nl.cbs_vacancy_rate",
+        downstream_dataset="odp_staffing_demand.cbs_vacancy_rate",
         transformation_type="CLEANED",
         metadata={"task": "load_cbs_to_warehouse", "period_key": cbs_data["period_key"]},
         conn=meta_conn,
@@ -286,7 +286,7 @@ with DAG(
     default_args=default_args,
     description=(
         "CBS NL vacancy rate pipeline: OData API → Postgres warehouse "
-        "(bronze → silver). Silver table feeds the gold job_market_nl_dag."
+        "(bronze → silver). Silver table feeds the gold odp_staffing_demand_dag."
     ),
     schedule_interval="0 1 * * *",  # 01:00 UTC daily — runs before gold DAG
     catchup=False,
