@@ -1,8 +1,11 @@
 # Open Data Platform
 
-Open Data Platform is a developer-first analytics platform that combines ingestion, transformation, orchestration, governance, BI, and observability in one stack.
+Open Data Platform is a fully open-source, developer-first analytics platform that combines ingestion, transformation, orchestration, governance, BI, and observability in one stack.
 
 ![Open Data Platform](docs/odp_image.png)
+
+## Github Pages documentation page:
+https://fresh-minds.github.io/FreshDataPlatform/
 
 ## What This Repository Provides
 - End-to-end batch pipelines with medallion layering (`bronze -> silver -> gold`)
