@@ -7,10 +7,9 @@ interface Props {
 const { chart, id = `mermaid-${Math.random().toString(36).slice(2, 8)}` } = Astro.props;
 ---
 
-<div class="mermaid-container">
-  <div class="mermaid" id={id} data-chart={chart}>
-    <pre class="text-sm text-gray-500 p-4">{chart}</pre>
-  </div>
+<div class="mermaid-container my-6">
+  <div id={id} class="mermaid-target"></div>
+  <pre id={`${id}-src`} class="mermaid-source hidden">{chart}</pre>
 </div>
 
 <script>
@@ -27,16 +26,19 @@ const { chart, id = `mermaid-${Math.random().toString(36).slice(2, 8)}` } = Astr
       },
     });
 
-    const elements = document.querySelectorAll('.mermaid[data-chart]');
-    for (const el of elements) {
-      const chart = el.getAttribute('data-chart');
-      if (chart) {
-        try {
-          const { svg } = await mermaid.render(el.id + '-svg', chart);
-          el.innerHTML = svg;
-        } catch (e) {
-          console.warn('Mermaid render error:', e);
-        }
+    const sources = document.querySelectorAll<HTMLPreElement>('pre.mermaid-source');
+    for (const src of sources) {
+      const targetId = src.id.replace('-src', '');
+      const target = document.getElementById(targetId);
+      if (!target) continue;
+      const chart = src.textContent?.trim();
+      if (!chart) continue;
+      try {
+        const { svg } = await mermaid.render(targetId + '-svg', chart);
+        target.innerHTML = svg;
+      } catch (e) {
+        console.warn('Mermaid render error:', e);
+        target.innerHTML = `<pre class="text-sm text-red-500 p-4 bg-red-50 rounded">${chart}</pre>`;
       }
     }
   }

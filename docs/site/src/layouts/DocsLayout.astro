@@ -59,4 +59,44 @@ const currentPath = Astro.url.pathname;
       </article>
     </div>
   </div>
+
+<script>
+  async function renderMermaidBlocks() {
+    const blocks = document.querySelectorAll<HTMLElement>('pre[data-language="mermaid"]');
+    if (blocks.length === 0) return;
+
+    const { default: mermaid } = await import('mermaid');
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'default',
+      securityLevel: 'loose',
+      flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' },
+    });
+
+    let idx = 0;
+    for (const pre of blocks) {
+      const code = pre.querySelector('code');
+      const chart = code?.textContent?.trim();
+      if (!chart) continue;
+
+      const container = document.createElement('div');
+      container.className = 'mermaid-container my-6 overflow-x-auto';
+      pre.parentNode?.replaceChild(container, pre);
+
+      try {
+        const { svg } = await mermaid.render(`mermaid-doc-${idx++}`, chart);
+        container.innerHTML = svg;
+      } catch (e) {
+        console.warn('Mermaid render error:', e);
+        container.appendChild(pre);
+      }
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', renderMermaidBlocks);
+  } else {
+    renderMermaidBlocks();
+  }
+</script>
 </BaseLayout>

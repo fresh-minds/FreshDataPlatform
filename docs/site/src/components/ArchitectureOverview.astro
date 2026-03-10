@@ -2,44 +2,44 @@
 import Mermaid from './Mermaid.astro';
 
 const chart = `flowchart LR
-  subgraph "User Surface"
-    Browser --> "Frontend Portal :3000"
+  subgraph userSurface["User Surface"]
+    browser["Browser"] --> portal["Frontend Portal :3000"]
   end
-  subgraph "Orchestration"
-    "Airflow UI :8080" --> "Airflow Scheduler"
-    "Airflow Scheduler" --> "Pipelines"
+  subgraph orchestration["Orchestration"]
+    airflowUI["Airflow UI :8080"] --> airflowSched["Airflow Scheduler"]
+    airflowSched --> pipelines["Pipelines"]
   end
-  subgraph "Storage & Data"
-    "MinIO S3 :9000"
-    "Lakehouse Bronze/Silver/Gold"
-    "Warehouse Postgres"
+  subgraph storageData["Storage and Data"]
+    minio["MinIO S3 :9000"]
+    lakehouse["Lakehouse Bronze/Silver/Gold"]
+    warehousePg["Warehouse Postgres"]
   end
-  subgraph "Analytics"
-    "Superset :8088"
+  subgraph analytics["Analytics"]
+    superset["Superset :8088"]
   end
-  subgraph "Governance"
-    "DataHub UI :9002"
-    "DataHub GMS"
+  subgraph governance["Governance"]
+    datahubUI["DataHub UI :9002"]
+    datahubGMS["DataHub GMS"]
   end
-  subgraph "Observability"
-    "Prometheus :9090"
-    "Grafana :3001"
-    "Loki :3100"
-    "Tempo :3200"
+  subgraph observability["Observability"]
+    prometheus["Prometheus :9090"]
+    grafana["Grafana :3001"]
+    loki["Loki :3100"]
+    tempo["Tempo :3200"]
   end
-  "Frontend Portal :3000" --> "Airflow UI :8080"
-  "Frontend Portal :3000" --> "DataHub UI :9002"
-  "Frontend Portal :3000" --> "Superset :8088"
-  "Frontend Portal :3000" --> "Grafana :3001"
-  "Airflow Scheduler" --> "MinIO S3 :9000"
-  "Pipelines" --> "Lakehouse Bronze/Silver/Gold"
-  "Lakehouse Bronze/Silver/Gold" --> "Warehouse Postgres"
-  "Warehouse Postgres" --> "Superset :8088"
-  "Airflow Scheduler" --> "DataHub GMS"
-  "Pipelines" --> "Prometheus :9090"
-  "Grafana :3001" --> "Prometheus :9090"
-  "Grafana :3001" --> "Loki :3100"
-  "Grafana :3001" --> "Tempo :3200"`;
+  portal --> airflowUI
+  portal --> datahubUI
+  portal --> superset
+  portal --> grafana
+  airflowSched --> minio
+  pipelines --> lakehouse
+  lakehouse --> warehousePg
+  warehousePg --> superset
+  airflowSched --> datahubGMS
+  pipelines --> prometheus
+  grafana --> prometheus
+  grafana --> loki
+  grafana --> tempo`;
 ---
 
 <section class="py-20 bg-white">
