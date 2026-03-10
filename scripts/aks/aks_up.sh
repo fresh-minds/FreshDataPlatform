@@ -956,6 +956,43 @@ if [[ "$MINIMAL_DEPLOY" != "true" ]]; then
 fi
 echo | openssl s_client -servername "${FRONTEND_DOMAIN}" -connect "${INGRESS_PIP_IP}:443" 2>/dev/null | openssl x509 -noout -subject -issuer | sed -n '1,2p'
 
+log "Configuring Superset warehouse database connection..."
+SUPERSET_POD="$(kubectl_ctx -n "$NAMESPACE" get pods -l app.kubernetes.io/name=superset \
+  --field-selector=status.phase=Running \
+  -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
+if [[ -n "$SUPERSET_POD" ]]; then
+  kubectl_ctx -n "$NAMESPACE" exec "$SUPERSET_POD" -- python3 - <<'PYEOF' 2>&1 \
+    | grep -v "logging was configured\|INFO:superset\|INFO:root\|UserWarning\|warnings.warn\|flask_limiter\|Loaded your LOCAL" \
+    || true
+import os
+os.environ.setdefault("SUPERSET_CONFIG_PATH", "/app/pythonpath/superset_config.py")
+from superset import create_app
+app = create_app()
+with app.app_context():
+    from superset.extensions import db
+    from superset.models.core import Database
+    warehouse_db   = os.getenv("WAREHOUSE_DB", "open_data_platform_dw")
+    warehouse_user = os.getenv("WAREHOUSE_USER", "admin")
+    warehouse_pass = os.getenv("WAREHOUSE_PASSWORD", "admin")
+    uri = f"postgresql+psycopg2://{warehouse_user}:{warehouse_pass}@warehouse:5432/{warehouse_db}"
+    existing = db.session.query(Database).filter_by(database_name="Open Data Platform Warehouse").first()
+    if existing:
+        print(f"[superset-setup] DB connection already exists (id={existing.id})")
+    else:
+        database = Database(
+            database_name="Open Data Platform Warehouse",
+            sqlalchemy_uri=uri,
+            expose_in_sqllab=True,
+            extra='{"allows_virtual_table_explore": true}',
+        )
+        db.session.add(database)
+        db.session.commit()
+        print(f"[superset-setup] Created warehouse DB connection (id={database.id})")
+PYEOF
+else
+  log "Warning: no running Superset pod found; skipping DB connection setup"
+fi
+
 if [[ "$CLOUD_PROVIDER" == "azure" && "$AKS_USE_KEY_VAULT" == "true" ]]; then
   SECRET_SOURCE_SUMMARY="Azure Key Vault (${AKS_KEY_VAULT_NAME}) -> Kubernetes secret ${AKS_KEY_VAULT_SECRET_NAME}"
 elif [[ "$CLOUD_PROVIDER" == "scaleway" ]]; then
