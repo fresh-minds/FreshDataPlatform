@@ -10,7 +10,7 @@ environments:
       base_url: http://localhost:8080
       username: admin
       password: admin
-      dag_id: job_market_nl_pipeline
+      dag_id: odp_staffing_demand_pipeline
     metadata:
       datahub_gms_url: http://localhost:8081
     allow_mutating_checks: true
@@ -28,7 +28,7 @@ environments:
       base_url: http://localhost:8080
       username: admin
       password: admin
-      dag_id: job_market_nl_pipeline
+      dag_id: odp_staffing_demand_pipeline
     metadata:
       datahub_gms_url: http://localhost:8081
     allow_mutating_checks: true
@@ -46,7 +46,7 @@ environments:
       base_url: https://airflow.company.internal
       username: readonly
       password: readonly
-      dag_id: job_market_nl_pipeline
+      dag_id: odp_staffing_demand_pipeline
     metadata:
       datahub_gms_url: https://datahub.company.internal
     allow_mutating_checks: false

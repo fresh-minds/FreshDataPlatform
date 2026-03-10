@@ -42,27 +42,54 @@ Superset OAuth security defaults:
   - `SUPERSET_OAUTH_DEFAULT_ROLE=Admin`
   - `SUPERSET_ALLOW_AUTO_ADMIN_ROLE=true`
 
+Superset map charts:
+- Set `MAPBOX_API_KEY` in `.env` for Mapbox-backed visualizations (for example `deck_gl_heatmap`).
+- Apply changes:
+  - `docker compose up -d --force-recreate superset`
+- Verify key is available in the running container:
+  - `docker exec open-data-platform-superset sh -lc 'python -c "import os; print(bool(os.getenv(\"MAPBOX_API_KEY\")))"'`
+
 ## Daily Workflow
 ### Start core services
 ```bash
 docker compose up -d
 ```
 
-### Run pipeline flows
+### Start bare minimum services (no DataHub, no heavy observability, no jupyter)
 ```bash
-make run-job-market
-LOCAL_MOCK_PIPELINES=false make run PIPELINE=job_market_nl.bronze_cbs_vacancy_rate
+make compose-up-minimal
 ```
 
-### Run Source SP1 portal DAG (Airflow)
-Prerequisite: set `SP1_USERNAME`, `SP1_PASSWORD`, and
-`SP1_SCRAPING_APPROVED=true` in `.env`, then refresh Airflow containers.
-Recommended: set `SP1_ALLOWED_HOSTS` to the approved portal host(s).
+By default, this runs `scripts/testing/verify_compose_minimal.sh` after startup.
+The minimal profile also seeds Superset dashboards during startup:
+- `ODP Staffing Demand`
+- `Platform Metadata Operations`
+It also generates dbt docs (`dbt docs generate`) before exposing `http://localhost:8089/`.
+
+Minimal smoke checks now use faster defaults:
+- `COMPOSE_MINIMAL_WAIT_TIMEOUT_SECONDS=120`
+- `COMPOSE_MINIMAL_RETRY_INTERVAL_SECONDS=2`
+- `COMPOSE_MINIMAL_DASHBOARD_WAIT_TIMEOUT_SECONDS=45`
+
+Skip smoke checks when needed:
 
 ```bash
-docker compose up -d airflow-webserver airflow-scheduler
-docker exec airflow-webserver airflow dags trigger source_sp1_vacatures_ingestion
-docker exec airflow-webserver airflow dags list-runs -d source_sp1_vacatures_ingestion --no-backfill
+COMPOSE_MINIMAL_SMOKE_AFTER_UP=false make compose-up-minimal
+```
+
+Tune smoke-check timing for slower machines:
+
+```bash
+COMPOSE_MINIMAL_WAIT_TIMEOUT_SECONDS=240 \
+COMPOSE_MINIMAL_DASHBOARD_WAIT_TIMEOUT_SECONDS=90 \
+make compose-up-minimal
+```
+
+### Run pipeline flows
+```bash
+make run-odp-staffing-demand
+make run-odp-staffing-demand-metadata
+LOCAL_MOCK_PIPELINES=false make run PIPELINE=odp_staffing_demand.bronze_cbs_vacancy_rate
 ```
 
 ### Run quality checks
@@ -77,6 +104,10 @@ Governance suite note:
 - `tests/governance/test_governance_controls.py` bootstraps `platform_audit.pipeline_runs`
   with a deterministic seed row when the table is absent, so local and CI runs are
   stable without requiring a prior E2E pipeline execution.
+- Platform-wide metadata registry tables live in schema `platform_metadata`; initialize with:
+  - `make warehouse-metadata-init`
+- `dags/odp_staffing_demand_dag.py` (`odp_staffing_demand_pipeline`) is the canonical DAG ID and executes the full pipeline implementation.
+- Run/task/quality/lineage metadata continues to be written to `platform_metadata` during DAG execution.
 
 ### Run full E2E suites
 ```bash
@@ -104,8 +135,15 @@ Homepage assistant note:
 - Toggle the ribbon with `VITE_SHOW_DEMO_RIBBON=true|false` (default `true`).
 - Enable demo SSO bootstrap with `VITE_DEMO_AUTO_ADMIN=true` (forces real Keycloak login flow and uses demo username hint for SSO).
 - Set the demo username hint with `VITE_DEMO_USERNAME` (default `odp-admin`).
+- On `/`, before Keycloak login redirect completes, the frontend sends an anonymous visit counter event to `POST /api/home-visit`.
+- On route changes to non-home, non-admin pages, the frontend sends page telemetry to `POST /api/page-visit`.
+- Page visit counters are unique per page and IP address (repeat hits from the same IP on the same page do not increment the counter).
+- After successful login, the frontend sends user login metadata to `POST /api/login-metadata` when a prior home-visit marker exists in browser session storage, and links it to that anonymous home visit.
 - `KEYCLOAK_DEMO_AUTO_LOGIN` is disabled by default; only set it to `true` for isolated local demos where auto-submitting demo credentials is acceptable.
 - When enabled, set `KEYCLOAK_DEMO_AUTOLOGIN_USERNAME` (default `odp-admin`) and keep Keycloak on a local hostname.
+- Local realm seed users include:
+  - `odp-admin` with password `KEYCLOAK_DEFAULT_USER_PASSWORD`
+  - `demo` with password `KEYCLOAK_DEMO_USER_PASSWORD` (default `demo`)
 - On `/`, clicking the hero image opens a chat panel on the right.
 - The panel calls `portal-api` endpoint `POST /api/chat` (authenticated with the Keycloak bearer token).
 - Preferred backend env vars (Azure AI Foundry Agent): `AZURE_EXISTING_AIPROJECT_ENDPOINT` and either `AZURE_EXISTING_AGENT_ID` or `AZURE_EXISTING_AGENT_NAME`.
@@ -120,6 +158,11 @@ Homepage assistant note:
 Platform dashboard note:
 - `/platform` keeps "Overview" at the top, followed by ordered destinations (Orchestration, Storage, Analytics + Notebook workspace row, Catalog & lineage).
 - The "People" section is shown in a separate box, only visible to admins, and rendered at the very bottom.
+- The admin-only route `/admin/login-metadata` exposes homepage visit counts and logged-in user metadata captured by `portal-api`.
+- The same admin route also shows aggregated counters per page visited and per API endpoint hit.
+- Admin routes (`/admin/*`) and admin API calls (`/api/admin/*`) are excluded from telemetry counters.
+- `/admin/login-metadata` includes a `Clear metadata` action that removes all recorded login events and homepage visit counters via `DELETE /api/admin/login-metadata`.
+- `portal-api` CORS allows `DELETE` so browser-based admin metadata clearing works cross-origin in local and AKS setups.
 - `/platform` includes a dedicated "Logging, monitoring and tracing" section with links to Grafana, Prometheus, and Alertmanager.
 - `/platform` includes a dedicated "docs and horizontal technical lineage" section with a `dbt docs & lineage` link.
 - Optional frontend overrides: `VITE_GRAFANA_URL`, `VITE_PROMETHEUS_URL`, `VITE_ALERTMANAGER_URL`.
@@ -132,7 +175,19 @@ dbt docs + lineage workflow:
 - Generate docs artifacts: `make dbt-docs-generate`
 - Generate and (re)start static docs host: `make dbt-docs-refresh`
 - Keep docs auto-updated while developing dbt logic: `make dbt-docs-watch`
+- Bootstrap dbt orchestration (`scripts/pipeline/run_dbt.sh`) defaults to
+  `DBT_THREADS=1` to avoid local Postgres deadlocks during parallel DDL.
+  Override with `DBT_THREADS=<n>` if needed.
 - Open docs UI directly at `http://localhost:8089` or via `/platform` -> "docs and horizontal technical lineage".
+
+dbt CI guardrails for gold fact consolidation:
+- `.github/workflows/dbt-ci.yml` blocks new non-compatibility references to `fact_aanvragen`.
+- Allowed temporary compatibility files:
+  - `dbt/models/gold/odp_staffing_demand/fact_aanvragen.sql`
+  - `dbt/models/gold/odp_staffing_demand/_gold_odp_staffing_demand__models.yml`
+  - `schema/warehouse.dbml`
+  - `DATA_MODEL.md`
+- The workflow also enforces `FACT_AANVRAGEN_DEPRECATION_DEADLINE` (currently `2026-09-30`) and fails once the date has passed while the compatibility model still exists.
 
 ## Useful Make Targets
 - `make help`: list available targets
@@ -140,10 +195,43 @@ dbt docs + lineage workflow:
 - `make observability-verify`: validate Compose logs/metrics/traces ingestion path (Grafana/Loki/Prometheus/Tempo); supports strict trace-volume mode (`OBS_REQUIRE_TRACE_VOLUME=true`) and ambient-only mode (`OBS_TRACE_VOLUME_MODE=ambient`)
 - `make k8s-aks-smoke`: run in-cluster AKS smoke checks (observability + core service endpoints); HTTP checks retry for short warm-up windows (~60s max per endpoint) and then fail on RED checks
 - `make k8s-aks-up`: runs AKS smoke checks by default after deploy (`AKS_SMOKE_AFTER_UP` unset/empty = `true`) and uses Azure Key Vault as the default AKS secret source; reruns safely skip Key Vault provider re-enable when already active and can enforce minimum System nodepool capacity via `AKS_NODE_COUNT` (set `AKS_SMOKE_AFTER_UP=false` to skip smoke; set `AKS_USE_KEY_VAULT=false` to use direct `.env` -> Kubernetes secret)
-- `make k8s-aks-update-images`: build/push selected app images and patch existing AKS deployments only (faster inner loop; no infra/parity apply)
-- `make dbt-docs-generate`: generate dbt docs site artifacts in `dbt_parallel/target/`
+  - Scaleway mode: `scw` CLI is only required when kubeconfig must be fetched dynamically or when `SCW_SECRET_KEY` is not already exported; if `KUBECONFIG`/`KUBE_CONTEXT` and `SCW_SECRET_KEY` are provided, deployment can run without `scw` installed.
+- `make tf-plan ENVIRONMENT=scaleway-dev`: for Scaleway-only planning in Azure CA-restricted tenants, run with `TF_VAR_azure_use_cli=false`; requires `SCW_ACCESS_KEY`, `SCW_SECRET_KEY`, and `SCW_DEFAULT_PROJECT_ID` in your shell
+- `make scaleway-redeploy-all`: one-command Scaleway redeploy (Terraform apply + workload deploy + smoke checks). Set `DRY_RUN=true` for Terraform plan-only; use `SKIP_TERRAFORM_APPLY=true`, `SKIP_DEPLOY=true`, `SKIP_SMOKE=true`, or `SKIP_IMAGE_BUILD=true` for partial/fast runs.
+  - The script auto-normalizes image repository names for Scaleway registry pushes and can auto-reconcile pre-existing secrets-reader IAM resources and default Kubernetes pool resources in Terraform state on first apply retry.
+  - The script retries Terraform apply when Helm provider steps fail with transient Kubernetes API timeout/unreachable errors (`SCW_TERRAFORM_APPLY_RETRIES`, `SCW_TERRAFORM_APPLY_RETRY_DELAY_SECONDS`).
+  - The script runs a fast registry push-permission preflight before image builds; set `SKIP_REGISTRY_PREFLIGHT=true` to bypass it.
+  - The script uses a safer classic Docker build/push mode (plus no-cache) to avoid Buildx cross-namespace cache/token authorization issues during Scaleway pushes.
+  - The script also defaults to legacy Docker builder for Scaleway pushes (`AKS_USE_LEGACY_DOCKER_BUILDER=true`) to avoid BuildKit-related layer push stalls with `insufficient_scope` + prolonged `Waiting` states.
+  - Image build platform defaults to `linux/amd64`; override with `AKS_DOCKER_BUILD_PLATFORM=<platform>` when needed.
+  - If legacy builder cannot satisfy the requested platform on your host, the script retries that build with `docker buildx build --load` for the same platform.
+  - If pushes fail with `insufficient_scope`, verify `SCW_SECRET_KEY` has push rights for the selected Scaleway registry namespace.
+- `make scaleway-destroy-all`: destroy all Terraform-managed Scaleway resources in `terraform/scaleway` (set `DRY_RUN=true` for plan-only; set `PURGE_LEFTOVERS=true` to also remove leftover Registry namespaces and LB IPs)
+- Scaleway notes:
+  - `SCW_DEFAULT_PROJECT_ID` from `.env` must be mapped to Terraform var `scw_project_id` (for example via `-var scw_project_id=$SCW_DEFAULT_PROJECT_ID` or `TF_VAR_scw_project_id`).
+  - `scw_kubernetes_version` may be left empty (`""`) in `terraform/environments/scaleway-*.tfvars` to let Scaleway choose a currently available upstream Kubernetes version.
+  - Dedicated Scaleway-only root module is available at `terraform/scaleway` (no Azure provider/backend dependency).
+  - Example commands:
+    - `cd terraform/scaleway`
+    - `set -a && source ../../.env && set +a`
+    - `terraform init`
+    - `terraform plan -var-file=../environments/scaleway-dev.tfvars -var "scw_project_id=$SCW_DEFAULT_PROJECT_ID"`
+  - Teardown commands:
+    - `set -a && source .env && set +a`
+    - `DRY_RUN=true make scaleway-destroy-all`
+    - `make scaleway-destroy-all`
+    - `PURGE_LEFTOVERS=true make scaleway-destroy-all`
+    - `terraform -chdir=terraform/scaleway state list` (should print nothing after destroy)
+  - Redeploy commands:
+    - `set -a && source .env && set +a`
+    - `DRY_RUN=true make scaleway-redeploy-all`
+    - `make scaleway-redeploy-all`
+    - `SKIP_SMOKE=true make scaleway-redeploy-all`
+    - `SKIP_TERRAFORM_APPLY=true SKIP_IMAGE_BUILD=true make scaleway-redeploy-all-minimal`
+- `make k8s-aks-update-images`: build/push selected app images and patch existing AKS deployments only (faster inner loop; no infra/parity apply); when `AKS_IMAGES` includes `airflow`, also refreshes `airflow-webserver-config` from `airflow/webserver_config.py` and refreshes dbt docs init image
+- `make dbt-docs-generate`: generate dbt docs site artifacts in `dbt/target/`
 - `make dbt-docs-refresh`: regenerate dbt docs and ensure static docs service is running
-- `make dbt-docs-watch`: auto-regenerate dbt docs whenever files in `dbt_parallel/models|macros|snapshots|seeds|tests` change
+- `make dbt-docs-watch`: auto-regenerate dbt docs whenever files in `dbt/models|macros|snapshots|seeds|tests` change
 - `make schema-validate`: validate DBML conventions
 - `make schema-drift-check`: compare warehouse to `schema/warehouse.dbml`
 - `make governance-validate`: validate governance metadata completeness
@@ -166,7 +254,7 @@ Quick steps:
 1. Copy `src/ingestion/_template/` to `src/ingestion/<source_name>/`.
 2. Define a `SourceTableConfig` in `config.py`.
 3. Write an extractor and parser.
-4. Copy dbt model templates from `dbt_parallel/_model_templates/`.
+4. Copy dbt model templates from `dbt/_model_templates/bronze|silver|gold`.
 5. Copy `dags/_template_dag.py` and wire everything together.
 6. Verify locally: `dbt run + test`, trigger DAG.
 
@@ -202,6 +290,10 @@ Full walkthrough: [Data Ingestion Guide](docs/INGESTION_GUIDE.md)
 - Services not healthy:
   - `docker compose ps`
   - `docker compose logs --tail=200`
+- `odp_staffing_demand_pipeline` fails on `gold.run_dbt_gold` with `dbt executable not found`:
+  - Ensure Airflow services are running (`docker compose up -d airflow-webserver airflow-scheduler airflow-worker`)
+  - Verify `dbt` is available in the worker runtime (`docker compose exec airflow-worker which dbt`)
+  - Rebuild Airflow image if needed (`docker compose up -d --build airflow-webserver airflow-scheduler airflow-worker`)
 - E2E failures:
   - inspect `tests/e2e/evidence/latest/`
 - SSO failures:

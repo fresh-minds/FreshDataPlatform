@@ -154,9 +154,7 @@ def test_keycloak_admin_api_requires_elevated_role(
     issued_tokens: dict[str, dict[str, Any]],
     api_client: object,
 ) -> None:
-    admin_endpoint = (
-        f"{sso_settings.keycloak_base_url}/admin/realms/{sso_settings.keycloak_primary_realm}/clients"
-    )
+    admin_endpoint = f"{sso_settings.keycloak_base_url}/admin/realms/{sso_settings.keycloak_primary_realm}/clients"
 
     no_token = api_client.get(admin_endpoint)
     assert no_token.status_code in {401, 403}, f"Expected unauthorized without token, got {no_token.status_code}"
@@ -208,6 +206,5 @@ def test_configured_protected_api_matrix(
         if api.missing_role_status is not None and no_access_token:
             missing_role = api_client.get(api.url, headers=_bearer(no_access_token))
             assert missing_role.status_code == api.missing_role_status, (
-                f"{api.name}: expected {api.missing_role_status} for missing-role token, got "
-                f"{missing_role.status_code}"
+                f"{api.name}: expected {api.missing_role_status} for missing-role token, got {missing_role.status_code}"
             )

@@ -11,6 +11,7 @@ SKIP_DATAHUB=false
 SKIP_KEYCLOAK_CHECK=false
 SKIP_DEV_INSTALL=false
 AUTO_FILL_ENV=false
+LOW_MEMORY=false
 
 usage() {
   cat <<EOF
@@ -18,8 +19,8 @@ Usage: $(basename "$0") [options]
 
 Bootstraps the local Docker stack and (re)populates:
 - MinIO buckets (uploads deterministic fixture files)
-- Warehouse baseline schemas (dbt_parallel + base schemas)
-- Superset (datasets + NL job market dashboard)
+- Warehouse baseline schemas (dbt + base schemas)
+- Superset (datasets + seeded dashboards: ODP Staffing Demand)
 - DataHub (schema/glossary sync + warehouse catalog registration)
 
 Options:
@@ -31,6 +32,7 @@ Options:
   --skip-superset   skip running Superset setup/bootstrap scripts
   --skip-datahub    skip DataHub metadata sync/registration
   --skip-keycloak-check  skip Keycloak/OIDC verification checks
+  --low-memory      run in low-memory mode (skips heavy observability services)
   -h, --help        show this help
 EOF
 }
@@ -45,6 +47,7 @@ while [[ $# -gt 0 ]]; do
     --skip-superset) SKIP_SUPERSET=true; shift ;;
     --skip-datahub) SKIP_DATAHUB=true; shift ;;
     --skip-keycloak-check) SKIP_KEYCLOAK_CHECK=true; shift ;;
+    --low-memory) LOW_MEMORY=true; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown arg: $1" >&2; usage; exit 2 ;;
   esac
@@ -420,7 +423,40 @@ if [[ "$RESET" == "true" ]]; then
 fi
 
 log "Starting docker compose stack..."
-$COMPOSE -f "$ROOT_DIR/docker-compose.yml" up -d
+if [[ "$LOW_MEMORY" == "true" ]]; then
+  log "Low-memory mode: skipping heavy observability services (Prometheus, Grafana, Loki, etc.)"
+  # We still want the core metadata and data stack.
+  # We start everything then stop the heavy ones, or just list the core ones.
+  # Listing core is safer to avoid OOM during start.
+  $COMPOSE -f "$ROOT_DIR/docker-compose.yml" up -d \
+    warehouse \
+    minio \
+    minio-sso-bridge \
+    keycloak \
+    postgres \
+    superset-db \
+    superset \
+    airflow-init \
+    airflow-webserver \
+    airflow-scheduler \
+    datahub-mysql \
+    datahub-mysql-setup \
+    datahub-elasticsearch \
+    datahub-elasticsearch-setup \
+    datahub-zookeeper \
+    datahub-kafka \
+    datahub-kafka-setup \
+    datahub-schema-registry \
+    datahub-upgrade \
+    datahub-gms \
+    datahub-frontend \
+    portal-api \
+    portal \
+    create-buckets \
+    dbt-docs
+else
+  $COMPOSE -f "$ROOT_DIR/docker-compose.yml" up -d
+fi
 
 # Ensure DataHub Kafka is healthy (can fail on stale ZK broker registration).
 ensure_datahub_kafka
@@ -474,7 +510,7 @@ if [[ "$SKIP_MINIO" != "true" ]]; then
     log "Skipping MinIO golden fixtures; missing tests/fixtures/golden."
   fi
 
-  if [[ "${JOB_MARKET_USE_SPARK:-false}" == "true" ]]; then
+  if [[ "${STAFFING_DEMAND_USE_SPARK:-false}" == "true" ]]; then
     if command -v java >/dev/null 2>&1 && java -version >/dev/null 2>&1; then
       log "Java runtime detected; generating a small Delta sample into MinIO (best-effort)..."
       USE_MINIO=true \
@@ -485,7 +521,7 @@ if [[ "$SKIP_MINIO" != "true" ]]; then
       log "Java runtime not available; skipping Spark-based Delta writes to MinIO."
     fi
   else
-    log "JOB_MARKET_USE_SPARK!=true; skipping Spark-based Delta writes to MinIO."
+    log "STAFFING_DEMAND_USE_SPARK!=true; skipping Spark-based Delta writes to MinIO."
   fi
 else
   log "Skipping MinIO population (--skip-minio)."
@@ -496,8 +532,8 @@ if [[ "$SKIP_DBT" != "true" ]]; then
   "$PYTHON" "$ROOT_DIR/scripts/pipeline/ensure_job_market_source_tables.py"
 
   if [[ -x "$ROOT_DIR/.venv/bin/dbt" ]]; then
-    log "Running dbt parallel stack (seed/run/snapshot/test)..."
-    "$ROOT_DIR/scripts/pipeline/run_dbt_parallel.sh"
+    log "Running dbt stack (seed/run/snapshot/test)..."
+    "$ROOT_DIR/scripts/pipeline/run_dbt.sh"
   else
     log "dbt not found at $ROOT_DIR/.venv/bin/dbt; skipping dbt step."
   fi
@@ -505,19 +541,24 @@ else
   log "Skipping dbt step (--skip-dbt)."
 fi
 
-log "Seeding base serving schemas from dbt_parallel outputs..."
+log "Seeding base serving schemas from dbt outputs..."
 "$PYTHON" "$ROOT_DIR/scripts/warehouse/seed_warehouse_base_schemas.py"
+
+log "Ensuring platform metadata schema and tables..."
+"$PYTHON" "$ROOT_DIR/scripts/warehouse/init_platform_metadata.py"
 
 log "Applying warehouse security baseline (roles/grants/RLS/masking)..."
 "$PYTHON" "$ROOT_DIR/scripts/warehouse/apply_warehouse_security.py"
 
-log "Populating job market demo tables in the warehouse (Spark-free pipeline)..."
-"$PYTHON" "$ROOT_DIR/scripts/pipeline/run_job_market_pipeline.py" || true
+log "Populating ODP Staffing Demand demo tables in the warehouse (Spark-free pipeline)..."
+"$PYTHON" "$ROOT_DIR/scripts/pipeline/run_odp_staffing_demand_pipeline.py" || true
 
 if [[ "$SKIP_SUPERSET" != "true" ]]; then
-  log "Running Superset onboarding (datasets + job market dashboard)..."
+  log "Running Superset onboarding (datasets + seeded dashboards)..."
   docker exec open-data-platform-superset python /app/scripts/superset/superset_setup.py || true
-  docker exec open-data-platform-superset python /app/scripts/superset/superset_bootstrap_job_market.py || true
+  docker exec open-data-platform-superset python /app/scripts/superset/superset_bootstrap_odp_staffing_demand.py || true
+  docker exec open-data-platform-superset python /app/scripts/superset/superset_bootstrap_gold_dashboards.py || true
+  docker exec open-data-platform-superset python /app/scripts/superset/superset_bootstrap_platform_metadata.py || true
 else
   log "Skipping Superset bootstrap (--skip-superset)."
 fi

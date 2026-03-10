@@ -14,10 +14,12 @@ Usage example (inside a DAG file)::
         mime_to_ext,
     )
 """
+
 from __future__ import annotations
 
 import logging
 import os
+import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
@@ -29,6 +31,7 @@ log = logging.getLogger(__name__)
 # Connection helpers
 # ---------------------------------------------------------------------------
 
+
 def try_get_conn(conn_id: str):
     """Return an Airflow connection or ``None`` (callers fall back to env vars).
 
@@ -37,9 +40,46 @@ def try_get_conn(conn_id: str):
     """
     try:
         from airflow.hooks.base import BaseHook
+
         return BaseHook.get_connection(conn_id)
     except Exception:
         return None
+
+
+def resolve_code_version(env_var: str = "GITHUB_SHA", fallback: str = "unknown") -> str:
+    """Resolve the current code version for metadata/audit logging.
+
+    Resolution order:
+
+    1. ``env_var`` (defaults to ``GITHUB_SHA``), if set.
+    2. ``git rev-parse HEAD`` from the nearest ancestor containing ``.git``.
+    3. ``fallback``.
+    """
+    env_sha = os.environ.get(env_var, "").strip()
+    if env_sha:
+        return env_sha
+
+    git_cwd: Optional[str] = None
+    try:
+        for parent in Path(__file__).resolve().parents:
+            if (parent / ".git").exists():
+                git_cwd = str(parent)
+                break
+
+        git_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=git_cwd,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        value = git_sha.stdout.strip()
+        if git_sha.returncode == 0 and value:
+            return value
+    except Exception:
+        pass
+
+    return fallback
 
 
 # ---------------------------------------------------------------------------
@@ -70,6 +110,7 @@ def mime_to_ext(mime: str) -> str:
 # Failure callback
 # ---------------------------------------------------------------------------
 
+
 def on_failure_callback(context: dict) -> None:
     """Generic failure callback that logs actionable troubleshooting guidance.
 
@@ -97,6 +138,7 @@ def on_failure_callback(context: dict) -> None:
 # ---------------------------------------------------------------------------
 # Default args builder
 # ---------------------------------------------------------------------------
+
 
 def make_default_args(
     *,
@@ -133,6 +175,7 @@ def make_default_args(
 # Preflight task builders
 # ---------------------------------------------------------------------------
 
+
 def make_validate_connections_callable(
     required_conns: list[dict],
 ):
@@ -162,14 +205,10 @@ def make_validate_connections_callable(
             except Exception:
                 if not os.environ.get(spec["env_fallback"]):
                     errors.append(
-                        f"{spec['label']}: set AIRFLOW_CONN_{spec['conn_id'].upper()} "
-                        f"or {spec['env_fallback']} env var"
+                        f"{spec['label']}: set AIRFLOW_CONN_{spec['conn_id'].upper()} or {spec['env_fallback']} env var"
                     )
         if errors:
-            raise EnvironmentError(
-                "Preflight failed — missing connections:\n"
-                + "\n".join(f"  • {e}" for e in errors)
-            )
+            raise EnvironmentError("Preflight failed — missing connections:\n" + "\n".join(f"  • {e}" for e in errors))
         log.info("[preflight] All connections validated.")
 
     return _validate
@@ -179,11 +218,13 @@ def make_ensure_ddl_callable(config):
     """Return a callable that runs ``ensure_source_ddl`` + ``ensure_state_table``."""
 
     def _ensure_ddl(**kwargs):
+        from src.ingestion.common.metadata_store import ensure_metadata_tables
         from src.ingestion.common.postgres import ensure_source_ddl, ensure_state_table
 
         conn = try_get_conn("postgres_warehouse")
         ensure_source_ddl(config, conn=conn)
         ensure_state_table(conn=conn)
+        ensure_metadata_tables(conn=conn)
         log.info("[preflight] DDL ensured for %s", config.fqn)
 
     return _ensure_ddl
@@ -207,15 +248,18 @@ def make_ensure_bucket_callable(bucket_env: str = "MINIO_BUCKET", default: str =
 # dbt task builder
 # ---------------------------------------------------------------------------
 
+
 def _resolve_repo_root() -> Path:
     for parent in Path(__file__).resolve().parents:
-        if (parent / "dbt_parallel" / "dbt_project.yml").exists():
+        if (parent / "dbt" / "dbt_project.yml").exists():
             return parent
-    raise RuntimeError("Could not locate repo root containing dbt_parallel/dbt_project.yml")
+    raise RuntimeError("Could not locate repo root containing dbt/dbt_project.yml")
+
 
 def make_dbt_run_callable(
     select: str,
     source_name: str,
+    dataset: Optional[str] = None,
     extract_task_path: str = "extract.extract_to_bronze",
 ):
     """Return a callable that runs ``dbt deps`` + ``dbt run`` + ``dbt test``.
@@ -223,17 +267,28 @@ def make_dbt_run_callable(
     Parameters
     ----------
     select : str
-        dbt selector expression, e.g. ``"stg_my_source__entity+"``.
+        dbt selector expression, e.g. ``"brz_my_source__entity+"``.
     source_name : str
         Used for artifact naming in MinIO.
+    dataset : str | None
+        Optional dataset name for metadata registry writes.
     extract_task_path : str
         Dotted task path for XCom pull of ``run_id``, ``run_dt``, ``bronze_bucket``.
     """
 
     def _dbt_run(**kwargs):
+        import json
         import shutil
         import subprocess
+        from datetime import datetime, timezone
 
+        from src.ingestion.common.metadata_store import (
+            insert_data_quality_result,
+            insert_dataset_version,
+            insert_lineage_edge,
+            insert_pipeline_task_run,
+            upsert_dataset_registry,
+        )
         from src.ingestion.common.minio import write_bronze_artifact
         from src.ingestion.common.provenance import build_meta
 
@@ -244,7 +299,7 @@ def make_dbt_run_callable(
         minio_conn = try_get_conn("minio")
 
         repo_root = _resolve_repo_root()
-        dbt_project_dir = str(repo_root / "dbt_parallel")
+        dbt_project_dir = str(repo_root / "dbt")
         dbt_profiles_dir = dbt_project_dir
 
         dbt_bin = shutil.which("dbt")
@@ -253,9 +308,12 @@ def make_dbt_run_callable(
 
         def _run(*args: str, fatal: bool = True) -> bool:
             cmd = [
-                dbt_bin, args[0],
-                "--project-dir", dbt_project_dir,
-                "--profiles-dir", dbt_profiles_dir,
+                dbt_bin,
+                args[0],
+                "--project-dir",
+                dbt_project_dir,
+                "--profiles-dir",
+                dbt_profiles_dir,
                 *args[1:],
             ]
             log.info("dbt: %s", " ".join(cmd))
@@ -275,6 +333,8 @@ def make_dbt_run_callable(
         _run("deps", fatal=False)
         _run("run", "--select", select)
         _run("test", "--select", select)
+
+        started_at = datetime.now(timezone.utc)
 
         # Archive dbt artifacts
         for fname, aname in [
@@ -312,6 +372,114 @@ def make_dbt_run_callable(
             except Exception as exc:
                 log.warning("[dbt] Could not store artifact %s: %s (non-fatal)", aname, exc)
 
+        # Persist dbt metadata (best effort; non-fatal)
+        try:
+            with open(f"{dbt_project_dir}/target/manifest.json", "r", encoding="utf-8") as fh:
+                manifest = json.load(fh)
+            with open(f"{dbt_project_dir}/target/run_results.json", "r", encoding="utf-8") as fh:
+                run_results = json.load(fh)
+
+            for unique_id, node in (manifest.get("nodes", {}) or {}).items():
+                if not unique_id.startswith("model."):
+                    continue
+                schema_name = node.get("schema")
+                alias = node.get("alias")
+                if not schema_name or not alias:
+                    continue
+
+                dataset_id = f"{schema_name}.{alias}"
+                layer = None
+                if schema_name.endswith("_gold") or schema_name == "gold":
+                    layer = "gold"
+                elif schema_name.endswith("_silver") or schema_name == "silver":
+                    layer = "silver"
+                elif schema_name.endswith("_bronze") or schema_name == "bronze":
+                    layer = "bronze"
+
+                upsert_dataset_registry(
+                    dataset_id=dataset_id,
+                    layer=layer,
+                    domain=source_name,
+                    schema_name=schema_name,
+                    table_name=alias,
+                    metadata={
+                        "dbt_unique_id": unique_id,
+                        "path": node.get("path"),
+                        "resource_type": node.get("resource_type"),
+                    },
+                )
+
+                columns = []
+                for col_name, col_data in (node.get("columns", {}) or {}).items():
+                    columns.append(
+                        {
+                            "name": col_name,
+                            "description": col_data.get("description"),
+                            "data_type": col_data.get("data_type"),
+                        }
+                    )
+                insert_dataset_version(
+                    dataset_id=dataset_id,
+                    version_label=run_id,
+                    schema_hash=str(node.get("checksum", {}).get("checksum", "")),
+                    column_schema=columns,
+                    row_count=None,
+                    byte_size=None,
+                    run_id=run_id,
+                    metadata={"dbt_materialized": node.get("config", {}).get("materialized")},
+                )
+
+                for dep in (node.get("depends_on", {}) or {}).get("nodes", []):
+                    dep_node = (manifest.get("nodes", {}) or {}).get(dep) or (manifest.get("sources", {}) or {}).get(
+                        dep
+                    )
+                    if not dep_node:
+                        continue
+                    dep_schema = dep_node.get("schema")
+                    dep_alias = dep_node.get("alias") or dep_node.get("name")
+                    if not dep_schema or not dep_alias:
+                        continue
+                    insert_lineage_edge(
+                        run_id=run_id,
+                        pipeline_name=f"{source_name}.dbt",
+                        upstream_dataset=f"{dep_schema}.{dep_alias}",
+                        downstream_dataset=dataset_id,
+                        transformation_type="TRANSFORMED",
+                        metadata={"selector": select},
+                    )
+
+            for res in run_results.get("results", []) or []:
+                uid = str(res.get("unique_id", ""))
+                if not uid.startswith("test."):
+                    continue
+                insert_data_quality_result(
+                    run_id=run_id,
+                    pipeline_name=f"{source_name}.dbt",
+                    dataset_id=f"{source_name}.{dataset or 'unknown'}",
+                    assertion_id=uid,
+                    assertion_type="dbt_test",
+                    severity=str(res.get("severity", "unknown")),
+                    status="PASS" if str(res.get("status", "")).lower() == "pass" else "FAIL",
+                    details={
+                        "execution_time": res.get("execution_time"),
+                        "failures": res.get("failures"),
+                        "message": res.get("message"),
+                    },
+                )
+
+            insert_pipeline_task_run(
+                run_id=run_id,
+                pipeline_name=f"{source_name}.dbt",
+                task_id="dbt_run_and_test",
+                task_group="dbt_run",
+                status="SUCCESS",
+                started_at_utc=started_at,
+                finished_at_utc=datetime.now(timezone.utc),
+                metadata={"selector": select},
+            )
+        except Exception as exc:
+            log.warning("[dbt] Could not persist metadata records: %s (non-fatal)", exc)
+
         log.info("[dbt] ✓ run + test completed for select=%s", select)
 
     return _dbt_run
@@ -320,6 +488,7 @@ def make_dbt_run_callable(
 # ---------------------------------------------------------------------------
 # Observability task builder
 # ---------------------------------------------------------------------------
+
 
 def make_emit_metrics_callable(
     source_name: str,
@@ -346,7 +515,10 @@ def make_emit_metrics_callable(
 
         log.info(
             "[observability] run_id=%s | artifacts=%d | parsed=%d | upserted=%d",
-            run_id, extracted, parsed, upserted,
+            run_id,
+            extracted,
+            parsed,
+            upserted,
         )
 
         try:

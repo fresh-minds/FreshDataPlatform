@@ -3,32 +3,21 @@ from __future__ import annotations
 
 import argparse
 import os
-import subprocess
 from datetime import datetime, timezone
 
 import psycopg2
 
+from src.ingestion.common.dag_helpers import resolve_code_version
+from src.ingestion.common.metadata_store import ensure_metadata_tables, upsert_pipeline_run
 
-def _resolve_code_version() -> str:
-    env_sha = os.getenv("GITHUB_SHA")
-    if env_sha:
-        return env_sha
 
-    try:
-        completed = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-        if completed.returncode == 0:
-            value = completed.stdout.strip()
-            if value:
-                return value
-    except Exception:
-        pass
-
-    return "unknown"
+class _WarehouseConnAdapter:
+    def __init__(self) -> None:
+        self.host = os.getenv("WAREHOUSE_HOST", "localhost")
+        self.port = int(os.getenv("WAREHOUSE_PORT", "5433"))
+        self.schema = os.getenv("WAREHOUSE_DB", "open_data_platform_dw")
+        self.login = os.getenv("WAREHOUSE_USER", "admin")
+        self.password = os.getenv("WAREHOUSE_PASSWORD", "admin")
 
 
 def _connect():
@@ -54,20 +43,17 @@ def _parse_args() -> argparse.Namespace:
 def main() -> int:
     args = _parse_args()
 
-    triggered_by = (
-        os.getenv("GITHUB_ACTOR")
-        or os.getenv("USER")
-        or os.getenv("USERNAME")
-        or "unknown"
-    )
-    code_version = _resolve_code_version()
+    triggered_by = os.getenv("GITHUB_ACTOR") or os.getenv("USER") or os.getenv("USERNAME") or "unknown"
+    code_version = resolve_code_version()
 
     # Validate timestamp inputs eagerly.
     datetime.fromisoformat(args.started_at_utc.replace("Z", "+00:00"))
     datetime.fromisoformat(args.finished_at_utc.replace("Z", "+00:00"))
 
     conn = _connect()
+    conn_adapter = _WarehouseConnAdapter()
     try:
+        ensure_metadata_tables(conn=conn_adapter)
         with conn.cursor() as cur:
             cur.execute("CREATE SCHEMA IF NOT EXISTS platform_audit")
             cur.execute(
@@ -118,6 +104,21 @@ def main() -> int:
         conn.commit()
     finally:
         conn.close()
+
+    upsert_pipeline_run(
+        run_id=args.run_id,
+        pipeline_name=args.pipeline_name,
+        dag_id=args.pipeline_name,
+        source_name="qa",
+        dataset="governance",
+        status=args.status,
+        triggered_by=triggered_by,
+        code_version=code_version,
+        started_at_utc=datetime.fromisoformat(args.started_at_utc.replace("Z", "+00:00")),
+        finished_at_utc=datetime.fromisoformat(args.finished_at_utc.replace("Z", "+00:00")),
+        metadata={"origin": "tests/e2e/scripts/log_pipeline_run.py"},
+        conn=conn_adapter,
+    )
 
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     print(

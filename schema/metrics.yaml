@@ -9,7 +9,7 @@ defaults:
 metrics:
   - id: job_market_total_vacancies
     name: "Total Vacancies"
-    domain: "job_market_nl"
+    domain: "odp_staffing_demand"
     owner: "job-market.owner@example.com"
     steward: "job-market.steward@example.com"
     description: "Sum of vacancies in the latest job market snapshot."
@@ -17,7 +17,7 @@ metrics:
     certification: "DRAFT"
     grain: "month"
     source:
-      dataset: "job_market_nl.it_market_snapshot"
+      dataset: "odp_staffing_demand.it_market_snapshot"
       primary_key: "period_key"
       timestamp_column: "period_key"
     dimensions:
@@ -34,6 +34,6 @@ metrics:
         severity: "medium"
     lineage:
       upstream_datasets:
-        - "job_market_nl.it_market_snapshot"
+        - "odp_staffing_demand.it_market_snapshot"
     change_policy:
       breaking_change_requires: "analytics_lead_approval"

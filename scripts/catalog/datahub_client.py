@@ -41,7 +41,7 @@ class DataHubService:
     def emit_dataset_properties(self, dataset_urn, properties, description=None):
         """
         Emit properties for a dataset.
-        dataset_urn: e.g. "urn:li:dataset:(urn:li:dataPlatform:postgres,open_data_platform_dw.public.job_market_nl,PROD)"
+        dataset_urn: e.g. "urn:li:dataset:(urn:li:dataPlatform:postgres,open_data_platform_dw.public.odp_staffing_demand,PROD)"
         """
         try:
             dataset_properties = DatasetPropertiesClass(

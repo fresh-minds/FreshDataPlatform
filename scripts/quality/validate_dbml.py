@@ -454,7 +454,7 @@ def run_warehouse_drift_check(root: Path) -> Tuple[Optional[ValidationError], Op
         regenerated_file = Path(temp_dir) / "warehouse.regenerated.dbml"
         schema_scope = os.getenv(
             "WAREHOUSE_SCHEMA_DRIFT_SCHEMAS",
-            "job_market_nl,job_market_nl_dbt,snapshots,public",
+            "odp_staffing_demand,odp_staffing_demand_dbt,snapshots,public",
         )
         command = [
             sys.executable,

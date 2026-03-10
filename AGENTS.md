@@ -48,7 +48,7 @@ These instructions apply to every change in this repository.
 ## Nested AGENTS Strategy
 - Use local instructions in these subprojects when working there:
   - `frontend/AGENTS.md`
-  - `dbt_parallel/AGENTS.md`
+  - `dbt/AGENTS.md`
   - `scripts/AGENTS.md`
   - `schema/AGENTS.md`
   - `k8s/AGENTS.md`

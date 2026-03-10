@@ -7,7 +7,10 @@ seamlessly in both local development and Microsoft Fabric.
 
 import os
 from enum import Enum
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 from shared.config.settings import get_settings
 
@@ -41,7 +44,7 @@ def get_lakehouse_table_path(
     Args:
         table_name: Name of the table (e.g., "verkooporders")
         layer: Medallion layer (bronze, silver, gold)
-        domain: Data domain (e.g., sales, hr, job_market_nl)
+        domain: Data domain (e.g., sales, hr, odp_staffing_demand)
         workspace_id: Fabric workspace ID (optional, uses settings if not provided)
         lakehouse_id: Fabric lakehouse ID (optional, uses settings if not provided)
         is_local: Override environment detection (optional)
@@ -67,7 +70,7 @@ def get_lakehouse_table_path(
             path = f"s3a://{bucket}/{domain}/{table_name}"
             print(f"[Paths] using MinIO path: {path}")
             return path
-        
+
         print(f"[Paths] using local path (USE_MINIO={use_minio})")
         # Local path: ./data/{domain}/{layer}/{table_name}
         base_path = os.getenv("LOCAL_LAKEHOUSE_PATH", settings.local.lakehouse_path)

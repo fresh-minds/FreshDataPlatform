@@ -164,6 +164,14 @@ For faster incremental app rollouts (without infra/parity re-apply):
 make k8s-aks-update-images
 ```
 
+When `AKS_IMAGES` includes `airflow`, this command also:
+- refreshes ConfigMap `airflow-webserver-config` from
+  `airflow/webserver_config.py` before Airflow rollout (so OAuth/auth config
+  changes are applied with the restart), and
+- refreshes `dbt-docs` by updating the docs-generator initContainer image and
+  bumping the `dbt-docs/build-id` annotation.
+You can override the annotation value with `DBT_DOCS_BUILD_ID=<custom-id>`.
+
 To patch only specific services:
 
 ```bash
@@ -316,20 +324,49 @@ Local kind:
 - Ensure `.env` includes a strong `MINIO_SSO_BRIDGE_SESSION_SECRET` (32+ chars, non-placeholder).
 
 AKS:
+- AKS Keycloak realm import seeds two test users by default:
+  - `odp-admin` with password from `KEYCLOAK_DEFAULT_USER_PASSWORD`
+  - `demo` with password from `KEYCLOAK_DEMO_USER_PASSWORD` (defaults to `demo` when unset)
 - Set `KEYCLOAK_OIDC_BASE_URL`, `KEYCLOAK_OIDC_AUTHORIZE_URL`, `KEYCLOAK_OIDC_TOKEN_URL`,
   and `KEYCLOAK_OIDC_DISCOVERY_URL` to the public Keycloak hostname (for example:
   `https://keycloak.FRONTEND_DOMAIN/realms/odp/protocol/openid-connect`).
+- MinIO SSO defaults to Keycloak **odp** realm in AKS (`KEYCLOAK_REALM_K8S=odp`
+  and `MINIO_KEYCLOAK_OIDC_DISCOVERY_URL_K8S=https://keycloak.FRONTEND_DOMAIN/realms/odp/.well-known/openid-configuration`).
 - Set `MINIO_OIDC_REDIRECT_URI=https://minio.FRONTEND_DOMAIN/oauth_callback`.
-- MinIO login entrypoints `https://minio.FRONTEND_DOMAIN/login`, `/start`, and `/callback`
+- Ensure the Keycloak `minio` client allows both:
+  `https://minio.FRONTEND_DOMAIN/oauth_callback` and `https://minio.FRONTEND_DOMAIN/callback`.
+- MinIO login entrypoints `https://minio.FRONTEND_DOMAIN/`, `/login`, `/start`, and `/callback`
   are routed through `minio-sso-bridge`, so users with an existing Keycloak session are
   redirected straight back into the MinIO console.
+- Bridge root behavior (`/`): when a valid MinIO `token` cookie is already present, it redirects
+  directly to `/browser`; otherwise it falls back to `/start` (Keycloak SSO flow).
+- Bridge `/start` performs a silent `prompt=none` check first; when Keycloak returns
+  `login_required`, bridge automatically retries with interactive login.
 - Verify ingress behavior:
   ```bash
-  curl -sS -D - -o /dev/null "https://minio.${FRONTEND_DOMAIN}/login"
+  curl -sS -D - -o /dev/null "https://minio.${FRONTEND_DOMAIN}/"
   ```
-  Expect a `302` redirect to Keycloak (`/protocol/openid-connect/auth`).
+  Expect a `302` redirect to `/start`.
+- Verify bridge realm targeting:
+  ```bash
+  curl -sS -D - -o /dev/null "https://minio.${FRONTEND_DOMAIN}/login" | awk '/^location:/I {print $2}' | tr -d '\r'
+  ```
+  Expect the redirect URL to include `/realms/odp/protocol/openid-connect/auth`.
+- Verify Keycloak accepts the bridge callback URI:
+  ```bash
+  auth_url="$(curl -sS -D - -o /dev/null "https://minio.${FRONTEND_DOMAIN}/login" | awk 'tolower($1)==\"location:\" {print $2; exit}' | tr -d '\r')"
+  curl -sS -D - -o /tmp/minio-kc-auth.html "$auth_url" | head -n 1
+  grep -q "Invalid parameter: redirect_uri" /tmp/minio-kc-auth.html && echo "invalid redirect URI in Keycloak client" || echo "bridge callback URI accepted"
+  ```
+  Expect an HTTP `200` or `302`, and no `Invalid parameter: redirect_uri` in the response body.
 - Realm self-registration is disabled by default in bundled manifests (`registrationAllowed: false`).
 - Keep `AIRFLOW_OAUTH_DEFAULT_ROLE` at least privilege (`Viewer`) unless you have a controlled admin onboarding flow.
+- Airflow OAuth role mapping uses Keycloak role claims at login:
+  - `admin` or `airflow_admin` -> Airflow `Admin`
+  - `airflow_op` -> Airflow `Op`
+  - `airflow_user` -> Airflow `User`
+  - `airflow_viewer` -> Airflow `Viewer`
+  Users without matching claims fall back to `AIRFLOW_OAUTH_DEFAULT_ROLE` (default `Viewer`).
 - Airflow metadata Postgres manifests use `POSTGRES_HOST_AUTH_METHOD=scram-sha-256` (password-based host auth).
 
 ## AKS Ingress + TLS (Custom Domain)

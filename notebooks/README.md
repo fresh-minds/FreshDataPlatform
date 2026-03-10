@@ -30,6 +30,6 @@ Helper utilities live in `notebooks/helpers/platform_io.py`.
 ```python
 from helpers.platform_io import list_minio_objects, query_postgres
 
-list_minio_objects("gold", prefix="job_market_nl/")
+list_minio_objects("gold", prefix="odp_staffing_demand/")
 query_postgres("select table_schema, table_name from information_schema.tables limit 5")
 ```

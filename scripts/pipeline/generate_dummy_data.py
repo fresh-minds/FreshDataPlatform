@@ -37,7 +37,7 @@ def generate_dummy_job_market(spark):
     gold_path = get_lakehouse_table_path(
         table_name="it_market_snapshot",
         layer=LakehouseLayer.GOLD,
-        domain="job_market_nl",
+        domain="odp_staffing_demand",
     )
 
     print(f"Writing {df.count()} records to {gold_path}...")

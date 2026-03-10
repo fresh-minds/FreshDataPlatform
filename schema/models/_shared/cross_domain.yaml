@@ -1,0 +1,19 @@
+# Cross-domain relationship definitions
+#
+# These define how entities from different domains can be joined in the gold
+# layer to produce cross-domain fact tables.  Each relationship produces a
+# corresponding dbt model in dbt/models/gold/cross_domain/.
+#
+# This file is a placeholder — add relationships as new domains are onboarded.
+
+version: "1.0"
+
+cross_domain_relationships: []
+  # Example for future use:
+  # - name: cost_per_hire
+  #   description: "Links finance invoices to job market vacancies for recruitment cost analysis"
+  #   domains: [finance, odp_staffing_demand]
+  #   from: finance.invoice
+  #   to: odp_staffing_demand.job_posting
+  #   join_key: vendor_name -> company
+  #   gold_fact: fact_cost_per_hire

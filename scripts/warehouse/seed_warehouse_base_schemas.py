@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Seed base warehouse schemas from dbt_parallel outputs for local E2E runs."""
+"""Seed base warehouse schemas from dbt outputs for local E2E runs."""
 
 from __future__ import annotations
 
@@ -22,8 +22,8 @@ class SeedSpec:
 
 SEED_SPECS = [
     SeedSpec(
-        target_schema="job_market_nl",
-        source_schema="job_market_nl_dbt",
+        target_schema="odp_staffing_demand",
+        source_schema="odp_staffing_demand_dbt",
         tables=[
             "job_market_snapshot",
             "job_market_top_skills",
@@ -97,7 +97,7 @@ def main() -> int:
     finally:
         conn.close()
 
-    print("Seeded base schemas from dbt_parallel outputs.")
+    print("Seeded base schemas from dbt outputs.")
     print(f"Created/updated tables: {len(created_total)}")
     if created_total:
         print("  " + ", ".join(created_total))

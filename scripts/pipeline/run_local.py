@@ -6,7 +6,7 @@ Provides a unified interface for running data pipelines locally
 with full support for the same code that runs in Microsoft Fabric.
 
 Usage:
-    python scripts/pipeline/run_local.py --pipeline job_market_nl.bronze_adzuna_jobs
+    python scripts/pipeline/run_local.py --pipeline odp_staffing_demand.bronze_adzuna_jobs
     python scripts/pipeline/run_local.py --list
 """
 
@@ -36,6 +36,8 @@ from shared.observability import get_observability
 # Registry of available pipelines
 PIPELINE_REGISTRY: Dict[str, Callable] = {}
 OBSERVABILITY = get_observability("open-data-platform-pipeline-runner")
+LEGACY_DOMAIN = "odp_staffing_demand"
+CANONICAL_DOMAIN = "odp_staffing_demand"
 
 
 def register_pipeline(name: str, func: Callable) -> None:
@@ -45,40 +47,69 @@ def register_pipeline(name: str, func: Callable) -> None:
 
 def load_pipelines(only_domain: Optional[str] = None, only_pipeline: Optional[str] = None) -> None:
     """Load pipeline modules and register them, optionally scoped to a domain or pipeline."""
-    def _want(name: str) -> bool:
-        return only_pipeline is None or only_pipeline == name
-    if only_domain in (None, "job_market_nl"):
-        if _want("job_market_nl.bronze_cbs_vacancy_rate"):
-            from pipelines.job_market_nl.bronze_cbs_vacancy_rate import run_bronze_cbs_vacancy_rate
-            register_pipeline("job_market_nl.bronze_cbs_vacancy_rate", run_bronze_cbs_vacancy_rate)
+    def _want(canonical_name: str, legacy_name: str) -> bool:
+        return only_pipeline is None or only_pipeline in (canonical_name, legacy_name)
 
-        if _want("job_market_nl.bronze_adzuna_jobs"):
-            from pipelines.job_market_nl.bronze_adzuna_jobs import run_bronze_adzuna_jobs
-            register_pipeline("job_market_nl.bronze_adzuna_jobs", run_bronze_adzuna_jobs)
+    def _register_with_legacy_alias(pipeline_name_suffix: str, func: Callable) -> None:
+        register_pipeline(f"{CANONICAL_DOMAIN}.{pipeline_name_suffix}", func)
+        register_pipeline(f"{LEGACY_DOMAIN}.{pipeline_name_suffix}", func)
 
-        if _want("job_market_nl.bronze_uwv_open_match"):
-            from pipelines.job_market_nl.bronze_uwv_open_match import run_bronze_uwv_open_match
-            register_pipeline("job_market_nl.bronze_uwv_open_match", run_bronze_uwv_open_match)
+    if only_domain in (None, LEGACY_DOMAIN, CANONICAL_DOMAIN):
+        canonical = f"{CANONICAL_DOMAIN}.bronze_cbs_vacancy_rate"
+        legacy = f"{LEGACY_DOMAIN}.bronze_cbs_vacancy_rate"
+        if _want(canonical, legacy):
+            from pipelines.odp_staffing_demand.bronze_cbs_vacancy_rate import run_bronze_cbs_vacancy_rate
 
-        if _want("job_market_nl.silver_cbs_vacancy_rate"):
-            from pipelines.job_market_nl.silver_cbs_vacancy_rate import run_silver_cbs_vacancy_rate
-            register_pipeline("job_market_nl.silver_cbs_vacancy_rate", run_silver_cbs_vacancy_rate)
+            _register_with_legacy_alias("bronze_cbs_vacancy_rate", run_bronze_cbs_vacancy_rate)
 
-        if _want("job_market_nl.silver_adzuna_jobs"):
-            from pipelines.job_market_nl.silver_adzuna_jobs import run_silver_adzuna_jobs
-            register_pipeline("job_market_nl.silver_adzuna_jobs", run_silver_adzuna_jobs)
+        canonical = f"{CANONICAL_DOMAIN}.bronze_adzuna_jobs"
+        legacy = f"{LEGACY_DOMAIN}.bronze_adzuna_jobs"
+        if _want(canonical, legacy):
+            from pipelines.odp_staffing_demand.bronze_adzuna_jobs import run_bronze_adzuna_jobs
 
-        if _want("job_market_nl.silver_uwv_open_match"):
-            from pipelines.job_market_nl.silver_uwv_open_match import run_silver_uwv_open_match
-            register_pipeline("job_market_nl.silver_uwv_open_match", run_silver_uwv_open_match)
+            _register_with_legacy_alias("bronze_adzuna_jobs", run_bronze_adzuna_jobs)
 
-        if _want("job_market_nl.gold_it_market_snapshot"):
-            from pipelines.job_market_nl.gold_it_market_snapshot import run_gold_it_market_snapshot
-            register_pipeline("job_market_nl.gold_it_market_snapshot", run_gold_it_market_snapshot)
+        canonical = f"{CANONICAL_DOMAIN}.bronze_uwv_open_match"
+        legacy = f"{LEGACY_DOMAIN}.bronze_uwv_open_match"
+        if _want(canonical, legacy):
+            from pipelines.odp_staffing_demand.bronze_uwv_open_match import run_bronze_uwv_open_match
 
-        if _want("job_market_nl.export_to_warehouse"):
-            from pipelines.job_market_nl.export_to_warehouse import run_export_job_market_to_warehouse
-            register_pipeline("job_market_nl.export_to_warehouse", run_export_job_market_to_warehouse)
+            _register_with_legacy_alias("bronze_uwv_open_match", run_bronze_uwv_open_match)
+
+        canonical = f"{CANONICAL_DOMAIN}.silver_cbs_vacancy_rate"
+        legacy = f"{LEGACY_DOMAIN}.silver_cbs_vacancy_rate"
+        if _want(canonical, legacy):
+            from pipelines.odp_staffing_demand.silver_cbs_vacancy_rate import run_silver_cbs_vacancy_rate
+
+            _register_with_legacy_alias("silver_cbs_vacancy_rate", run_silver_cbs_vacancy_rate)
+
+        canonical = f"{CANONICAL_DOMAIN}.silver_adzuna_jobs"
+        legacy = f"{LEGACY_DOMAIN}.silver_adzuna_jobs"
+        if _want(canonical, legacy):
+            from pipelines.odp_staffing_demand.silver_adzuna_jobs import run_silver_adzuna_jobs
+
+            _register_with_legacy_alias("silver_adzuna_jobs", run_silver_adzuna_jobs)
+
+        canonical = f"{CANONICAL_DOMAIN}.silver_uwv_open_match"
+        legacy = f"{LEGACY_DOMAIN}.silver_uwv_open_match"
+        if _want(canonical, legacy):
+            from pipelines.odp_staffing_demand.silver_uwv_open_match import run_silver_uwv_open_match
+
+            _register_with_legacy_alias("silver_uwv_open_match", run_silver_uwv_open_match)
+
+        canonical = f"{CANONICAL_DOMAIN}.gold_it_market_snapshot"
+        legacy = f"{LEGACY_DOMAIN}.gold_it_market_snapshot"
+        if _want(canonical, legacy):
+            from pipelines.odp_staffing_demand.gold_it_market_snapshot import run_gold_it_market_snapshot
+
+            _register_with_legacy_alias("gold_it_market_snapshot", run_gold_it_market_snapshot)
+
+        canonical = f"{CANONICAL_DOMAIN}.export_to_warehouse"
+        legacy = f"{LEGACY_DOMAIN}.export_to_warehouse"
+        if _want(canonical, legacy):
+            from pipelines.odp_staffing_demand.export_to_warehouse import run_export_job_market_to_warehouse
+
+            _register_with_legacy_alias("export_to_warehouse", run_export_job_market_to_warehouse)
 
 
 def run_pipeline(name: str, dry_run: bool = False) -> None:
@@ -86,7 +117,7 @@ def run_pipeline(name: str, dry_run: bool = False) -> None:
     Run a specific pipeline by name.
 
     Args:
-        name: Pipeline name (e.g., "job_market_nl.bronze_adzuna_jobs")
+        name: Pipeline name (e.g., "odp_staffing_demand.bronze_adzuna_jobs")
         dry_run: If True, only verify setup without running
     """
     if name not in PIPELINE_REGISTRY:
@@ -177,7 +208,7 @@ def run_pipelines_by_filter(
     Run multiple pipelines matching filter criteria.
 
     Args:
-        domain: Filter by domain (e.g., "job_market_nl")
+        domain: Filter by domain (e.g., "odp_staffing_demand")
         layer: Filter by layer (e.g., "bronze")
         dry_run: If True, only verify setup
     """
@@ -222,21 +253,21 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python scripts/pipeline/run_local.py --pipeline job_market_nl.bronze_adzuna_jobs
-  python scripts/pipeline/run_local.py --domain job_market_nl --layer bronze
+    python scripts/pipeline/run_local.py --pipeline odp_staffing_demand.bronze_adzuna_jobs
+    python scripts/pipeline/run_local.py --domain odp_staffing_demand --layer bronze
   python scripts/pipeline/run_local.py --list
-  python scripts/pipeline/run_local.py --pipeline job_market_nl.bronze_adzuna_jobs --dry-run
+    python scripts/pipeline/run_local.py --pipeline odp_staffing_demand.bronze_adzuna_jobs --dry-run
         """,
     )
     parser.add_argument(
         "--pipeline",
         "-p",
-        help="Specific pipeline to run (e.g., job_market_nl.bronze_adzuna_jobs)",
+        help="Specific pipeline to run (e.g., odp_staffing_demand.bronze_adzuna_jobs)",
     )
     parser.add_argument(
         "--domain",
         "-d",
-        help="Run all pipelines for a domain (e.g., job_market_nl)",
+        help="Run all pipelines for a domain (e.g., odp_staffing_demand)",
     )
     parser.add_argument(
         "--layer",

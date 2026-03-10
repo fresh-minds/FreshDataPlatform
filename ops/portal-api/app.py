@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Literal
+from urllib.parse import urlsplit
+from uuid import uuid4
 
 import jwt
 import requests
@@ -109,7 +113,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=SETTINGS.cors_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )
 
@@ -128,9 +132,110 @@ class ChatResponse(BaseModel):
     reply: str
 
 
+class HomeVisitRequest(BaseModel):
+    page: str = Field(default="/", min_length=1, max_length=256)
+
+
+class HomeVisitResponse(BaseModel):
+    visitId: str
+    totalHomeVisits: int
+
+
+class PageVisitResponse(BaseModel):
+    page: str
+    pageVisits: int
+    totalPageVisits: int
+
+
+class LoginMetadataRequest(BaseModel):
+    visitId: str | None = Field(default=None, max_length=128)
+
+
 # JWKS cache
 _jwks_cache: dict = {"keys": [], "fetched_at": 0.0}
 _JWKS_CACHE_TTL_SECONDS = 300
+
+# In-memory telemetry store for anonymous home visits and login metadata.
+_visit_lock = threading.Lock()
+_home_visit_total = 0
+_page_visit_total = 0
+_pending_home_visits: dict[str, dict] = {}
+_login_events: list[dict] = []
+_page_visit_counts: dict[str, int] = {}
+_page_visit_unique_ips: dict[str, set[str]] = {}
+_api_endpoint_counts: dict[str, int] = {}
+_MAX_PENDING_HOME_VISITS = 5000
+_MAX_LOGIN_EVENTS = 2000
+_MAX_COUNTER_KEYS = 500
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _request_ip(request: Request) -> str:
+    forwarded_for = request.headers.get("x-forwarded-for", "")
+    if forwarded_for:
+        return forwarded_for.split(",", 1)[0].strip()
+    if request.client and request.client.host:
+        return request.client.host
+    return ""
+
+
+def _increment_counter(counter_store: dict[str, int], key: str) -> int:
+    if key not in counter_store and len(counter_store) >= _MAX_COUNTER_KEYS:
+        oldest_key = next(iter(counter_store), None)
+        if oldest_key:
+            counter_store.pop(oldest_key, None)
+    counter_store[key] = counter_store.get(key, 0) + 1
+    return counter_store[key]
+
+
+def _track_page_visit(page: str, ip_address: str) -> tuple[int, int]:
+    global _page_visit_total
+    page_value = _normalise_page(page)
+    page_ip_set = _page_visit_unique_ips.get(page_value)
+    if page_ip_set is None:
+        if len(_page_visit_unique_ips) >= _MAX_COUNTER_KEYS:
+            oldest_page = next(iter(_page_visit_unique_ips), None)
+            if oldest_page:
+                _page_visit_unique_ips.pop(oldest_page, None)
+                _page_visit_counts.pop(oldest_page, None)
+        page_ip_set = set()
+        _page_visit_unique_ips[page_value] = page_ip_set
+
+    ip_value = ip_address.strip() or "unknown"
+    if ip_value not in page_ip_set:
+        page_ip_set.add(ip_value)
+        _page_visit_counts[page_value] = len(page_ip_set)
+        _page_visit_total += 1
+
+    page_count = _page_visit_counts.get(page_value, 0)
+    return page_count, _page_visit_total
+
+
+def _normalise_page(page: str) -> str:
+    raw_value = (page or "").strip()
+    if not raw_value:
+        return "/"
+
+    parts = urlsplit(raw_value)
+    candidate = (parts.path or raw_value).strip()
+    if not candidate.startswith("/"):
+        candidate = f"/{candidate}"
+
+    return candidate[:256]
+
+
+@app.middleware("http")
+async def _track_api_endpoint_visits(request: Request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    if path.startswith("/api/") and not path.startswith("/api/admin"):
+        endpoint_key = f"{request.method.upper()} {path}"
+        with _visit_lock:
+            _increment_counter(_api_endpoint_counts, endpoint_key)
+    return response
 
 
 def _jwks_uri() -> str:
@@ -234,6 +339,11 @@ def _require_admin(claims: dict) -> None:
 
 def _claim_username(claims: dict) -> str:
     return claims.get("preferred_username") or claims.get("email") or "unknown"
+
+
+def _extract_roles(claims: dict) -> list[str]:
+    roles = ((claims.get("realm_access") or {}).get("roles") or [])
+    return [role for role in roles if isinstance(role, str)]
 
 
 def _keycloak_admin_token() -> str | None:
@@ -448,11 +558,14 @@ def _call_foundry_agent_with_default_credential(messages: list[dict], agent_ref:
         openai_client = _get_foundry_openai_client()
         response = openai_client.responses.create(
             input=input_messages,
-            extra_body={"agent": agent_ref},
+            extra_body={"agent_reference": agent_ref},
         )
     except HttpResponseError as exc:
         _raise_foundry_provider_http_exception(claims, exc.status_code if isinstance(exc.status_code, int) else 502, str(exc))
     except Exception as exc:
+        status_code = getattr(exc, "status_code", None)
+        if isinstance(status_code, int) and 400 <= status_code <= 599:
+            _raise_foundry_provider_http_exception(claims, status_code, str(exc))
         LOG.exception("portal_chat_foundry_default_credential_failed subject=%s", claims.get("sub"))
         raise HTTPException(
             status_code=502,
@@ -524,6 +637,164 @@ def _call_foundry_agent(messages: list[dict], claims: dict) -> str:
 @app.get("/healthz", response_class=PlainTextResponse)
 def healthz() -> str:
     return "ok"
+
+
+@app.post("/api/home-visit", response_model=HomeVisitResponse)
+def register_home_visit(request: Request, payload: HomeVisitRequest) -> HomeVisitResponse:
+    visit_id = str(uuid4())
+    normalised_page = _normalise_page(payload.page)
+    event = {
+        "visitId": visit_id,
+        "page": normalised_page,
+        "visitedAt": _now_iso(),
+        "userAgent": request.headers.get("user-agent", ""),
+        "ipAddress": _request_ip(request),
+    }
+
+    with _visit_lock:
+        global _home_visit_total
+        _home_visit_total += 1
+        _track_page_visit(normalised_page, event["ipAddress"])
+        _pending_home_visits[visit_id] = event
+        if len(_pending_home_visits) > _MAX_PENDING_HOME_VISITS:
+            oldest_key = next(iter(_pending_home_visits), None)
+            if oldest_key:
+                _pending_home_visits.pop(oldest_key, None)
+        total = _home_visit_total
+
+    LOG.info("portal_home_visit_registered visit_id=%s page=%s total=%s", visit_id, normalised_page, total)
+    return HomeVisitResponse(visitId=visit_id, totalHomeVisits=total)
+
+
+@app.post("/api/page-visit", response_model=PageVisitResponse)
+def register_page_visit(request: Request, payload: HomeVisitRequest) -> PageVisitResponse:
+    normalised_page = _normalise_page(payload.page)
+    ip_address = _request_ip(request)
+    with _visit_lock:
+        page_visits, total_page_visits = _track_page_visit(normalised_page, ip_address)
+
+    LOG.info(
+        "portal_page_visit_registered page=%s ip=%s page_visits=%s total_page_visits=%s",
+        normalised_page,
+        ip_address,
+        page_visits,
+        total_page_visits,
+    )
+    return PageVisitResponse(page=normalised_page, pageVisits=page_visits, totalPageVisits=total_page_visits)
+
+
+@app.post("/api/login-metadata")
+def register_login_metadata(request: Request, payload: LoginMetadataRequest) -> dict:
+    token = _extract_bearer_token(request)
+    claims = _verify_portal_token(token)
+
+    visit_event = None
+    if payload.visitId:
+        with _visit_lock:
+            visit_event = _pending_home_visits.pop(payload.visitId, None)
+
+    login_event = {
+        "eventId": str(uuid4()),
+        "loggedInAt": _now_iso(),
+        "subject": claims.get("sub"),
+        "username": _claim_username(claims),
+        "email": claims.get("email"),
+        "roles": _extract_roles(claims),
+        "issuer": claims.get("iss"),
+        "visitId": payload.visitId,
+        "homeVisit": visit_event,
+        "userAgent": request.headers.get("user-agent", ""),
+        "ipAddress": _request_ip(request),
+    }
+
+    with _visit_lock:
+        _login_events.append(login_event)
+        if len(_login_events) > _MAX_LOGIN_EVENTS:
+            del _login_events[: len(_login_events) - _MAX_LOGIN_EVENTS]
+
+    LOG.info(
+        "portal_login_metadata_registered subject=%s username=%s visit_id=%s",
+        claims.get("sub"),
+        _claim_username(claims),
+        payload.visitId,
+    )
+    return {"ok": True}
+
+
+@app.get("/api/admin/login-metadata")
+def get_login_metadata(request: Request) -> dict:
+    token = _extract_bearer_token(request)
+    claims = _verify_portal_token(token)
+    _require_admin(claims)
+
+    with _visit_lock:
+        events = list(reversed(_login_events))
+        pending = len(_pending_home_visits)
+        total_home_visits = _home_visit_total
+        total_page_visits = _page_visit_total
+        total_api_endpoint_hits = sum(_api_endpoint_counts.values())
+        page_visit_counts = [
+            {"page": page, "count": count}
+            for page, count in sorted(_page_visit_counts.items(), key=lambda item: (-item[1], item[0]))
+        ]
+        api_endpoint_counts = [
+            {"endpoint": endpoint, "count": count}
+            for endpoint, count in sorted(_api_endpoint_counts.items(), key=lambda item: (-item[1], item[0]))
+        ]
+
+    LOG.info(
+        "portal_login_metadata_read subject=%s username=%s total_events=%s total_home_visits=%s",
+        claims.get("sub"),
+        _claim_username(claims),
+        len(events),
+        total_home_visits,
+    )
+    return {
+        "totalHomeVisits": total_home_visits,
+        "totalPageVisits": total_page_visits,
+        "totalApiEndpointHits": total_api_endpoint_hits,
+        "pendingHomeVisits": pending,
+        "totalLoginEvents": len(events),
+        "pageVisitCounts": page_visit_counts,
+        "apiEndpointCounts": api_endpoint_counts,
+        "loginEvents": events,
+    }
+
+
+@app.delete("/api/admin/login-metadata")
+def clear_login_metadata(request: Request) -> dict:
+    token = _extract_bearer_token(request)
+    claims = _verify_portal_token(token)
+    _require_admin(claims)
+
+    with _visit_lock:
+        global _home_visit_total, _page_visit_total
+        removed_login_events = len(_login_events)
+        removed_pending_visits = len(_pending_home_visits)
+        removed_page_counters = len(_page_visit_counts)
+        removed_endpoint_counters = len(_api_endpoint_counts)
+        _login_events.clear()
+        _pending_home_visits.clear()
+        _page_visit_counts.clear()
+        _page_visit_unique_ips.clear()
+        _api_endpoint_counts.clear()
+        _home_visit_total = 0
+        _page_visit_total = 0
+
+    LOG.info(
+        "portal_login_metadata_cleared subject=%s username=%s removed_login_events=%s removed_pending_visits=%s",
+        claims.get("sub"),
+        _claim_username(claims),
+        removed_login_events,
+        removed_pending_visits,
+    )
+    return {
+        "ok": True,
+        "removedLoginEvents": removed_login_events,
+        "removedPendingHomeVisits": removed_pending_visits,
+        "removedPageCounters": removed_page_counters,
+        "removedEndpointCounters": removed_endpoint_counters,
+    }
 
 
 @app.get("/api/users")

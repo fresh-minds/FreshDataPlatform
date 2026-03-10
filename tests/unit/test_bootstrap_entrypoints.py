@@ -15,7 +15,7 @@ def test_bootstrap_script_verifies_keycloak_resources() -> None:
 def test_bootstrap_script_ensures_job_market_sources_before_dbt() -> None:
     script = (Path(__file__).resolve().parents[2] / "scripts" / "platform" / "bootstrap_all.sh").read_text()
     ensure_idx = script.find("ensure_job_market_source_tables.py")
-    dbt_idx = script.find("scripts/pipeline/run_dbt_parallel.sh")
+    dbt_idx = script.find("scripts/pipeline/run_dbt.sh")
 
     assert ensure_idx != -1
     assert dbt_idx != -1

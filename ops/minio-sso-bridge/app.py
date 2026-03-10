@@ -11,7 +11,7 @@ import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 import requests
 from defusedxml import ElementTree as ET
@@ -48,6 +48,10 @@ class BridgeSettings:
     @property
     def callback_url(self) -> str:
         return f"{self.bridge_base_url.rstrip('/')}/callback"
+
+    @property
+    def minio_oauth_callback_url(self) -> str:
+        return f"{self.minio_console_public_url.rstrip('/')}/oauth_callback"
 
 
 SETTINGS = BridgeSettings(
@@ -168,6 +172,110 @@ def _extract_set_cookie_headers(response: requests.Response) -> list[str]:
     return []
 
 
+def _token_fingerprint(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()[:12]
+
+
+def _session_probe_result(token: str) -> tuple[bool, int | None]:
+    session_url = f"{SETTINGS.minio_console_internal_url.rstrip('/')}/api/v1/session"
+    try:
+        response = requests.get(
+            session_url,
+            cookies={"token": token},
+            timeout=5,
+        )
+    except requests.RequestException as exc:
+        LOG.warning("Failed to verify MinIO console session cookie: %s", exc)
+        return False, None
+
+    return response.status_code == 200, response.status_code
+
+
+def _url_origin(url: str) -> str:
+    parsed = urlsplit(url)
+    if parsed.scheme and parsed.netloc:
+        return f"{parsed.scheme}://{parsed.netloc}"
+    return url.rstrip("/")
+
+
+def _append_unique(values: list[str], value: str) -> bool:
+    if value in values:
+        return False
+    values.append(value)
+    return True
+
+
+def _minio_client_protocol_mappers() -> list[dict[str, Any]]:
+    return [
+        {
+            "name": "minio-audience",
+            "protocol": "openid-connect",
+            "protocolMapper": "oidc-audience-mapper",
+            "config": {
+                "included.client.audience": SETTINGS.keycloak_minio_client_id,
+                "access.token.claim": "true",
+                "id.token.claim": "false",
+                "userinfo.token.claim": "false",
+            },
+        },
+        {
+            "name": "minio-policy",
+            "protocol": "openid-connect",
+            "protocolMapper": "oidc-hardcoded-claim-mapper",
+            "config": {
+                "claim.name": "policy",
+                "claim.value": "consoleAdmin",
+                "jsonType.label": "String",
+                "access.token.claim": "true",
+                "id.token.claim": "true",
+                "userinfo.token.claim": "true",
+            },
+        },
+    ]
+
+
+def _ensure_protocol_mapper(client_doc: dict[str, Any], mapper: dict[str, Any]) -> bool:
+    mapper_name = mapper.get("name")
+    if not isinstance(mapper_name, str) or not mapper_name:
+        return False
+
+    mappers = list(client_doc.get("protocolMappers") or [])
+    if any(isinstance(existing, dict) and existing.get("name") == mapper_name for existing in mappers):
+        return False
+
+    mappers.append(mapper)
+    client_doc["protocolMappers"] = mappers
+    return True
+
+
+def _default_minio_client_doc() -> dict[str, Any]:
+    web_origins = list(
+        dict.fromkeys(
+            (
+                _url_origin(SETTINGS.minio_console_public_url),
+                _url_origin(SETTINGS.bridge_base_url),
+            ),
+        ),
+    )
+
+    return {
+        "clientId": SETTINGS.keycloak_minio_client_id,
+        "name": "MinIO Console",
+        "enabled": True,
+        "protocol": "openid-connect",
+        "publicClient": False,
+        "secret": SETTINGS.keycloak_minio_client_secret,
+        "standardFlowEnabled": True,
+        "directAccessGrantsEnabled": True,
+        "redirectUris": [
+            SETTINGS.minio_oauth_callback_url,
+            SETTINGS.callback_url,
+        ],
+        "webOrigins": web_origins,
+        "protocolMappers": _minio_client_protocol_mappers(),
+    }
+
+
 def _keycloak_admin_token() -> str | None:
     if not SETTINGS.keycloak_admin_user or not SETTINGS.keycloak_admin_password:
         return None
@@ -217,8 +325,43 @@ def _ensure_minio_client_redirect() -> None:
 
     clients = response.json()
     if not clients:
-        LOG.warning("Keycloak client '%s' not found", SETTINGS.keycloak_minio_client_id)
-        return
+        create_response = requests.post(
+            clients_url,
+            headers=headers,
+            json=_default_minio_client_doc(),
+            timeout=10,
+        )
+        if create_response.status_code not in {200, 201, 204}:
+            LOG.warning(
+                "Failed to create Keycloak client '%s' in realm '%s': status=%s",
+                SETTINGS.keycloak_minio_client_id,
+                SETTINGS.keycloak_realm,
+                create_response.status_code,
+            )
+            return
+
+        LOG.info(
+            "Created missing Keycloak client '%s' in realm '%s'",
+            SETTINGS.keycloak_minio_client_id,
+            SETTINGS.keycloak_realm,
+        )
+
+        response = requests.get(
+            clients_url,
+            params={"clientId": SETTINGS.keycloak_minio_client_id},
+            headers=headers,
+            timeout=10,
+        )
+        if response.status_code != 200:
+            LOG.warning(
+                "Could not fetch created Keycloak client config for %s",
+                SETTINGS.keycloak_minio_client_id,
+            )
+            return
+        clients = response.json()
+        if not clients:
+            LOG.warning("Keycloak client '%s' still not found after create", SETTINGS.keycloak_minio_client_id)
+            return
 
     client_uuid = clients[0].get("id")
     if not client_uuid:
@@ -235,17 +378,38 @@ def _ensure_minio_client_redirect() -> None:
 
     changed = False
 
-    redirect_uris = list(client_doc.get("redirectUris") or [])
-    if SETTINGS.callback_url not in redirect_uris:
-        redirect_uris.append(SETTINGS.callback_url)
-        client_doc["redirectUris"] = redirect_uris
+    if client_doc.get("protocol") != "openid-connect":
+        client_doc["protocol"] = "openid-connect"
         changed = True
 
-    web_origins = list(client_doc.get("webOrigins") or [])
-    if SETTINGS.bridge_base_url not in web_origins:
-        web_origins.append(SETTINGS.bridge_base_url)
-        client_doc["webOrigins"] = web_origins
+    if client_doc.get("publicClient") is not False:
+        client_doc["publicClient"] = False
         changed = True
+
+    if client_doc.get("standardFlowEnabled") is not True:
+        client_doc["standardFlowEnabled"] = True
+        changed = True
+
+    if client_doc.get("directAccessGrantsEnabled") is not True:
+        client_doc["directAccessGrantsEnabled"] = True
+        changed = True
+
+    if client_doc.get("secret") != SETTINGS.keycloak_minio_client_secret:
+        client_doc["secret"] = SETTINGS.keycloak_minio_client_secret
+        changed = True
+
+    redirect_uris = list(client_doc.get("redirectUris") or [])
+    changed = _append_unique(redirect_uris, SETTINGS.callback_url) or changed
+    changed = _append_unique(redirect_uris, SETTINGS.minio_oauth_callback_url) or changed
+    client_doc["redirectUris"] = redirect_uris
+
+    web_origins = list(client_doc.get("webOrigins") or [])
+    changed = _append_unique(web_origins, _url_origin(SETTINGS.bridge_base_url)) or changed
+    changed = _append_unique(web_origins, _url_origin(SETTINGS.minio_console_public_url)) or changed
+    client_doc["webOrigins"] = web_origins
+
+    for mapper in _minio_client_protocol_mappers():
+        changed = _ensure_protocol_mapper(client_doc, mapper) or changed
 
     if not changed:
         return
@@ -264,14 +428,46 @@ def healthz() -> str:
 
 
 @app.get("/")
-def index() -> RedirectResponse:
-    """Auto-redirect to /start to begin Keycloak SSO immediately."""
+def index(request: Request) -> RedirectResponse:
+    """Reuse active MinIO console session; otherwise begin Keycloak SSO."""
+    token = request.cookies.get("token")
+    token_present = bool(token)
+    token_fp = _token_fingerprint(token) if token else "-"
+    client_ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "-")
+
+    if token:
+        token_valid, probe_status = _session_probe_result(token)
+        LOG.info(
+            "index request ip=%s token_present=%s token_fp=%s token_valid=%s probe_status=%s",
+            client_ip,
+            token_present,
+            token_fp,
+            token_valid,
+            probe_status,
+        )
+    else:
+        token_valid = False
+        LOG.info(
+            "index request ip=%s token_present=%s token_fp=%s token_valid=%s probe_status=%s",
+            client_ip,
+            token_present,
+            token_fp,
+            token_valid,
+            "-",
+        )
+
+    if token_valid:
+        return RedirectResponse(
+            url=f"{SETTINGS.minio_console_public_url.rstrip('/')}/browser",
+            status_code=302,
+        )
+
     return RedirectResponse(url="/start", status_code=302)
 
 
 @app.get("/start")
 @app.get("/start/")
-def start_sso() -> RedirectResponse:
+def start_sso(request: Request, interactive: bool = False) -> RedirectResponse:
     state = secrets.token_urlsafe(24)
     nonce = secrets.token_urlsafe(24)
     issued_at = int(time.time())
@@ -280,15 +476,26 @@ def start_sso() -> RedirectResponse:
         f"{SETTINGS.keycloak_browser_base_url.rstrip('/')}/realms/{SETTINGS.keycloak_realm}"
         f"/protocol/openid-connect/auth"
     )
-    query = urlencode(
-        {
-            "response_type": "code",
-            "client_id": SETTINGS.keycloak_minio_client_id,
-            "redirect_uri": SETTINGS.callback_url,
-            "scope": "openid profile email",
-            "state": state,
-            "nonce": nonce,
-        },
+    query_params = {
+        "response_type": "code",
+        "client_id": SETTINGS.keycloak_minio_client_id,
+        "redirect_uri": SETTINGS.callback_url,
+        "scope": "openid profile email",
+        "state": state,
+        "nonce": nonce,
+    }
+    # First attempt is silent session reuse; fallback to interactive login on login_required.
+    if not interactive:
+        query_params["prompt"] = "none"
+    query = urlencode(query_params)
+
+    client_ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "-")
+    LOG.info(
+        "start_sso ip=%s interactive=%s realm=%s state_prefix=%s",
+        client_ip,
+        interactive,
+        SETTINGS.keycloak_realm,
+        state[:8],
     )
 
     response = RedirectResponse(url=f"{authorize_url}?{query}", status_code=302)
@@ -305,9 +512,9 @@ def start_sso() -> RedirectResponse:
 
 @app.get("/login")
 @app.get("/login/")
-def login() -> RedirectResponse:
+def login(request: Request) -> RedirectResponse:
     # Allow direct /login routing without ingress rewrites.
-    return start_sso()
+    return start_sso(request)
 
 
 @app.get("/callback")
@@ -315,7 +522,22 @@ def login() -> RedirectResponse:
 def callback(request: Request) -> RedirectResponse:
     params = request.query_params
     if params.get("error"):
-        raise HTTPException(status_code=400, detail=f"Keycloak returned error: {params.get('error')}")
+        error = params.get("error", "")
+        state_cookie_present = bool(request.cookies.get(STATE_COOKIE_NAME))
+        client_ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "-")
+        LOG.warning(
+            "callback received error ip=%s error=%s state_cookie_present=%s",
+            client_ip,
+            error,
+            state_cookie_present,
+        )
+        if error == "login_required":
+            # Silent prompt=none failed because no active Keycloak session; proceed interactively.
+            response = RedirectResponse(url="/start?interactive=1", status_code=302)
+            response.delete_cookie(STATE_COOKIE_NAME, path="/")
+            return response
+
+        raise HTTPException(status_code=400, detail=f"Keycloak returned error: {error}")
 
     code = params.get("code")
     returned_state = params.get("state")
@@ -324,6 +546,7 @@ def callback(request: Request) -> RedirectResponse:
 
     state_cookie = request.cookies.get(STATE_COOKIE_NAME)
     if not state_cookie:
+        LOG.warning("callback missing state cookie state_present=%s", bool(returned_state))
         raise HTTPException(status_code=400, detail="Missing state cookie")
 
     try:
@@ -350,6 +573,7 @@ def callback(request: Request) -> RedirectResponse:
         timeout=15,
     )
     if token_response.status_code != 200:
+        LOG.warning("token exchange failed status=%s", token_response.status_code)
         raise HTTPException(status_code=502, detail="Failed to exchange code with Keycloak")
 
     token_payload = token_response.json()
@@ -376,6 +600,7 @@ def callback(request: Request) -> RedirectResponse:
     )
     if sts_response.status_code != 200:
         detail = _extract_sts_error_message(sts_response.text)
+        LOG.warning("sts exchange failed status=%s detail=%s", sts_response.status_code, detail)
         raise HTTPException(status_code=502, detail=f"MinIO STS failure: {detail}")
 
     sts_xml = ET.fromstring(sts_response.text)
@@ -396,6 +621,7 @@ def callback(request: Request) -> RedirectResponse:
         timeout=15,
     )
     if login_response.status_code != 204:
+        LOG.warning("minio console login failed status=%s", login_response.status_code)
         raise HTTPException(status_code=502, detail="MinIO Console login failed")
 
     redirect = RedirectResponse(

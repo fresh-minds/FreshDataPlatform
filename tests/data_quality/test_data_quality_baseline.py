@@ -47,8 +47,7 @@ def test_schema_required_columns_and_types(
             )
             actual_type = actual_type_map[column_name]
             assert str(expected_type).lower() in actual_type, (
-                f"{dataset.dataset}.{column_name} expected type containing `{expected_type}` "
-                f"but found `{actual_type}`"
+                f"{dataset.dataset}.{column_name} expected type containing `{expected_type}` but found `{actual_type}`"
             )
 
 
@@ -64,16 +63,12 @@ def test_not_null_and_unique_constraints(
         unique_cols = constraints.get("unique", [])
         for unique_col in unique_cols:
             dupes = duplicate_count(warehouse, dataset.dataset, [str(unique_col)])
-            assert dupes == 0, (
-                f"{dataset.dataset}.{unique_col} must be unique but found {dupes} duplicate row(s)"
-            )
+            assert dupes == 0, f"{dataset.dataset}.{unique_col} must be unique but found {dupes} duplicate row(s)"
 
         not_null_cols = constraints.get("not_null", [])
         for column_name in not_null_cols:
             nulls = null_count(warehouse, dataset.dataset, str(column_name))
-            assert nulls == 0, (
-                f"{dataset.dataset}.{column_name} must be not null but found {nulls} null row(s)"
-            )
+            assert nulls == 0, f"{dataset.dataset}.{column_name} must be not null but found {nulls} null row(s)"
 
 
 @pytest.mark.data_quality
@@ -107,9 +102,7 @@ def test_accepted_values_and_numeric_ranges(
                 min_value=bounds.get("min"),
                 max_value=bounds.get("max"),
             )
-            assert invalid_count == 0, (
-                f"{dataset.dataset}.{column_name} has {invalid_count} out-of-range value(s)"
-            )
+            assert invalid_count == 0, f"{dataset.dataset}.{column_name} has {invalid_count} out-of-range value(s)"
 
 
 @pytest.mark.data_quality

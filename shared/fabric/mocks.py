@@ -6,7 +6,6 @@ pipelines locally (outside of Microsoft Fabric).
 """
 
 import os
-from typing import Any
 
 
 class CredentialsMock:

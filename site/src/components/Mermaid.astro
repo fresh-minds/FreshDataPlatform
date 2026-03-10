@@ -1,0 +1,49 @@
+---
+interface Props {
+  chart: string;
+  id?: string;
+}
+
+const { chart, id = `mermaid-${Math.random().toString(36).slice(2, 8)}` } = Astro.props;
+---
+
+<div class="mermaid-container">
+  <div class="mermaid" id={id} data-chart={chart}>
+    <pre class="text-sm text-gray-500 p-4">{chart}</pre>
+  </div>
+</div>
+
+<script>
+  async function initMermaid() {
+    const { default: mermaid } = await import('mermaid');
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'default',
+      securityLevel: 'loose',
+      flowchart: {
+        useMaxWidth: true,
+        htmlLabels: true,
+        curve: 'basis',
+      },
+    });
+
+    const elements = document.querySelectorAll('.mermaid[data-chart]');
+    for (const el of elements) {
+      const chart = el.getAttribute('data-chart');
+      if (chart) {
+        try {
+          const { svg } = await mermaid.render(el.id + '-svg', chart);
+          el.innerHTML = svg;
+        } catch (e) {
+          console.warn('Mermaid render error:', e);
+        }
+      }
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initMermaid);
+  } else {
+    initMermaid();
+  }
+</script>

@@ -88,23 +88,23 @@ if [[ ! -x "$PYTEST_BIN" ]]; then
 fi
 
 set +e
-"$DBT_BIN" debug --project-dir "$ROOT_DIR/dbt_parallel" --profiles-dir "$ROOT_DIR/dbt_parallel" \
+"$DBT_BIN" debug --project-dir "$ROOT_DIR/dbt" --profiles-dir "$ROOT_DIR/dbt" \
   > "$RUN_DIR/logs/dbt-debug.log" 2>&1
 DBT_DEBUG_EXIT=$?
 
-"$DBT_BIN" seed --project-dir "$ROOT_DIR/dbt_parallel" --profiles-dir "$ROOT_DIR/dbt_parallel" --full-refresh \
+"$DBT_BIN" seed --project-dir "$ROOT_DIR/dbt" --profiles-dir "$ROOT_DIR/dbt" --full-refresh \
   > "$RUN_DIR/logs/dbt-seed.log" 2>&1
 DBT_SEED_EXIT=$?
 
-"$DBT_BIN" run --project-dir "$ROOT_DIR/dbt_parallel" --profiles-dir "$ROOT_DIR/dbt_parallel" --vars '{use_seed_data: true}' \
+"$DBT_BIN" run --project-dir "$ROOT_DIR/dbt" --profiles-dir "$ROOT_DIR/dbt" --vars '{use_seed_data: true}' \
   > "$RUN_DIR/logs/dbt-run.log" 2>&1
 DBT_RUN_EXIT=$?
 
-"$DBT_BIN" snapshot --project-dir "$ROOT_DIR/dbt_parallel" --profiles-dir "$ROOT_DIR/dbt_parallel" --vars '{use_seed_data: true}' \
+"$DBT_BIN" snapshot --project-dir "$ROOT_DIR/dbt" --profiles-dir "$ROOT_DIR/dbt" --vars '{use_seed_data: true}' \
   > "$RUN_DIR/logs/dbt-snapshot.log" 2>&1
 DBT_SNAPSHOT_EXIT=$?
 
-"$DBT_BIN" test --project-dir "$ROOT_DIR/dbt_parallel" --profiles-dir "$ROOT_DIR/dbt_parallel" --vars '{use_seed_data: true}' \
+"$DBT_BIN" test --project-dir "$ROOT_DIR/dbt" --profiles-dir "$ROOT_DIR/dbt" --vars '{use_seed_data: true}' \
   > "$RUN_DIR/logs/dbt-test.log" 2>&1
 DBT_TEST_EXIT=$?
 set -e
@@ -118,6 +118,9 @@ for exit_code in "$DBT_DEBUG_EXIT" "$DBT_SEED_EXIT" "$DBT_RUN_EXIT" "$DBT_SNAPSH
 done
 
 if [[ "$DBT_EXIT" -eq 0 ]]; then
+  "$ROOT_DIR/.venv/bin/python" "$ROOT_DIR/scripts/warehouse/init_platform_metadata.py" \
+    > "$RUN_DIR/logs/init_platform_metadata.log" 2>&1
+
   "$ROOT_DIR/.venv/bin/python" "$ROOT_DIR/scripts/warehouse/seed_warehouse_base_schemas.py" \
     > "$RUN_DIR/logs/seed_warehouse_base_schemas.log" 2>&1
 
@@ -126,7 +129,7 @@ if [[ "$DBT_EXIT" -eq 0 ]]; then
 
   "$ROOT_DIR/.venv/bin/python" "$ROOT_DIR/tests/e2e/scripts/log_pipeline_run.py" \
     --run-id "$RUN_ID" \
-    --pipeline-name "dbt_parallel_e2e_suite" \
+    --pipeline-name "dbt_e2e_suite" \
     --status "RUNNING" \
     --started-at-utc "$STARTED_AT_UTC" \
     --finished-at-utc "$STARTED_AT_UTC" \
@@ -157,7 +160,7 @@ fi
 
 "$ROOT_DIR/.venv/bin/python" "$ROOT_DIR/tests/e2e/scripts/log_pipeline_run.py" \
   --run-id "$RUN_ID" \
-  --pipeline-name "dbt_parallel_e2e_suite" \
+  --pipeline-name "dbt_e2e_suite" \
   --status "$PIPELINE_STATUS" \
   --started-at-utc "$STARTED_AT_UTC" \
   --finished-at-utc "$FINISHED_AT_UTC" \

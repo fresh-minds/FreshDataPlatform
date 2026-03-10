@@ -33,7 +33,7 @@ The goal is to define checks once and reuse them across domains.
 make dq-list
 
 # Run one dataset
-make dq-check DATASET=job_market_nl.job_market_snapshot
+make dq-check DATASET=odp_staffing_demand.job_market_snapshot
 
 # Run all configured datasets
 make dq-check-all
@@ -42,7 +42,7 @@ make dq-check-all
 You can also run directly:
 
 ```bash
-python scripts/quality/run_data_quality.py --dataset job_market_nl.job_market_snapshot
+python scripts/quality/run_data_quality.py --dataset odp_staffing_demand.job_market_snapshot
 python scripts/quality/run_data_quality.py --all
 ```
 
@@ -50,8 +50,8 @@ python scripts/quality/run_data_quality.py --all
 
 ```yaml
 datasets:
-  job_market_nl.job_market_snapshot:
-    domain: job_market_nl
+  odp_staffing_demand.job_market_snapshot:
+    domain: odp_staffing_demand
     layer: gold
     table: job_market_snapshot
     missing_behavior: warn

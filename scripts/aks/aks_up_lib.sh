@@ -172,13 +172,100 @@ build_and_push_image() {
   local dockerfile="$2"
   local context="$3"
   local label="$4"
+  local build_platform="${AKS_DOCKER_BUILD_PLATFORM:-linux/amd64}"
+  local registry_host
+  local -a buildx_args
+  local -a docker_build_args
   shift 4
 
-  log "Building and pushing ${label} image '${image}' (linux/amd64)..."
+  log "Building and pushing ${label} image '${image}' (${build_platform})..."
+
+  if [[ "${AKS_USE_CLASSIC_DOCKER_PUSH:-false}" == "true" ]]; then
+    docker_build_args=(
+      --tag "$image"
+      --file "$dockerfile"
+    )
+
+    if [[ "${AKS_DOCKER_NO_CACHE:-false}" == "true" ]]; then
+      docker_build_args+=(--no-cache)
+    fi
+
+    if [[ "${AKS_USE_LEGACY_DOCKER_BUILDER:-false}" == "true" ]]; then
+      # Workaround for intermittent BuildKit/registry scope stalls on some registries.
+      # Legacy builder can mis-handle explicit --platform flags on some hosts.
+      local build_log
+      build_log="$(mktemp)"
+
+      set +e
+      DOCKER_BUILDKIT=0 DOCKER_DEFAULT_PLATFORM="$build_platform" docker build \
+        "${docker_build_args[@]}" \
+        "$@" \
+        "$context" 2>&1 | tee "$build_log"
+      local legacy_build_exit=${PIPESTATUS[0]}
+      set -e
+
+      if [[ $legacy_build_exit -ne 0 ]] && grep -q "does not provide the specified platform" "$build_log"; then
+        log "Legacy builder platform mismatch detected; retrying ${label} build with buildx --load (${build_platform})."
+        buildx_args=(
+          --platform "$build_platform"
+          --tag "$image"
+          --file "$dockerfile"
+          --load
+        )
+        if [[ "${AKS_DOCKER_NO_CACHE:-false}" == "true" ]]; then
+          buildx_args+=(--no-cache)
+        fi
+        docker buildx build \
+          "${buildx_args[@]}" \
+          "$@" \
+          "$context"
+      elif [[ $legacy_build_exit -ne 0 ]]; then
+        rm -f "$build_log"
+        return $legacy_build_exit
+      fi
+
+      rm -f "$build_log"
+    else
+      docker_build_args=(
+        --platform "$build_platform"
+        "${docker_build_args[@]}"
+      )
+      docker build \
+        "${docker_build_args[@]}" \
+        "$@" \
+        "$context"
+    fi
+
+    registry_host="${image%%/*}"
+    if [[ -n "${SCW_SECRET_KEY:-}" && "$registry_host" == *"scw.cloud"* ]]; then
+      echo "${SCW_SECRET_KEY}" | docker login "$registry_host" -u nologin --password-stdin >/dev/null
+    fi
+
+    if ! docker push --platform "$build_platform" "$image"; then
+      if [[ -n "${SCW_SECRET_KEY:-}" && "$registry_host" == *"scw.cloud"* ]]; then
+        echo "${SCW_SECRET_KEY}" | docker login "$registry_host" -u nologin --password-stdin >/dev/null
+      fi
+      docker push "$image"
+    fi
+    return 0
+  fi
+
+  buildx_args=(
+    --platform "$build_platform"
+    --tag "$image"
+    --file "$dockerfile"
+  )
+
+  if [[ "${AKS_DISABLE_BUILDX_ATTESTATIONS:-false}" == "true" ]]; then
+    buildx_args+=(--provenance=false --sbom=false)
+  fi
+
+  if [[ "${AKS_DOCKER_NO_CACHE:-false}" == "true" ]]; then
+    buildx_args+=(--no-cache)
+  fi
+
   docker buildx build \
-    --platform linux/amd64 \
-    --tag "$image" \
-    --file "$dockerfile" \
+    "${buildx_args[@]}" \
     "$@" \
     "$context" \
     --push

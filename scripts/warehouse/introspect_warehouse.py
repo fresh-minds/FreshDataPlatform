@@ -202,14 +202,14 @@ def generate_dbml(
     
     # Group tables by domain (inferred from name prefixes)
     domain_tables: Dict[str, List[Table]] = {
-        'job_market_nl': [],
+        'odp_staffing_demand': [],
         'other': [],
     }
     
     for table in tables:
         name_lower = table.name.lower()
         if 'job_market' in name_lower or 'vacancy' in name_lower or 'skill' in name_lower:
-            domain_tables['job_market_nl'].append(table)
+            domain_tables['odp_staffing_demand'].append(table)
         else:
             domain_tables['other'].append(table)
     

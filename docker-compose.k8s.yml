@@ -5,6 +5,7 @@ services:
       - BRIDGE_BASE_URL=${MINIO_SSO_BRIDGE_BASE_URL_K8S:-https://minio.eu-sovereigndataplatform.com}
       - KEYCLOAK_BROWSER_BASE_URL=${KEYCLOAK_BROWSER_BASE_URL_K8S:-https://keycloak.eu-sovereigndataplatform.com}
       - KEYCLOAK_INTERNAL_BASE_URL=${KEYCLOAK_INTERNAL_BASE_URL_K8S:-http://keycloak:8090}
+      - KEYCLOAK_REALM=${KEYCLOAK_REALM_K8S:-odp}
       - MINIO_CONSOLE_PUBLIC_URL=${MINIO_CONSOLE_PUBLIC_URL_K8S:-https://minio.eu-sovereigndataplatform.com}
       - MINIO_CONSOLE_INTERNAL_URL=${MINIO_CONSOLE_INTERNAL_URL_K8S:-http://minio:9001}
       - MINIO_API_INTERNAL_URL=${MINIO_API_INTERNAL_URL_K8S:-http://minio:9000}
@@ -35,7 +36,7 @@ services:
     environment:
       - MINIO_IDENTITY_OPENID_ENABLE=on
       - MINIO_IDENTITY_OPENID_DISPLAY_NAME=${MINIO_OIDC_DISPLAY_NAME_K8S:-Keycloak}
-      - MINIO_IDENTITY_OPENID_CONFIG_URL=${KEYCLOAK_OIDC_DISCOVERY_URL_K8S:-https://keycloak.eu-sovereigndataplatform.com/realms/odp/.well-known/openid-configuration}
+      - MINIO_IDENTITY_OPENID_CONFIG_URL=${MINIO_KEYCLOAK_OIDC_DISCOVERY_URL_K8S:-https://keycloak.eu-sovereigndataplatform.com/realms/odp/.well-known/openid-configuration}
       - MINIO_IDENTITY_OPENID_REDIRECT_URI=${MINIO_OIDC_REDIRECT_URI_K8S:-https://minio.eu-sovereigndataplatform.com/oauth_callback}
       - MINIO_BROWSER_REDIRECT_URL=${MINIO_BROWSER_REDIRECT_URL_K8S:-https://minio.eu-sovereigndataplatform.com}
       - MINIO_SERVER_URL=${MINIO_SERVER_URL_K8S:-https://minio-api.eu-sovereigndataplatform.com}

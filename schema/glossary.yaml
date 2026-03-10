@@ -4,23 +4,23 @@
 version: "1.1"
 
 domains:
-  - name: Job Market NL
+  - name: ODP Staffing Demand
     description: Labor market indicators and skill demand data for the Netherlands
     owner: job-market@example.com
 
 terms:
   - term: Vacancy
     definition: An open job position recorded in the market snapshot
-    domain: Job Market NL
+    domain: ODP Staffing Demand
     synonyms:
       - Open Position
 
   - term: Vacancy Rate
     definition: Percentage of open vacancies relative to total jobs
-    domain: Job Market NL
+    domain: ODP Staffing Demand
 
   - term: Skill Demand
     definition: Number of times a skill appears in analyzed job ads
-    domain: Job Market NL
+    domain: ODP Staffing Demand
     synonyms:
       - Skill Frequency

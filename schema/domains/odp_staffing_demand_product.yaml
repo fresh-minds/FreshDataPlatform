@@ -1,0 +1,25 @@
+data_product:
+  name: "ODP Staffing Demand"
+  domain: "odp_staffing_demand"
+  owner: "job-market.owner@example.com"
+  steward: "job-market.steward@example.com"
+  criticality: "medium"
+  description: >
+    Dutch IT job market data product providing vacancy rates (CBS) and
+    job-ad analytics (Adzuna). Canonical orchestration uses the
+    odp_staffing_demand_pipeline DAG.
+
+governance:
+  classification:
+    confidentiality: "public"
+
+service_levels:
+  freshness_sla_hours: 24
+  availability_sla_percent: 99.0
+
+interfaces:
+  output_datasets:
+    - "odp_staffing_demand.it_market_snapshot"
+    - "odp_staffing_demand.it_market_top_skills"
+    - "odp_staffing_demand.it_market_region_distribution"
+    - "odp_staffing_demand.it_market_job_ads_geo"

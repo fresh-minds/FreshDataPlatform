@@ -1,0 +1,44 @@
+dimension: dim_date
+type: conformed
+description: "Standard date dimension for time-based analysis across all domains."
+grain: [date_key]
+
+attributes:
+  - name: date_sk
+    type: text
+    primary_key: true
+    generated: "hashed_key([date_key])"
+    description: "Deterministic MD5 surrogate key"
+
+  - name: date_key
+    type: date
+    not_null: true
+    description: "Calendar date"
+
+  - name: year
+    type: integer
+    not_null: true
+
+  - name: quarter
+    type: integer
+    not_null: true
+
+  - name: month
+    type: integer
+    not_null: true
+
+  - name: week_of_year
+    type: integer
+    not_null: true
+
+  - name: day_of_week
+    type: integer
+    not_null: true
+
+  - name: is_weekend
+    type: boolean
+    not_null: true
+
+source_of_truth: seed
+dbt_model: dim_date
+domains_using: [odp_staffing_demand]

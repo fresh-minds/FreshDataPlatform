@@ -158,9 +158,7 @@ class SQLWarehouseConnector:
             ) t
             """
         ).format(
-            sql.SQL(", ").join(
-                sql.SQL("COALESCE({}::text, '')").format(identifier) for identifier in escaped_cols
-            ),
+            sql.SQL(", ").join(sql.SQL("COALESCE({}::text, '')").format(identifier) for identifier in escaped_cols),
             sql.Identifier(schema_name),
             sql.Identifier(table_name),
         )
@@ -251,9 +249,7 @@ class AirflowConnector:
             timeout=15,
         )
         if response.status_code not in {200, 201, 409}:
-            raise RuntimeError(
-                f"Failed to trigger DAG run: HTTP {response.status_code} {response.text}"
-            )
+            raise RuntimeError(f"Failed to trigger DAG run: HTTP {response.status_code} {response.text}")
         return response.json() if response.text else {"status": "unknown"}
 
     def get_dag_run_state(self, dag_run_id: str) -> str:
@@ -262,9 +258,7 @@ class AirflowConnector:
             timeout=15,
         )
         if response.status_code != 200:
-            raise RuntimeError(
-                f"Failed to fetch DAG run state: HTTP {response.status_code} {response.text}"
-            )
+            raise RuntimeError(f"Failed to fetch DAG run state: HTTP {response.status_code} {response.text}")
         payload = response.json()
         return str(payload.get("state", "unknown"))
 
@@ -275,9 +269,7 @@ class AirflowConnector:
             if state in {"success", "failed"}:
                 return state
             time.sleep(poll_s)
-        raise TimeoutError(
-            f"Timed out waiting for DAG run {dag_run_id} to finish after {timeout_s} seconds"
-        )
+        raise TimeoutError(f"Timed out waiting for DAG run {dag_run_id} to finish after {timeout_s} seconds")
 
 
 class MetadataStoreConnector:

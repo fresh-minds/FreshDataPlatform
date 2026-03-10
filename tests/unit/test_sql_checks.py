@@ -1,4 +1,5 @@
 """Unit tests for tests/helpers/sql_checks.py — no database required."""
+
 from __future__ import annotations
 
 import pytest
@@ -16,7 +17,7 @@ class TestTimestampExpression:
             ("epoch_millis", 'to_timestamp(("created_at")::numeric / 1000.0)'),
             (
                 "epoch_millis_wrapped",
-                'to_timestamp((regexp_replace("created_at"::text, \'[^0-9]\', \'\', \'g\'))::numeric / 1000.0)',
+                "to_timestamp((regexp_replace(\"created_at\"::text, '[^0-9]', '', 'g'))::numeric / 1000.0)",
             ),
             # Case and whitespace should be normalised.
             ("TIMESTAMP", '"created_at"::timestamptz'),

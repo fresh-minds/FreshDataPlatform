@@ -1,0 +1,28 @@
+dimension: dim_region
+type: conformed
+description: "Dutch provinces with geographic centroids. Shared across all domains that reference Dutch geography."
+grain: [region_name]
+
+attributes:
+  - name: region_sk
+    type: text
+    primary_key: true
+    generated: "hashed_key([region_name])"
+    description: "Deterministic MD5 surrogate key"
+
+  - name: region_name
+    type: text
+    not_null: true
+    description: "Province name (e.g. Noord-Holland)"
+
+  - name: latitude
+    type: double_precision
+    description: "Province centroid latitude"
+
+  - name: longitude
+    type: double_precision
+    description: "Province centroid longitude"
+
+source_of_truth: dbt_model
+dbt_model: dim_region
+domains_using: [odp_staffing_demand]

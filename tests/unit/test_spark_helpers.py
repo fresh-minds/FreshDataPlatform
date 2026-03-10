@@ -1,7 +1,6 @@
 """Unit tests for Spark helper utilities."""
 
 import pandas as pd
-import pytest
 
 from shared.utils.spark_helpers import (
     clean_df_for_spark,

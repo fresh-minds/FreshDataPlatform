@@ -9,13 +9,37 @@
 ### Prerequisites
 - Docker Engine + Compose plugin
 - `.env` configured from `.env.template`
-- For `source_sp1_vacatures_ingestion`: set
-  `SP1_USERNAME`, `SP1_PASSWORD`, and `SP1_SCRAPING_APPROVED=true` in `.env`
-  (recommended: set `SP1_ALLOWED_HOSTS` to approved portal hostnames)
+- For Superset map dashboards, set `MAPBOX_API_KEY` in `.env`
 
 ### Bring up stack
 ```bash
 docker compose up -d
+```
+
+### Bring up bare minimum stack
+Use this to mirror the minimal Terraform deployment scope locally (no DataHub, no heavy observability, no jupyter).
+
+```bash
+make compose-up-minimal
+```
+
+`make compose-up-minimal` runs `scripts/testing/verify_compose_minimal.sh` automatically after startup.
+To skip this verification pass:
+
+```bash
+COMPOSE_MINIMAL_SMOKE_AFTER_UP=false make compose-up-minimal
+```
+
+To stop it:
+
+```bash
+make compose-down-minimal
+```
+
+Run minimal smoke checks manually:
+
+```bash
+./scripts/testing/verify_compose_minimal.sh
 ```
 
 ### Full bootstrap (recommended)
@@ -36,6 +60,16 @@ Pass `--skip-dev-install` if you already manage a separate environment.
 - JupyterLab: `http://localhost:8888`
 - Grafana: `http://localhost:3001`
 - Prometheus: `http://localhost:9090`
+
+Bare minimum stack endpoints:
+- Airflow: `http://localhost:8080`
+- Superset: `http://localhost:8088`
+- MinIO API: `http://localhost:9000`
+- MinIO Console: `http://localhost:9001`
+- Keycloak: `http://localhost:8090`
+- dbt docs: `http://localhost:8089`
+- Portal: `http://localhost:3000`
+- Portal API: `http://localhost:8070`
 
 ### Verify observability ingestion (Docker Compose)
 
@@ -176,6 +210,31 @@ Use host-based URLs such as:
 - For AKS Key Vault sync: data-plane write access on the Key Vault (`Key Vault Secrets Officer` or `Key Vault Administrator`) and permission to create role assignments if you want the script to auto-grant missing access
 - `.env` configured
 
+### Scheduled AKS stop/start via GitHub Actions
+Summary: `.github/workflows/aks-schedule.yml` runs only at four weekday UTC slots ( `05:00`, `17:00`) and executes AKS power actions at local Netherlands time (`Europe/Amsterdam`): stop at `18:00`, start at `06:00`.
+
+Prerequisites and constraints:
+- Configure GitHub OIDC federation from your repo to Azure AD app/service principal.
+- Add repository secrets:
+  - `AZURE_CLIENT_ID`
+  - `AZURE_TENANT_ID`
+  - `AZURE_SUBSCRIPTION_ID`
+- The Azure principal must have permission to run `Microsoft.ContainerService/managedClusters/start/action` and `.../stop/action` on AKS `ai-trial-aks` in resource group `ai-trial-rg`.
+- Schedule is timezone-aware in workflow logic (`Europe/Amsterdam`) to handle CET/CEST changes; cron is limited to the minimal UTC windows needed for those local times.
+- On weekends, scheduled runs intentionally perform no action; manual `workflow_dispatch` (`start`/`stop`) still works.
+
+Verification steps:
+1. Open **Actions** and run workflow **AKS Scheduled Power** manually with input `action=stop`.
+2. Confirm logs show `Decision: stop` and `az aks stop` succeeds.
+3. Run again with `action=start` and confirm `az aks start` succeeds.
+4. Optional CLI verification:
+
+```bash
+az aks show -g ai-trial-rg -n ai-trial-aks --query powerState.code -o tsv
+```
+
+Expected value is `Stopped` after stop and `Running` after start.
+
 ### Provision and deploy
 ```bash
 make k8s-aks-up
@@ -192,6 +251,14 @@ This flow:
 - Fetches AKS credentials and logs into ACR
 - Builds/pushes selected images
 - Patches existing deployments with new tags and waits for rollout
+- When `AKS_IMAGES` includes `airflow`, also refreshes ConfigMap
+  `airflow-webserver-config` from `airflow/webserver_config.py` before Airflow
+  rollout so webserver auth config changes are applied
+- When `AKS_IMAGES` includes `airflow`, also refreshes `dbt-docs` by patching
+  its docs-generator initContainer image and bumping `dbt-docs/build-id`
+  annotation so docs are regenerated in-cluster
+  - Optional override: set `DBT_DOCS_BUILD_ID=<custom-id>` to control the
+    rollout annotation value used for the docs refresh trigger
 
 Constraints:
 - Does **not** provision/update AKS infra, ingress, DNS, or parity manifests
@@ -230,6 +297,7 @@ This process handles:
   - Airflow scheduler liveness probe is tuned for AKS node variability (`initialDelay=120s`, `period=60s`, `timeout=60s`, `failureThreshold=5`) to avoid false restarts and stale scheduler heartbeat warnings
   - Airflow webserver deployment is recreated before apply to avoid historical `env.value`/`env.valueFrom` merge conflicts that can block reruns
   - Airflow OAuth auto-registration defaults to role `Viewer` (least privilege) for AKS deploys; if `AIRFLOW_OAUTH_DEFAULT_ROLE` is missing in `.env`, `k8s-aks-up` patches `odp-env` with `Viewer` and backfills that value to AKS Key Vault when Key Vault sync is enabled
+  - Airflow OAuth maps Keycloak role claims to FAB roles on login (`admin`/`airflow_admin` -> `Admin`, `airflow_op` -> `Op`, `airflow_user` -> `User`, `airflow_viewer` -> `Viewer`) and keeps `AUTH_ROLES_SYNC_AT_LOGIN=true` so permission changes are reconciled at next login
   - Airflow init job wait timeout is independently configurable via `AIRFLOW_INIT_JOB_TIMEOUT` (default `960s`) so slower metadata migrations do not fail the full AKS rollout when global `WAIT_TIMEOUT` stays lower for normal deployment checks
   - AKS job waits re-check Kubernetes Job success/Complete state after a timeout response, so late-completing jobs (such as `airflow-init`) are not failed due to a `kubectl wait` race
   - Airflow webserver/scheduler rollout wait timeout is independently configurable via `AIRFLOW_DEPLOYMENT_TIMEOUT` (default `600s`) so startup probe warmup windows do not get cut off by a shorter global `WAIT_TIMEOUT`
@@ -255,13 +323,43 @@ This process handles:
 
 - **Config safety and URL consistency**
   - Kompose-generated AKS deployments are post-processed to rewrite browser-facing auth/redirect URLs (portal, minio-sso-bridge, grafana, superset, datahub) to `https://*.${FRONTEND_DOMAIN}` instead of localhost defaults
-  - AKS ingress routes MinIO `/login`, `/start`, and `/callback` through `minio-sso-bridge` so an existing Keycloak session can sign users directly into MinIO
+  - AKS MinIO SSO uses Keycloak `odp` realm by default (`KEYCLOAK_REALM_K8S=odp` and `MINIO_KEYCLOAK_OIDC_DISCOVERY_URL_K8S` targeting `/realms/odp/.well-known/openid-configuration`)
+  - AKS ingress routes MinIO `/`, `/login`, `/start`, and `/callback` through `minio-sso-bridge` so an existing Keycloak session can sign users directly into MinIO
+  - MinIO bridge root (`/`) reuses an active MinIO console `token` cookie by redirecting directly to `/browser`; only requests without a valid MinIO session fall back to `/start` and Keycloak
+  - MinIO bridge `/start` performs a silent `prompt=none` authorization attempt first and automatically falls back to interactive login when Keycloak responds `login_required`
+  - AKS Keycloak realm import config for client `minio` includes both `https://minio.${FRONTEND_DOMAIN}/oauth_callback` and `https://minio.${FRONTEND_DOMAIN}/callback` redirect URIs so bridge-based SSO remains valid after Keycloak pod restarts
   - Superset custom auth/bootstrap files are injected as Kubernetes ConfigMaps during AKS parity conversion (instead of hostPath bind mounts) so `superset_config.py` is always present and `/login` auto-redirects directly to Keycloak for existing SSO sessions
   - Alertmanager configuration is injected via Kubernetes `alertmanager-config` ConfigMap (`ops/observability/alertmanager.yml`) so AKS parity deploy does not depend on hostPath file mounts
   - Keycloak is part of the AKS core phase and is reapplied before full-stack parity so realm/client changes (including portal redirect URIs) are continuously reconciled
+  - AKS Keycloak realm import seeds `odp-admin` (`KEYCLOAK_DEFAULT_USER_PASSWORD`) and `demo` (`KEYCLOAK_DEMO_USER_PASSWORD`, fallback `demo`) users for controlled testing
   - Portal frontend auth fallback is domain-aware: when `VITE_KEYCLOAK_URL` is not present at build-time, it derives `https://keycloak.<current-root-domain>` (while keeping `http://localhost:8090` for local hostnames)
   - AKS manifest rendering validates unresolved placeholders before apply, and job waits fail fast for `InvalidImageName`/image-pull errors to shorten troubleshooting loops
   - Deployment rollout diagnostics now resolve selectors from each Deployment (`spec.selector.matchLabels`) so Kompose-labeled workloads (for example `io.kompose.service=datahub-kafka`) print the correct pod diagnostics on failure
+
+### MinIO bridge redirect URI check
+
+Summary: validate that the MinIO bridge redirect URI is accepted by Keycloak and does not fail with `Invalid parameter: redirect_uri`.
+
+Prerequisites:
+- `FRONTEND_DOMAIN` is set for your environment.
+- Ingress and Keycloak are reachable from your shell.
+
+Commands:
+
+```bash
+curl -sS -D - -o /dev/null "https://minio.${FRONTEND_DOMAIN}/" | awk '/^location:/I {print $2}' | tr -d '\r'
+auth_url="$(curl -sS -D - -o /dev/null "https://minio.${FRONTEND_DOMAIN}/login" | awk 'tolower($1)==\"location:\" {print $2; exit}' | tr -d '\r')"
+echo "$auth_url"
+curl -sS -D - -o /tmp/minio-kc-auth.html "$auth_url" | head -n 1
+grep -q "Invalid parameter: redirect_uri" /tmp/minio-kc-auth.html && echo "invalid redirect URI in Keycloak client" || echo "bridge callback URI accepted"
+```
+
+Verification:
+- First command should print `/start`.
+- Second command should produce a Keycloak authorize URL.
+- Authorize URL should include `/realms/odp/protocol/openid-connect/auth`.
+- Third command should return HTTP `200` or `302`.
+- Last line should print `bridge callback URI accepted`.
 
 ### Common overrides
 ```bash
@@ -303,6 +401,7 @@ Portal assistant Foundry auth (AKS recommendation):
 
 - Primary agent reference vars: `AZURE_EXISTING_AIPROJECT_ENDPOINT` and `AZURE_EXISTING_AGENT_ID` (or `AZURE_EXISTING_AGENT_NAME`).
 - Legacy aliases remain supported: `AZURE_FOUNDRY_AGENT_ENDPOINT` and `AZURE_FOUNDRY_AGENT_ID` (or `AZURE_FOUNDRY_AGENT_NAME`).
+- `portal-api` sends agent references as `agent_reference` for both API key and `DefaultAzureCredential` auth paths. If logs show `invalid_payload` with `The 'agent' property is deprecated`, roll out the latest `portal-api` image.
 - `portal-api` uses API key auth when `AZURE_FOUNDRY_API_KEY` is set.
 - If `AZURE_FOUNDRY_API_KEY` is empty, `portal-api` uses `DefaultAzureCredential`.
 - For containerized local runs with `DefaultAzureCredential`, provide service principal env vars (`AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`).

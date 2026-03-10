@@ -10,8 +10,8 @@ project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 sys.path.insert(0, project_root)
 
 from shared.fabric.runtime import get_fabric_context, get_spark_session
-from pipelines.job_market_nl.export_to_warehouse import (
-    run_export_job_market_to_warehouse as run_job_market_export,
+from pipelines.odp_staffing_demand.export_to_warehouse import (
+    export_all_to_warehouse,
 )
 
 def run_all_exports():
@@ -22,8 +22,8 @@ def run_all_exports():
     print("STARTING MASTER EXPORT TO WAREHOUSE")
     print("="*60 + "\n")
     
-    print("--- 1. Job Market Export ---")
-    run_job_market_export(spark, notebookutils, fabric)
+    print("--- 1. ODP Staffing Demand Export ---")
+    export_all_to_warehouse(spark, notebookutils, fabric)
     
     print("\n" + "="*60)
     print("MASTER EXPORT COMPLETED")

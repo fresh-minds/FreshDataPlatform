@@ -106,9 +106,7 @@ def load_dataset_configs(repo_root: Path) -> dict[str, DatasetConfig]:
         if not isinstance(raw_pii_classifications, dict):
             raise ValueError(f"`pii_classifications` must be a mapping in {path}")
         pii_classifications = {
-            str(k): str(v)
-            for k, v in raw_pii_classifications.items()
-            if isinstance(k, str) and isinstance(v, str)
+            str(k): str(v) for k, v in raw_pii_classifications.items() if isinstance(k, str) and isinstance(v, str)
         }
 
         timestamp_column = payload.get("timestamp_column")

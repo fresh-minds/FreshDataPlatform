@@ -1,0 +1,89 @@
+version: 2
+
+models:
+  - name: dim_region
+    description: >
+      Conformed dimension: Dutch provinces with centroid coordinates.
+      Shared across all domains that reference Dutch geography.
+    config:
+      materialized: table
+      tags: ['shared', 'dimension', 'conformed']
+    columns:
+      - name: region_sk
+        description: "Surrogate key (MD5 hash of region name)."
+        tests:
+          - not_null
+          - unique
+      - name: region_name
+        description: "Province name."
+        tests:
+          - not_null
+          - unique
+      - name: latitude
+        tests:
+          - not_null
+      - name: longitude
+        tests:
+          - not_null
+
+  - name: dim_company
+    description: >
+      Conformed dimension: hiring companies derived from job postings.
+      Shared across domains that reference companies (job_market, finance, HR).
+    config:
+      materialized: table
+      tags: ['shared', 'dimension', 'conformed']
+    columns:
+      - name: company_sk
+        description: "Surrogate key (MD5 hash of company_name)."
+        tests:
+          - not_null
+          - unique
+      - name: company_name
+        description: "Company name."
+        tests:
+          - not_null
+          - unique
+
+  - name: dim_date
+    description: >
+      Conformed date dimension: continuous calendar from 2020 to 2030.
+      Shared across all domains for time-based analysis.
+    config:
+      materialized: table
+      tags: ['shared', 'dimension', 'conformed']
+    columns:
+      - name: date_sk
+        description: "Surrogate key (MD5 hash of date_key)."
+        tests:
+          - not_null
+          - unique
+      - name: date_key
+        description: "Calendar date."
+        tests:
+          - not_null
+          - unique
+      - name: year
+        description: "Calendar year."
+        tests:
+          - not_null
+      - name: quarter
+        description: "Quarter (1-4)."
+        tests:
+          - not_null
+      - name: month
+        description: "Month (1-12)."
+        tests:
+          - not_null
+      - name: week_of_year
+        description: "ISO week of year."
+        tests:
+          - not_null
+      - name: day_of_week
+        description: "ISO day of week (1=Monday, 7=Sunday)."
+        tests:
+          - not_null
+      - name: is_weekend
+        description: "True for Saturday and Sunday."
+        tests:
+          - not_null

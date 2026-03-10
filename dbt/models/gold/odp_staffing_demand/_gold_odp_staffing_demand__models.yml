@@ -1,0 +1,380 @@
+version: 2
+
+models:
+  # ── Dimensions ────────────────────────────────────────────────────
+
+  - name: dim_period
+    description: "Period dimension derived from CBS snapshot data."
+    config:
+      materialized: table
+      tags: ['job_market', 'dimension']
+    columns:
+      - name: period_sk
+        description: "Surrogate key (MD5 hash of period_key)."
+        tests:
+          - not_null
+          - unique
+      - name: period_key
+        description: "Natural business key (e.g. 2024Q1)."
+        tests:
+          - not_null
+          - unique
+      - name: period_label
+        description: "Human-readable period label."
+
+  - name: dim_sector
+    description: "Industry sector dimension from CBS SIC2008 classification."
+    config:
+      materialized: table
+      tags: ['job_market', 'dimension']
+    columns:
+      - name: sector_sk
+        description: "Surrogate key (MD5 hash of sector_name)."
+        tests:
+          - not_null
+          - unique
+      - name: sector_name
+        description: "Sector name."
+        tests:
+          - not_null
+          - unique
+
+  # Note: dim_region and dim_company have been moved to
+  # dbt/models/gold/_shared/ as conformed dimensions shared across domains.
+  # They retain the same model names (dim_region, dim_company) so all
+  # {{ ref('dim_region') }} and {{ ref('dim_company') }} calls resolve
+  # without changes.
+
+  # ── Facts ─────────────────────────────────────────────────────────
+
+  - name: fact_it_market_snapshot
+    description: >
+      Star-schema fact table: IT market snapshot with dimension surrogate key
+      references and enriched context (regions, skills).
+    config:
+      materialized: table
+      tags: ['job_market', 'fact']
+    columns:
+      - name: snapshot_sk
+        description: "Surrogate key (MD5 hash of period_key + sector_name)."
+        tests:
+          - not_null
+          - unique
+      - name: period_sk
+        description: "FK to dim_period."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_period')
+              field: period_sk
+      - name: sector_sk
+        description: "FK to dim_sector."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_sector')
+              field: sector_sk
+      - name: vacancies
+        description: "Number of open vacancies."
+      - name: vacancy_rate
+        description: "Vacancy rate percentage."
+      - name: job_ads_count
+        tests:
+          - not_null
+      - name: regions_with_ads
+        tests:
+          - not_null
+      - name: distinct_skills_count
+        tests:
+          - not_null
+
+  - name: fact_it_market_top_skills
+    description: "Fact table of skill demand from IT job advertisements."
+    config:
+      materialized: table
+      tags: ['job_market', 'fact']
+    columns:
+      - name: skill_sk
+        description: "Surrogate key (MD5 hash of skill name)."
+        tests:
+          - not_null
+          - unique
+      - name: skill
+        tests:
+          - not_null
+          - unique
+      - name: mention_count
+        description: "Number of job ads mentioning this skill."
+        tests:
+          - not_null
+
+  - name: fact_job_postings
+    description: >
+      Canonical star-schema fact table for staffing demand.
+      Consolidates external job postings and internal staffing requests into one
+      relation, distinguished by posting_type.
+    config:
+      materialized: table
+      tags: ['job_market', 'fact']
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - source_system
+            - posting_id
+    columns:
+      - name: posting_sk
+        description: "Surrogate key (MD5 hash of source_system + posting_id)."
+        tests:
+          - not_null
+          - unique
+      - name: posting_id
+        description: "Canonical business key (job_id or aanvraag_id)."
+        tests:
+          - not_null
+      - name: posting_type
+        description: "Posting category: external_posting or internal_request."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['external_posting', 'internal_request']
+      - name: source_system
+        description: "System of origin for the posting record."
+        tests:
+          - not_null
+      - name: date_sk
+        description: "FK to dim_date (mainly populated for internal requests)."
+        tests:
+          - relationships:
+              to: ref('dim_date')
+              field: date_sk
+      - name: region_sk
+        description: "FK to dim_region (mainly populated for external postings)."
+        tests:
+          - relationships:
+              to: ref('dim_region')
+              field: region_sk
+      - name: company_sk
+        description: "FK to dim_company."
+        tests:
+          - relationships:
+              to: ref('dim_company')
+              field: company_sk
+      - name: role_sk
+        description: "FK to dim_role (mainly populated for internal requests)."
+        tests:
+          - relationships:
+              to: ref('dim_role')
+              field: role_sk
+      - name: unit_sk
+        description: "FK to dim_unit (mainly populated for internal requests)."
+        tests:
+          - relationships:
+              to: ref('dim_unit')
+              field: unit_sk
+      - name: location_sk
+        description: "FK to dim_location (mainly populated for internal requests)."
+        tests:
+          - relationships:
+              to: ref('dim_location')
+              field: location_sk
+      - name: job_id
+        description: "Legacy external posting identifier (nullable for internal requests)."
+      - name: aanvraag_id
+        description: "Legacy internal request identifier (nullable for external postings)."
+      - name: title
+        description: "Posting title or normalized request subject."
+      - name: description
+        description: "Free-text posting description when available."
+      - name: contract_type
+        description: "Contract type for external postings when available."
+      - name: salary_min
+        description: "Minimum salary or rate (nullable)."
+      - name: salary_max
+        description: "Maximum salary or rate (nullable)."
+      - name: salary_raw
+        description: "Raw salary text (nullable)."
+      - name: url
+        description: "Canonical posting URL (external postings)."
+      - name: posted_date
+        description: "Posting publication timestamp (external postings)."
+      - name: date_received
+        description: "Request received timestamp (internal requests)."
+      - name: source
+        description: "Source value from the upstream record."
+        tests:
+          - not_null
+      - name: sender_name
+        description: "Sender name from internal request emails."
+      - name: subject_edited
+        description: "Cleaned subject line from internal requests."
+      - name: role_name
+        description: "Role name from internal requests."
+      - name: role_cluster
+        description: "Role cluster grouping from internal requests."
+      - name: company_name
+        description: "Denormalized company name."
+      - name: unit_name
+        description: "Denormalized business unit name."
+      - name: location_name
+        description: "Denormalized location name."
+      - name: deadline
+        description: "Request deadline for internal requests."
+      - name: location
+        description: "Raw external posting location string (city-level)."
+      - name: province
+        description: "Resolved Dutch province for external postings (nullable)."
+      - name: ingestion_timestamp
+        description: "Ingestion timestamp from external source feeds."
+
+  # ── Fabric Landing Dimensions ────────────────────────────────────
+
+  - name: dim_role
+    description: "Job role dimension with cluster groupings from fabric_landing."
+    config:
+      materialized: table
+      tags: ['job_market', 'dimension', 'fabric']
+    columns:
+      - name: role_sk
+        description: "Surrogate key (MD5 hash of role_name)."
+        tests:
+          - not_null
+          - unique
+      - name: role_name
+        description: "Job role name."
+        tests:
+          - not_null
+          - unique
+      - name: role_cluster
+        description: "Role cluster grouping (e.g. Cloud DevOps & Platform Engineering)."
+
+  - name: dim_unit
+    description: "Business unit dimension from fabric_landing (9 units)."
+    config:
+      materialized: table
+      tags: ['job_market', 'dimension', 'fabric']
+    columns:
+      - name: unit_sk
+        description: "Surrogate key (MD5 hash of unit_name)."
+        tests:
+          - not_null
+          - unique
+      - name: unit_name
+        description: "Business unit name (e.g. Data, Software, Security)."
+        tests:
+          - not_null
+          - unique
+
+  - name: dim_location
+    description: "Location dimension derived from fabric staffing request locations."
+    config:
+      materialized: table
+      tags: ['job_market', 'dimension', 'fabric']
+    columns:
+      - name: location_sk
+        description: "Surrogate key (MD5 hash of location_name)."
+        tests:
+          - not_null
+          - unique
+      - name: location_name
+        description: "Cleaned location name."
+        tests:
+          - not_null
+          - unique
+
+  # ── Fabric Landing Facts ─────────────────────────────────────────
+
+  - name: fact_aanvragen
+    description: >
+      Backward-compatible view over fact_job_postings.
+      Includes only internal_request rows while preserving legacy column names
+      for downstream consumers during migration.
+    config:
+      materialized: view
+      tags: ['job_market', 'fact', 'fabric']
+    columns:
+      - name: aanvraag_sk
+        description: "Surrogate key (MD5 hash of aanvraag_id)."
+        tests:
+          - not_null
+          - unique
+      - name: date_sk
+        description: "FK to dim_date (nullable if date_received is null)."
+        tests:
+          - relationships:
+              to: ref('dim_date')
+              field: date_sk
+      - name: company_sk
+        description: "FK to dim_company (nullable if organisatie is null)."
+        tests:
+          - relationships:
+              to: ref('dim_company')
+              field: company_sk
+      - name: role_sk
+        description: "FK to dim_role (nullable if rol is null)."
+        tests:
+          - relationships:
+              to: ref('dim_role')
+              field: role_sk
+      - name: unit_sk
+        description: "FK to dim_unit (nullable if unit is null)."
+        tests:
+          - relationships:
+              to: ref('dim_unit')
+              field: unit_sk
+      - name: location_sk
+        description: "FK to dim_location (nullable if locatie_clean is null)."
+        tests:
+          - relationships:
+              to: ref('dim_location')
+              field: location_sk
+      - name: aanvraag_id
+        description: "Natural business key."
+        tests:
+          - not_null
+          - unique
+      - name: source
+        description: "Email source (mail_info, mail_das, mail_aanvragen)."
+      - name: date_received
+        description: "Timestamp when the request was received."
+        tests:
+          - not_null
+
+# ── Exposures ─────────────────────────────────────────────────────
+
+exposures:
+  - name: superset_it_market_dashboard
+    type: dashboard
+    description: >
+      IT Market Dashboard in Superset showing vacancy trends, top skills,
+      and regional distribution of IT job ads in the Netherlands.
+    maturity: low
+    url: "http://localhost:8088/superset/dashboard/it-market/"
+    depends_on:
+      - ref('fact_it_market_snapshot')
+      - ref('fact_it_market_top_skills')
+      - ref('dim_period')
+      - ref('dim_sector')
+      - ref('dim_region')
+    owner:
+      name: "Data Platform Team"
+      email: "data-platform@example.com"
+
+  - name: superset_staffing_demand_dashboard
+    type: dashboard
+    description: >
+      ODP Staffing Demand dashboard showing request volume trends,
+      geographic distribution, business unit breakdown, and top companies.
+    maturity: medium
+    url: "http://localhost:8088/superset/dashboard/odp-staffing/"
+    depends_on:
+      - ref('fact_it_market_snapshot')
+      - ref('fact_it_market_top_skills')
+      - ref('fact_job_postings')
+      - ref('dim_date')
+      - ref('dim_company')
+      - ref('dim_role')
+      - ref('dim_unit')
+      - ref('dim_location')
+    owner:
+      name: "Data Platform Team"
+      email: "data-platform@example.com"

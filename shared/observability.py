@@ -129,9 +129,7 @@ def _configure_observability(service_name: str) -> Observability:
         resource = Resource.create(_resource_attributes(service_name))
 
         tracer_provider = TracerProvider(resource=resource)
-        tracer_provider.add_span_processor(
-            BatchSpanProcessor(OTLPSpanExporter(endpoint=_otlp_endpoint("traces")))
-        )
+        tracer_provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint=_otlp_endpoint("traces"))))
         trace.set_tracer_provider(tracer_provider)
 
         export_interval = int(os.getenv("OTEL_METRICS_EXPORT_INTERVAL", "60000"))
@@ -179,6 +177,7 @@ def _build_pipeline_metrics(meter: object) -> PipelineMetrics:
     )
 
     if Observation is not None:
+
         def _success_cb(_options: object) -> Iterable[Observation]:
             return [
                 Observation(value=value, attributes={"pipeline": name})
@@ -221,10 +220,10 @@ def _build_data_quality_metrics(meter: object) -> DataQualityMetrics:
     )
 
     if Observation is not None:
+
         def _dq_last_run_cb(_options: object) -> Iterable[Observation]:
             return [
-                Observation(value=value, attributes={"dataset": name})
-                for name, value in metrics_obj._last_run.items()
+                Observation(value=value, attributes={"dataset": name}) for name, value in metrics_obj._last_run.items()
             ]
 
         meter.create_observable_gauge(

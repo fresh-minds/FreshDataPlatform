@@ -36,11 +36,7 @@ def _resolve_str(
     fallback_env_var: str,
     default: str,
 ) -> str:
-    return (
-        os.getenv(qa_env_var)
-        or os.getenv(fallback_env_var)
-        or default
-    )
+    return os.getenv(qa_env_var) or os.getenv(fallback_env_var) or default
 
 
 def _resolve_int(
@@ -64,10 +60,7 @@ class WarehouseConfig:
 
     @property
     def dsn(self) -> str:
-        return (
-            f"host={self.host} port={self.port} dbname={self.dbname} "
-            f"user={self.user} password=***"
-        )
+        return f"host={self.host} port={self.port} dbname={self.dbname} user={self.user} password=***"
 
 
 @dataclass(frozen=True)
@@ -115,16 +108,26 @@ def load_environment_config(repo_root: Path) -> QAEnvironment:
     warehouse = WarehouseConfig(
         host=_resolve_str("QA_WAREHOUSE_HOST", "WAREHOUSE_HOST", str(warehouse_payload.get("host", "localhost"))),
         port=_resolve_int("QA_WAREHOUSE_PORT", "WAREHOUSE_PORT", int(warehouse_payload.get("port", 5433))),
-        dbname=_resolve_str("QA_WAREHOUSE_DB", "WAREHOUSE_DB", str(warehouse_payload.get("dbname", "open_data_platform_dw"))),
+        dbname=_resolve_str(
+            "QA_WAREHOUSE_DB", "WAREHOUSE_DB", str(warehouse_payload.get("dbname", "open_data_platform_dw"))
+        ),
         user=_resolve_str("QA_WAREHOUSE_USER", "WAREHOUSE_USER", str(warehouse_payload.get("user", "admin"))),
-        password=_resolve_str("QA_WAREHOUSE_PASSWORD", "WAREHOUSE_PASSWORD", str(warehouse_payload.get("password", "admin"))),
+        password=_resolve_str(
+            "QA_WAREHOUSE_PASSWORD", "WAREHOUSE_PASSWORD", str(warehouse_payload.get("password", "admin"))
+        ),
     )
 
     airflow = AirflowConfig(
-        base_url=_resolve_str("QA_AIRFLOW_BASE_URL", "AIRFLOW_BASE_URL", str(airflow_payload.get("base_url", "http://localhost:8080"))).rstrip("/"),
-        username=_resolve_str("QA_AIRFLOW_USERNAME", "AIRFLOW_ADMIN_USER", str(airflow_payload.get("username", "admin"))),
-        password=_resolve_str("QA_AIRFLOW_PASSWORD", "AIRFLOW_ADMIN_PASSWORD", str(airflow_payload.get("password", "admin"))),
-        dag_id=str(airflow_payload.get("dag_id", "job_market_nl_pipeline")),
+        base_url=_resolve_str(
+            "QA_AIRFLOW_BASE_URL", "AIRFLOW_BASE_URL", str(airflow_payload.get("base_url", "http://localhost:8080"))
+        ).rstrip("/"),
+        username=_resolve_str(
+            "QA_AIRFLOW_USERNAME", "AIRFLOW_ADMIN_USER", str(airflow_payload.get("username", "admin"))
+        ),
+        password=_resolve_str(
+            "QA_AIRFLOW_PASSWORD", "AIRFLOW_ADMIN_PASSWORD", str(airflow_payload.get("password", "admin"))
+        ),
+        dag_id=str(airflow_payload.get("dag_id", "odp_staffing_demand_pipeline")),
     )
 
     metadata = MetadataConfig(

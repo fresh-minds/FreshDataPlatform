@@ -10,7 +10,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from pipelines.job_market_nl.postgres_pipeline import _connect_warehouse, ensure_tables  # noqa: E402
+from pipelines.odp_staffing_demand.postgres_pipeline import _connect_warehouse, ensure_tables  # noqa: E402
 
 
 def main() -> int:
@@ -22,8 +22,10 @@ def main() -> int:
 
     print(
         "[bootstrap] Ensured job market source tables exist "
-        "(job_market_nl.it_market_snapshot, job_market_nl.it_market_top_skills, "
-        "job_market_nl.it_market_region_distribution, job_market_nl.it_market_job_ads_geo).",
+        "(odp_staffing_demand.it_market_snapshot, odp_staffing_demand.it_market_top_skills, "
+        "odp_staffing_demand.it_market_region_distribution, odp_staffing_demand.it_market_job_ads_geo, "
+        "odp_staffing_demand.harvey_nash_vacatures, odp_staffing_demand.cbs_vacancy_rate, "
+        "odp_staffing_demand.uwv_vacancies).",
     )
     return 0
 

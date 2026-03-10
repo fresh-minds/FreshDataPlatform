@@ -25,8 +25,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Watch dbt project files and regenerate dbt docs on change.",
     )
-    parser.add_argument("--project-dir", default="dbt_parallel")
-    parser.add_argument("--profiles-dir", default="dbt_parallel")
+    parser.add_argument("--project-dir", default="dbt")
+    parser.add_argument("--profiles-dir", default="dbt")
     parser.add_argument("--vars", default="{use_seed_data: true}")
     parser.add_argument("--interval", type=float, default=2.0)
     parser.add_argument("--once", action="store_true")

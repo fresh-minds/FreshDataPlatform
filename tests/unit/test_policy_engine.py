@@ -1,4 +1,5 @@
 """Unit tests for GovernancePolicyEngine — no file I/O or warehouse required."""
+
 from __future__ import annotations
 
 import pytest
@@ -53,9 +54,7 @@ class TestWhenClause:
         assert results == []
 
     def test_policy_applies_when_pii_columns_present(self):
-        policies = [
-            {"policy": "pii_check", "when": {"pii_columns_present": True}, "require": ["pii_classified"]}
-        ]
+        policies = [{"policy": "pii_check", "when": {"pii_columns_present": True}, "require": ["pii_classified"]}]
         engine = _engine(policies)
         dataset = _dataset(pii_columns=("email",), pii_classifications={})
         results = engine.evaluate(dataset)
@@ -63,9 +62,7 @@ class TestWhenClause:
         assert not results[0].passed
 
     def test_policy_skipped_when_pii_columns_absent(self):
-        policies = [
-            {"policy": "pii_check", "when": {"pii_columns_present": True}, "require": ["pii_classified"]}
-        ]
+        policies = [{"policy": "pii_check", "when": {"pii_columns_present": True}, "require": ["pii_classified"]}]
         engine = _engine(policies)
         results = engine.evaluate(_dataset(pii_columns=()))
         assert results == []

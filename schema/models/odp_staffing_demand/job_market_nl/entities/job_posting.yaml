@@ -1,0 +1,112 @@
+entity: job_posting
+domain: odp_staffing_demand
+description: "Individual job advertisement from any source"
+type: transactional
+
+layer_mapping:
+  bronze_source: harvey_nash_vacatures
+  silver_model: slv_odp_staffing_demand__harvey_nash_job_postings
+  gold_model: fact_job_postings
+  gold_dimensions: [dim_company, dim_region]
+
+attributes:
+  - name: job_id
+    type: text
+    primary_key: true
+    not_null: true
+    description: "Unique identifier for the job posting"
+
+  - name: title
+    type: text
+    not_null: true
+    description: "Job title"
+
+  - name: company
+    type: text
+    description: "Hiring company name"
+    conformed_dimension: dim_company
+
+  - name: location
+    type: text
+    description: "City or area name"
+
+  - name: province
+    type: text
+    description: "Dutch province (e.g. Noord-Holland)"
+    conformed_dimension: dim_region
+
+  - name: contract_type
+    type: text
+    accepted_values: [permanent, temporary, freelance, internship]
+    description: "Type of employment contract"
+
+  - name: description
+    type: text
+    description: "Full job posting description"
+
+  - name: salary_min
+    type: double_precision
+    description: "Minimum salary (EUR)"
+    constraints:
+      min: 0
+
+  - name: salary_max
+    type: double_precision
+    description: "Maximum salary (EUR)"
+    constraints:
+      min: 0
+
+  - name: salary_raw
+    type: text
+    description: "Original unprocessed salary text from source"
+
+  - name: url
+    type: text
+    description: "Original job posting URL"
+
+  - name: posted_date
+    type: timestamptz
+    description: "When the job was posted"
+
+  - name: source
+    type: text
+    not_null: true
+    accepted_values: [HARVEY_NASH, ADZUNA, UWV]
+    description: "Data source identifier"
+
+sources:
+  - source_name: harvey_nash
+    dag: harvey_nash_vacatures_pipeline
+    extraction: playwright_dom_scrape
+    schedule: "@daily"
+    column_mapping:
+      id: job_id
+      title: title
+      company: company
+      location: location
+      province: province
+      salary_min: salary_min
+      salary_max: salary_max
+      salary_raw: salary_raw
+      url: url
+
+quality:
+  freshness:
+    column: ingestion_timestamp
+    max_age_hours: 48
+    severity: high
+  checks:
+    - type: unique
+      columns: [job_id]
+    - type: non_null
+      columns: [job_id, title, source]
+    - type: value_range
+      column: salary_min
+      min: 0
+      max_invalid_pct: 5
+
+governance:
+  sensitivity: public
+  pii_columns: []
+  retention_days: 365
+  require_rbac: false

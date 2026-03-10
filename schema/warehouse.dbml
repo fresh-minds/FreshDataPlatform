@@ -7,9 +7,10 @@ Project open_data_platform_dw {
 }
 
 // ===========================================
-// JOB MARKET NL Domain
-// Pipeline: dags/job_market_nl_dag.py
-// dbt: dbt_parallel/models/job_market_nl/
+// ODP Staffing Demand Domain (logical canonical)
+// Canonical pipeline: dags/odp_staffing_demand_dag.py
+// Legacy compatibility shim: dags/odp_staffing_demand_dag.py
+// Transitional physical schema remains odp_staffing_demand
 // ===========================================
 
 Table it_market_snapshot {
@@ -20,14 +21,14 @@ Table it_market_snapshot {
   vacancy_rate double [note: 'Vacancy rate as percentage (vacancies / total positions)']
   job_ads_count int [not null, note: 'Number of IT job ads found from Adzuna']
   loaded_at timestamptz [not null, default: `now()`, note: 'Pipeline load timestamp']
-  Note: 'Latest IT market snapshot combining CBS vacancy rate with Adzuna job ads counts. Refreshed daily by job_market_nl_pipeline DAG.'
+  Note: 'Latest IT market snapshot combining CBS vacancy rate with Adzuna job ads counts. Refreshed daily by odp_staffing_demand_pipeline (legacy odp_staffing_demand_pipeline delegates during migration).'
 }
 
 Table it_market_top_skills {
   skill text [pk, not null, note: 'Skill name extracted from job ad descriptions']
   count int [not null, note: 'Number of job ads mentioning this skill']
   loaded_at timestamptz [not null, default: `now()`, note: 'Pipeline load timestamp']
-  Note: 'Top skills extracted from IT job advertisements, ranked by frequency. Refreshed daily by job_market_nl_pipeline DAG.'
+  Note: 'Top skills extracted from IT job advertisements, ranked by frequency. Refreshed daily by odp_staffing_demand_pipeline (legacy odp_staffing_demand_pipeline delegates during migration).'
 }
 
 Table it_market_region_distribution {
@@ -37,7 +38,7 @@ Table it_market_region_distribution {
   latitude double [not null, note: 'Province centroid latitude']
   longitude double [not null, note: 'Province centroid longitude']
   loaded_at timestamptz [not null, default: `now()`, note: 'Pipeline load timestamp']
-  Note: 'Regional distribution of IT job ads across Dutch provinces. Refreshed daily by job_market_nl_pipeline DAG.'
+  Note: 'Regional distribution of IT job ads across Dutch provinces. Refreshed daily by odp_staffing_demand_pipeline (legacy odp_staffing_demand_pipeline delegates during migration).'
 }
 
 Table it_market_job_ads_geo {
@@ -47,5 +48,167 @@ Table it_market_job_ads_geo {
   longitude double [not null, note: 'Longitude of the job ad location']
   location_label text [note: 'Human-readable location label']
   loaded_at timestamptz [not null, default: `now()`, note: 'Pipeline load timestamp']
-  Note: 'Geo-coded individual IT job ad locations for map visualizations. Refreshed daily by job_market_nl_pipeline DAG.'
+  Note: 'Geo-coded individual IT job ad locations for map visualizations. Refreshed daily by odp_staffing_demand_pipeline (legacy odp_staffing_demand_pipeline delegates during migration).'
+}
+
+// ==========================================================================
+// GOLD LAYER — Conformed Dimensions
+// Schema: gold
+// Built by: dbt run --select gold
+// Triggered by: dags/odp_staffing_demand_dag.py > gold.run_dbt_gold
+// Source: dbt/models/gold/_shared/
+// ==========================================================================
+
+Table gold.dim_date {
+  date_sk      text    [pk, not null, note: 'Surrogate key — MD5 hash of date_key']
+  date_key     date    [not null, unique]
+  year         int     [not null]
+  quarter      int     [not null, note: '1–4']
+  month        int     [not null, note: '1–12']
+  week_of_year int     [not null, note: 'ISO week number']
+  day_of_week  int     [not null, note: 'ISO day of week (1=Mon, 7=Sun)']
+  is_weekend   boolean [not null]
+  Note: 'Conformed date dimension: continuous calendar 2020-01-01 to 2030-12-31 (dbt_utils.date_spine). Shared across all domains.'
+}
+
+Table gold.dim_region {
+  region_sk   text  [pk, not null, note: 'Surrogate key — MD5 hash of region_name']
+  region_name text  [not null, unique]
+  latitude    float [not null, note: 'Province centroid latitude']
+  longitude   float [not null, note: 'Province centroid longitude']
+  Note: 'Conformed dimension: Dutch provinces with centroid coordinates. Sourced from it_market_region_distribution.'
+}
+
+Table gold.dim_company {
+  company_sk   text [pk, not null, note: 'Surrogate key — MD5 hash of company_name']
+  company_name text [not null, unique]
+  Note: 'Conformed dimension: hiring companies. Sourced from harvey_nash_vacatures. Shared across odp_staffing_demand, finance, and HR domains.'
+}
+
+// ==========================================================================
+// GOLD LAYER — ODP Staffing Demand Domain Facts and Dimensions
+// Schema: gold
+// Transitional source path: dbt/models/gold/odp_staffing_demand/
+// ==========================================================================
+
+Table gold.dim_period {
+  period_sk    text [pk, not null, note: 'Surrogate key — MD5 hash of period_key']
+  period_key   text [not null, unique, note: 'Natural business key e.g. 2025KW04']
+  period_label text [not null, note: 'Human-readable label e.g. 2025 Q4']
+  Note: 'IT market period dimension. Sourced from it_market_snapshot.'
+}
+
+Table gold.dim_sector {
+  sector_sk   text [pk, not null, note: 'Surrogate key — MD5 hash of sector_name']
+  sector_name text [not null, unique, note: 'CBS SIC2008 industry sector name']
+  Note: 'IT market sector dimension. Sourced from it_market_snapshot.'
+}
+
+Table gold.fact_it_market_snapshot {
+  snapshot_sk           text        [pk, not null, note: 'Surrogate key — MD5 hash of period_key + sector_name']
+  period_sk             text        [not null, ref: > gold.dim_period.period_sk]
+  sector_sk             text        [not null, ref: > gold.dim_sector.sector_sk]
+  period_key            text        [not null]
+  period_label          text
+  sector_name           text
+  vacancies             float       [note: 'CBS unfilled vacancy count']
+  vacancy_rate          float       [note: 'CBS vacancy rate percentage']
+  job_ads_count         int         [not null, note: 'Adzuna job ad count at snapshot time']
+  regions_with_ads      int         [not null, note: 'Dutch provinces with at least one ad']
+  regional_ads_total    int         [not null]
+  distinct_skills_count int         [not null]
+  total_skill_mentions  int         [not null]
+  loaded_at             timestamptz
+  Note: 'Star-schema fact: IT market snapshot enriched with regional and skills context. Refreshed daily.'
+}
+
+Table gold.fact_it_market_top_skills {
+  skill_sk      text        [pk, not null, note: 'Surrogate key — MD5 hash of skill']
+  skill         text        [not null]
+  mention_count int         [not null, note: 'Job ad mention count']
+  loaded_at     timestamptz
+  Note: 'Skill demand ranking from IT job advertisements.'
+}
+
+Table gold.fact_job_postings {
+  posting_sk          text        [pk, not null, note: 'Surrogate key — MD5 hash of source_system + posting_id']
+  posting_id          text        [not null, note: 'Canonical business key (job_id or aanvraag_id)']
+  posting_type        text        [not null, note: 'external_posting or internal_request']
+  source_system       text        [not null, note: 'harvey_nash or fabric_landing']
+  date_sk             text        [ref: > gold.dim_date.date_sk, note: 'nullable; mainly internal_request']
+  region_sk           text        [ref: > gold.dim_region.region_sk, note: 'nullable; mainly external_posting']
+  company_sk          text        [ref: > gold.dim_company.company_sk]
+  role_sk             text        [ref: > gold.dim_role.role_sk, note: 'nullable; mainly internal_request']
+  unit_sk             text        [ref: > gold.dim_unit.unit_sk, note: 'nullable; mainly internal_request']
+  location_sk         text        [ref: > gold.dim_location.location_sk, note: 'nullable; mainly internal_request']
+  job_id              text        [note: 'Legacy external posting ID']
+  aanvraag_id         text        [note: 'Legacy internal request ID']
+  title               text
+  company_name        text
+  location_name       text
+  location            text        [note: 'External city name']
+  province            text        [note: 'Dutch province (external postings)']
+  contract_type       text
+  description         text
+  salary_min          float
+  salary_max          float
+  salary_raw          text
+  url                 text
+  posted_date         timestamptz
+  date_received       timestamptz
+  source              text        [not null]
+  ingestion_timestamp timestamptz
+  sender_name         text
+  subject_edited      text
+  role_name           text
+  role_cluster        text
+  unit_name           text
+  deadline            text
+  Note: 'Canonical staffing demand fact table consolidating external postings and internal requests.'
+}
+
+// ==========================================================================
+// GOLD LAYER — Fabric Landing Dimensions & Facts
+// Schema: gold
+// Source: dbt/models/gold/odp_staffing_demand/ (dim_role, dim_unit, dim_location)
+// ==========================================================================
+
+Table gold.dim_role {
+  role_sk      text [pk, not null, note: 'Surrogate key — MD5 hash of role_name']
+  role_name    text [not null, unique, note: 'Job role name']
+  role_cluster text [note: 'Role cluster grouping (e.g. Cloud DevOps)']
+  Note: 'Job roles with cluster groupings. Sourced from fabric_landing.dim_rol.'
+}
+
+Table gold.dim_unit {
+  unit_sk   text [pk, not null, note: 'Surrogate key — MD5 hash of unit_name']
+  unit_name text [not null, unique, note: 'Business unit (Data, Software, Security, ...)']
+  Note: 'Business units (9 entries). Sourced from fabric_landing.dim_unit.'
+}
+
+Table gold.dim_location {
+  location_sk   text [pk, not null, note: 'Surrogate key — MD5 hash of location_name']
+  location_name text [not null, unique, note: 'Cleaned location name']
+  Note: 'Locations derived from fabric staffing requests (locatie_clean).'
+}
+
+Table gold.fact_aanvragen {
+  aanvraag_sk    text        [pk, not null, note: 'Compatibility key derived from posting_id']
+  date_sk        text        [ref: > gold.dim_date.date_sk, note: 'nullable']
+  company_sk     text        [ref: > gold.dim_company.company_sk, note: 'nullable']
+  role_sk        text        [ref: > gold.dim_role.role_sk, note: 'nullable']
+  unit_sk        text        [ref: > gold.dim_unit.unit_sk, note: 'nullable']
+  location_sk    text        [ref: > gold.dim_location.location_sk, note: 'nullable']
+  aanvraag_id    text        [not null, unique]
+  source         text        [not null, note: 'mail_info, mail_das, or mail_aanvragen']
+  sender_name    text
+  subject_edited text
+  role_name      text        [note: 'Denormalized from dim_role']
+  role_cluster   text        [note: 'Denormalized from dim_role']
+  company_name   text        [note: 'Denormalized from dim_company']
+  unit_name      text        [note: 'Denormalized from dim_unit']
+  location_name  text        [note: 'Denormalized from dim_location']
+  deadline       text
+  date_received  timestamptz [not null]
+  Note: 'Compatibility view over gold.fact_job_postings filtered to posting_type=internal_request.'
 }

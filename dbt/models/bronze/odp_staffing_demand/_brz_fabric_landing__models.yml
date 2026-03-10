@@ -1,0 +1,41 @@
+version: 2
+
+models:
+  - name: brz_odp_staffing_demand__fl_fact_aanvragen
+    description: >
+      Bronze: fabric_landing staffing requests, cleaned and typed.
+      PII columns (sender_address) and large text (text_body_clean) excluded.
+      'None' string sentinels converted to SQL NULL.
+    columns:
+      - name: id
+        description: "Unique request identifier."
+        tests:
+          - not_null
+      - name: date_received
+        description: "Timestamp when the request was received."
+        tests:
+          - not_null
+
+  - name: brz_odp_staffing_demand__fl_dim_organisatie
+    description: "Bronze: fabric_landing organisations, cleaned and lowercased."
+    columns:
+      - name: organisatie
+        description: "Organisation name."
+        tests:
+          - not_null
+
+  - name: brz_odp_staffing_demand__fl_dim_rol
+    description: "Bronze: fabric_landing roles with cluster groupings."
+    columns:
+      - name: rol
+        description: "Job role name."
+        tests:
+          - not_null
+
+  - name: brz_odp_staffing_demand__fl_dim_unit
+    description: "Bronze: fabric_landing business units."
+    columns:
+      - name: unit_naam
+        description: "Business unit name."
+        tests:
+          - not_null

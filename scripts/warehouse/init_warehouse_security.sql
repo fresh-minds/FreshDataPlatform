@@ -20,8 +20,8 @@ DECLARE
   etl_schema text;
 BEGIN
   FOREACH analyst_schema IN ARRAY ARRAY[
-    'job_market_nl',
-    'job_market_nl_dbt'
+    'odp_staffing_demand',
+    'odp_staffing_demand_dbt'
   ]
   LOOP
     IF EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = analyst_schema) THEN
@@ -31,7 +31,7 @@ BEGIN
     END IF;
   END LOOP;
 
-  FOREACH etl_schema IN ARRAY ARRAY['job_market_nl']
+  FOREACH etl_schema IN ARRAY ARRAY['odp_staffing_demand']
   LOOP
     IF EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = etl_schema) THEN
       EXECUTE format('GRANT USAGE ON SCHEMA %I TO odp_etl_writer', etl_schema);

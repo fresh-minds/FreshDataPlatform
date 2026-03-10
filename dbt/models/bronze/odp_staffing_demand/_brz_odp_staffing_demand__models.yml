@@ -1,0 +1,111 @@
+version: 2
+
+models:
+  - name: brz_odp_staffing_demand__it_market_snapshot
+    description: "Bronze IT market snapshot with explicit types and null-filtered period keys."
+    columns:
+      - name: period_key
+        description: "Period identifier (e.g. 2024Q1). Primary business key."
+        tests:
+          - not_null
+          - unique
+      - name: period_label
+        tests:
+          - not_null
+      - name: sector_name
+        tests:
+          - not_null
+      - name: vacancies
+        description: "Number of vacancies. May be null if CBS data is unavailable."
+      - name: vacancy_rate
+        description: "Vacancy rate percentage. May be null if CBS data is unavailable."
+      - name: job_ads_count
+        tests:
+          - not_null
+
+  - name: brz_odp_staffing_demand__it_market_top_skills
+    description: "Bronze top skills with trimmed names and renamed count column."
+    columns:
+      - name: skill
+        description: "Trimmed, non-empty skill name."
+        tests:
+          - not_null
+          - unique
+      - name: mention_count
+        description: "Number of job ads mentioning this skill (renamed from `count`)."
+        tests:
+          - not_null
+
+  - name: brz_odp_staffing_demand__it_market_region_distribution
+    description: "Bronze region distribution with validated geo coordinates."
+    columns:
+      - name: region
+        tests:
+          - not_null
+          - unique
+      - name: job_ads_count
+        tests:
+          - not_null
+      - name: share_pct
+        tests:
+          - not_null
+      - name: latitude
+        tests:
+          - not_null
+      - name: longitude
+        tests:
+          - not_null
+
+  - name: brz_odp_staffing_demand__it_market_job_ads_geo
+    description: "Bronze geo-coded job ads with trimmed labels."
+    columns:
+      - name: job_id
+        tests:
+          - not_null
+          - unique
+      - name: region
+        tests:
+          - not_null
+      - name: latitude
+        tests:
+          - not_null
+      - name: longitude
+        tests:
+          - not_null
+
+  - name: brz_odp_staffing_demand__harvey_nash_vacatures
+    description: "Bronze Harvey Nash NL job postings with explicit types, trimmed strings, and null-filtered job IDs."
+    columns:
+      - name: job_id
+        description: "Numeric job ID (cast from source 'id' field). Primary business key."
+        tests:
+          - not_null
+          - unique
+      - name: title
+        description: "Job title."
+        tests:
+          - not_null
+      - name: company
+        description: "Hiring company name (always 'Harvey Nash' at card level)."
+      - name: location
+        description: "City name extracted from 'City, Province' card text."
+      - name: province
+        description: "Dutch province extracted from 'City, Province' card text."
+      - name: contract_type
+        description: "Contract type — empty at card level, available on detail page."
+      - name: description
+        description: "Job description — empty at card level, available on detail page."
+      - name: salary_min
+        description: "Minimum salary or rate parsed from card text (nullable)."
+      - name: salary_max
+        description: "Maximum salary or rate parsed from card text (nullable)."
+      - name: salary_raw
+        description: "Raw salary text from the card (e.g. 'Tarief in overleg')."
+      - name: url
+        description: "Canonical URL of the job posting."
+      - name: posted_date
+        description: "Posting date — empty at card level."
+      - name: ingestion_timestamp
+        description: "Timestamp when the row was ingested."
+        tests:
+          - not_null

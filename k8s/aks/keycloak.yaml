@@ -80,7 +80,8 @@ data:
                 "standardFlowEnabled": true,
                 "directAccessGrantsEnabled": true,
                 "redirectUris": [
-                    "https://minio.__FRONTEND_DOMAIN__/oauth_callback"
+                    "https://minio.__FRONTEND_DOMAIN__/oauth_callback",
+                    "https://minio.__FRONTEND_DOMAIN__/callback"
                 ],
                 "webOrigins": [
                     "https://minio.__FRONTEND_DOMAIN__"
@@ -254,6 +255,21 @@ data:
                         "temporary": false
                     }
                 ]
+            },
+            {
+                "username": "demo",
+                "enabled": true,
+                "email": "demo@example.com",
+                "emailVerified": true,
+                "firstName": "Demo",
+                "lastName": "User",
+                "credentials": [
+                    {
+                        "type": "password",
+                        "value": "${KEYCLOAK_DEMO_USER_PASSWORD}",
+                        "temporary": false
+                    }
+                ]
             }
         ]
     }
@@ -286,6 +302,7 @@ spec:
               export KEYCLOAK_GRAFANA_CLIENT_SECRET="${KEYCLOAK_GRAFANA_CLIENT_SECRET:-change_me_keycloak_grafana_secret}"
               export KEYCLOAK_GATEWAY_CLIENT_ID="${KEYCLOAK_GATEWAY_CLIENT_ID:-platform-gateway}"
               export KEYCLOAK_GATEWAY_CLIENT_SECRET="${KEYCLOAK_GATEWAY_CLIENT_SECRET:-change_me_keycloak_gateway_secret}"
+              export KEYCLOAK_DEMO_USER_PASSWORD="${KEYCLOAK_DEMO_USER_PASSWORD:-demo}"
               envsubst < /realm/odp-realm.json > /import/odp-realm.json
           envFrom:
             - secretRef:
@@ -303,6 +320,22 @@ spec:
           ports:
             - containerPort: 8090
               name: http
+          readinessProbe:
+            httpGet:
+              path: /realms/master
+              port: 8090
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /realms/master
+              port: 8090
+            initialDelaySeconds: 90
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
           env:
             - name: KC_BOOTSTRAP_ADMIN_USERNAME
               valueFrom:

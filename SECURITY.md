@@ -26,11 +26,9 @@ Mandatory runtime secret requirements:
 - `KEYCLOAK_DEMO_AUTO_LOGIN` is `false` by default. Setting it to `true` enables automatic credential submission in the Keycloak login theme and must remain disabled outside isolated demo environments.
 - `SUPERSET_OAUTH_DEFAULT_ROLE` defaults to `Gamma`; using OAuth auto-registration with `Admin` now requires explicit opt-in (`SUPERSET_ALLOW_AUTO_ADMIN_ROLE=true`).
 - Airflow metadata Postgres manifests use `POSTGRES_HOST_AUTH_METHOD=scram-sha-256`; keep the Service cluster-internal and add explicit `pg_hba`/network policy controls for production.
+- Airflow OAuth role mapping is claim-driven (`admin`/`airflow_admin` -> `Admin`; `airflow_op` -> `Op`; `airflow_user` -> `User`; `airflow_viewer` -> `Viewer`) with default fallback role `Viewer`; avoid broadening `AIRFLOW_OAUTH_DEFAULT_ROLE` unless required.
 - DataHub runtime components authenticate with `DATAHUB_MYSQL_USER` / `DATAHUB_MYSQL_PASSWORD`; avoid remote MySQL root access for app traffic.
-- Source SP1 portal automation is fail-closed by default: set `SP1_SCRAPING_APPROVED=true` only when you have explicit permission to automate that portal.
-- Restrict Source SP1 automation with `SP1_ALLOWED_HOSTS` so credentials are not used on unexpected hosts.
-- Keep `SP1_ALLOW_AMBIGUOUS_LOGIN=false` in shared/prod environments to avoid scraping when authentication state is uncertain.
-- Keep `SP1_CAPTURE_HTML_SNAPSHOT=false` unless trace snapshots are strictly required for debugging/compliance evidence.
+- AKS MinIO SSO defaults to Keycloak `odp` realm; if this exceeds your trust boundary, set `KEYCLOAK_REALM_K8S` and `MINIO_KEYCLOAK_OIDC_DISCOVERY_URL_K8S` to a dedicated realm and reconcile the `minio` client there.
 
 #### Option A: Local `.env` File (Development)
 ```bash

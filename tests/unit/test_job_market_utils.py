@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from pipelines.job_market_nl.utils import (
+from pipelines.odp_staffing_demand.utils import (
     coalesce_float,
     coalesce_str,
     extract_skills_from_text,

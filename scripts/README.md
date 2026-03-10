@@ -14,18 +14,189 @@ canonical subfolder paths.
 - `scripts/sso/`: SSO/OIDC helpers and reporting.
 - `scripts/superset/`: Superset setup/bootstrap/config assets.
 - `scripts/testing/`: E2E/SSO/CI validation scripts.
+- `scripts/testing/verify_compose_minimal.sh`: smoke checks for the bare-minimum Docker Compose stack (`docker-compose.minimal.yml`).
 - `scripts/k8s/`: kind/Kubernetes helper scripts.
 - `scripts/aks/`: AKS provisioning/teardown scripts.
+- `scripts/aks/scaleway_redeploy_all.sh`: one-command Scaleway redeploy helper (Terraform + workloads + smoke checks).
+- `scripts/aks/scaleway_destroy_all.sh`: dedicated Terraform-backed Scaleway teardown helper.
 
 AKS modular helpers:
 - `scripts/aks/aks_up_lib.sh`: shared helper functions used by `scripts/aks/aks_up.sh`
 	(retryable rollout waits, diagnostics, namespaced apply helper, and image build/push helper).
-- `scripts/aks/aks_update_images.sh`: minimal AKS image-only updater (build/push selected images, patch existing deployments, wait rollout).
+- `scripts/aks/aks_update_images.sh`: minimal AKS image-only updater (build/push selected images, patch existing deployments, wait rollout; refreshes Airflow webserver ConfigMap when `AKS_IMAGES` includes `airflow`).
+
+## Scaleway teardown script
+
+Summary:
+- `scripts/aks/scaleway_destroy_all.sh` destroys all resources managed by `terraform/scaleway`.
+- It supports dry-run mode for safe review before deletion.
+- Optional `--purge-leftovers` also removes leftover Registry namespaces and LB IPs in the same Scaleway project.
+
+Prerequisites:
+- `terraform` installed.
+- `SCW_ACCESS_KEY`, `SCW_SECRET_KEY`, and `SCW_DEFAULT_PROJECT_ID` exported (for example via `.env`).
+- Existing Terraform state in `terraform/scaleway/terraform.tfstate` for the environment you want to destroy.
+
+Dry-run (plan-only):
+
+```bash
+set -a && source .env && set +a
+./scripts/aks/scaleway_destroy_all.sh --dry-run --tf-vars-file terraform/environments/scaleway-dev.tfvars
+```
+
+Dry-run with leftover purge preview:
+
+```bash
+set -a && source .env && set +a
+./scripts/aks/scaleway_destroy_all.sh --dry-run --purge-leftovers --tf-vars-file terraform/environments/scaleway-dev.tfvars
+```
+
+Destroy:
+
+```bash
+set -a && source .env && set +a
+./scripts/aks/scaleway_destroy_all.sh --yes --tf-vars-file terraform/environments/scaleway-dev.tfvars
+```
+
+Destroy + purge leftovers:
+
+```bash
+set -a && source .env && set +a
+./scripts/aks/scaleway_destroy_all.sh --yes --purge-leftovers --tf-vars-file terraform/environments/scaleway-dev.tfvars
+```
+
+Make target wrappers:
+
+```bash
+DRY_RUN=true make scaleway-destroy-all
+make scaleway-destroy-all
+PURGE_LEFTOVERS=true make scaleway-destroy-all
+```
+
+Verification:
+
+```bash
+terraform -chdir=terraform/scaleway state list
+```
+
+Expected result:
+- No resources are listed in Terraform state.
+
+## Scaleway redeploy script
+
+Summary:
+- `scripts/aks/scaleway_redeploy_all.sh` runs a full Scaleway redeploy flow in one command.
+- Default flow: Terraform apply in `terraform/scaleway`, then workload deployment via `scripts/aks/aks_up.sh`, then `scripts/testing/verify_aks_smoke.sh`.
+- Supports partial runs (`--skip-terraform-apply`, `--skip-deploy`, `--skip-smoke`, `--skip-image-build`) and dry-run Terraform plan (`--dry-run`).
+- Before deployment, it runs a registry preflight push check to fail fast when the active `SCW_SECRET_KEY` lacks push rights (`--skip-registry-preflight` to disable).
+- For Scaleway pushes, the flow defaults to classic Docker push plus legacy Docker builder (`AKS_USE_LEGACY_DOCKER_BUILDER=true`) to avoid intermittent BuildKit layer push stalls (`insufficient_scope` + prolonged `Waiting` states).
+- The build platform defaults to `linux/amd64` and can be overridden via `AKS_DOCKER_BUILD_PLATFORM`.
+- If legacy builder fails with a platform mismatch (`does not provide the specified platform`), the script automatically retries that image build using `docker buildx build --load` for the requested platform.
+- If Terraform apply hits Scaleway IAM 409 conflicts for pre-existing secrets-reader resources, the script attempts one automatic import+retry.
+- If Terraform apply hits a duplicate default pool-name conflict, the script attempts one automatic pool import+retry.
+- If Terraform apply hits a transient Kubernetes API timeout while creating Helm releases, the script retries apply automatically (`SCW_TERRAFORM_APPLY_RETRIES`, default `4`; `SCW_TERRAFORM_APPLY_RETRY_DELAY_SECONDS`, default `20`).
+- If `scw` CLI is unavailable but `KUBE_CONFIG_COMMAND` references `scw`, the script falls back to the current kubeconfig context.
+
+Prerequisites:
+- `terraform`, `kubectl`, `docker`, `jq`, `yq`, `kompose`, `curl`, and `openssl` installed.
+- `SCW_ACCESS_KEY`, `SCW_SECRET_KEY`, and `SCW_DEFAULT_PROJECT_ID` exported (for example via `.env`).
+- `terraform/environments/scaleway-dev.tfvars` present (or provide `--tf-vars-file`).
+
+Constraints:
+- The active Scaleway key must have Container Registry push permissions for the target registry namespace, otherwise image push fails with `insufficient_scope`.
+
+Dry-run (plan-only):
+
+```bash
+set -a && source .env && set +a
+./scripts/aks/scaleway_redeploy_all.sh --dry-run --tf-vars-file terraform/environments/scaleway-dev.tfvars
+```
+
+Full redeploy:
+
+```bash
+set -a && source .env && set +a
+./scripts/aks/scaleway_redeploy_all.sh --yes --tf-vars-file terraform/environments/scaleway-dev.tfvars
+```
+
+Partial examples:
+
+```bash
+./scripts/aks/scaleway_redeploy_all.sh --yes --skip-smoke
+./scripts/aks/scaleway_redeploy_all.sh --yes --skip-terraform-apply
+./scripts/aks/scaleway_redeploy_all.sh --yes --skip-terraform-apply --skip-image-build --minimal
+./scripts/aks/scaleway_redeploy_all.sh --yes --skip-registry-preflight
+```
+
+Make target wrapper:
+
+```bash
+DRY_RUN=true make scaleway-redeploy-all
+make scaleway-redeploy-all
+SKIP_SMOKE=true make scaleway-redeploy-all
+SKIP_TERRAFORM_APPLY=true SKIP_IMAGE_BUILD=true make scaleway-redeploy-all-minimal
+```
 
 ## Conventions for new scripts
 
 - Put domain-specific scripts in the matching subfolder.
 - If relocating an existing script, update Makefile/CI/docs references in the same change.
+
+## ODP Staffing Demand entrypoints (Phase 1)
+
+Summary:
+- Canonical pipeline entrypoints are now exposed under `odp_staffing_demand` names.
+- Legacy `job_market` entrypoints remain as compatibility aliases during migration.
+
+Canonical scripts:
+- `scripts/pipeline/run_odp_staffing_demand_pipeline.py`
+- `scripts/pipeline/run_odp_staffing_demand_metadata_pipeline.py`
+- `scripts/superset/superset_bootstrap_odp_staffing_demand.py`
+
+Verification:
+```bash
+make run-odp-staffing-demand
+make run-odp-staffing-demand-metadata
+```
+
+Phase 2 additions:
+- Canonical import path package added: `pipelines/odp_staffing_demand/`.
+- `scripts/pipeline/run_local.py` now accepts canonical pipeline IDs like:
+  - `odp_staffing_demand.bronze_adzuna_jobs`
+- Legacy `odp_staffing_demand.*` pipeline IDs remain available as compatibility aliases.
+
+## Superset metadata dashboard bootstrap
+
+Summary:
+- `scripts/superset/superset_bootstrap_platform_metadata.py` builds Superset datasets/charts/dashboard
+  from warehouse operational metadata in schema `platform_metadata`.
+- `scripts/platform/bootstrap_all.sh` runs this script automatically during the Superset bootstrap step.
+
+Prerequisites:
+- Superset container is running (`open-data-platform-superset`).
+- Warehouse contains initialized `platform_metadata` tables (for example via
+  `scripts/warehouse/init_platform_metadata.py` or `make bootstrap-all`).
+
+Run manually:
+
+```bash
+docker exec open-data-platform-superset python /app/scripts/superset/superset_bootstrap_platform_metadata.py
+```
+
+Verification:
+
+```bash
+docker exec open-data-platform-superset sh -lc 'python - <<"PY"
+import sqlite3
+conn = sqlite3.connect("/app/superset_home/superset.db")
+cur = conn.cursor()
+cur.execute("select dashboard_title from dashboards order by dashboard_title")
+print([row[0] for row in cur.fetchall()])
+PY'
+```
+
+Expected dashboard title includes:
+- `Platform Metadata Operations`
 
 ## Security-sensitive script behavior
 
@@ -82,8 +253,19 @@ make dbt-docs-watch
 ```
 
 This starts required services and runs `scripts/platform/watch_dbt_docs.py`,
-which regenerates `dbt_parallel/target/` docs artifacts automatically whenever
+which regenerates `dbt/target/` docs artifacts automatically whenever
 dbt project files change.
+
+## dbt bootstrap runner threading
+
+`scripts/pipeline/run_dbt.sh` now runs dbt commands with
+`DBT_THREADS=1` by default to avoid Postgres DDL deadlocks during bootstrap.
+
+Override when needed:
+
+```bash
+DBT_THREADS=4 scripts/pipeline/run_dbt.sh
+```
 
 ## Kubernetes script logging
 
@@ -216,6 +398,15 @@ Use this to iterate faster after an initial `make k8s-aks-up`:
 ```bash
 make k8s-aks-update-images
 ```
+
+When `AKS_IMAGES` includes `airflow`, the script also:
+- refreshes ConfigMap `airflow-webserver-config` from
+  `airflow/webserver_config.py` before the Airflow deployment rollout, and
+- refreshes `dbt-docs` by patching deployment `dbt-docs` initContainer image
+  to the same Airflow image and bumping annotation `dbt-docs/build-id`.
+  The initContainer update preserves existing command/env/volume fields.
+Optional override: set `DBT_DOCS_BUILD_ID=<custom-id>` to control that
+annotation value.
 
 Update only selected services:
 
