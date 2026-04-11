@@ -1,9 +1,9 @@
 name: AKS Scheduled Power
 
 on:
-  schedule:
-    - cron: "0 8 * * 1-5"
-    - cron: "0 16 * * 1-5"
+  # schedule:
+  #   - cron: "0 8 * * 1-5"
+  #   - cron: "0 16 * * 1-5"
   workflow_dispatch:
     inputs:
       action:
